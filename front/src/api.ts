@@ -20,6 +20,7 @@ export type CameraCandidate = {
   onvif: boolean
   confidence?: 'high' | 'medium' | 'low'
   reason?: string
+  manufacturer?: string
   model?: string
 }
 

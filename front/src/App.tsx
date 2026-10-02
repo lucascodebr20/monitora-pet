@@ -47,7 +47,7 @@ function DashboardView({ data }: { data: Dashboard | null }) {
   </>
 }
 
-function CamerasView({ cameras, refresh }: { cameras: Camera[]; refresh: () => Promise<void> }) {
+function CamerasView({ cameras, zones, refresh }: { cameras: Camera[]; zones: Zone[]; refresh: () => Promise<void> }) {
   const [open, setOpen] = useState(false)
   const [discovering, setDiscovering] = useState(false)
   const [candidates, setCandidates] = useState<CameraCandidate[]>([])
@@ -55,6 +55,11 @@ function CamerasView({ cameras, refresh }: { cameras: Camera[]; refresh: () => P
   const [reconnectCamera, setReconnectCamera] = useState<Camera | null>(null)
   const [credentials, setCredentials] = useState({ username: '', password: '', rtsp_url: '' })
   const [error, setError] = useState('')
+  const [zoneOverlays, setZoneOverlays] = useState<string[]>([])
+
+  function toggleZoneOverlay(cameraId: string) {
+    setZoneOverlays(current => current.includes(cameraId) ? current.filter(id => id !== cameraId) : [...current, cameraId])
+  }
 
   async function discover() {
     setDiscovering(true); setError('')
@@ -90,14 +95,28 @@ function CamerasView({ cameras, refresh }: { cameras: Camera[]; refresh: () => P
 
   return <>
     <div className="page-heading"><div><p className="eyebrow">MONITORAMENTO</p><h1>Câmeras</h1><p>Gerencie as fontes de vídeo usadas pelo MonitoraPet.</p></div><button className="primary" onClick={() => setOpen(true)}>+ Adicionar câmera</button></div>
-    <section className="camera-grid">{cameras.map(camera => <article className="camera-card" key={camera.id}>
-      <div className="preview">{camera.status.connected ? <img src={`/api/cameras/${camera.id}/video`} alt={`Vídeo de ${camera.name}`} /> : <span>Sem sinal</span>}<Status connected={camera.status.connected} /></div>
-      <div className="camera-info"><div><h3>{camera.name}</h3><p>{camera.model || camera.manufacturer || 'Câmera IP'} · {camera.ip}</p></div><div>{!camera.status.connected && <button className="ghost" onClick={() => { setReconnectCamera(camera); setError('') }}>Conectar</button>}<button className="ghost danger" onClick={async () => { await api.deleteCamera(camera.id); await refresh() }}>Remover</button></div></div>
-    </article>)}</section>
+    <section className="camera-grid">{cameras.map(camera => {
+      const cameraZones = zones.filter(zone => zone.camera_id === camera.id && zone.enabled)
+      const showZones = zoneOverlays.includes(camera.id)
+      return <article className="camera-card" key={camera.id}>
+        <div className="preview">
+          {camera.status.connected ? <img src={`/api/cameras/${camera.id}/video`} alt={`Vídeo de ${camera.name}`} /> : <span>Sem sinal</span>}
+          {showZones && <div className="camera-zone-overlay">{cameraZones.map(zone => {
+            const center = zone.polygon.reduce((value, point) => ({ x: value.x + point.x / zone.polygon.length, y: value.y + point.y / zone.polygon.length }), { x: 0, y: 0 })
+            return <div className={`camera-zone ${zone.type.toLowerCase()}`} key={zone.id}>
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points={zone.polygon.map(point => `${point.x * 100},${point.y * 100}`).join(' ')} /></svg>
+              <span style={{ left: `${center.x * 100}%`, top: `${center.y * 100}%` }}>{zone.name}</span>
+            </div>
+          })}</div>}
+          <Status connected={camera.status.connected} />
+        </div>
+        <div className="camera-info"><div><h3>{camera.name}</h3><p>{camera.model || camera.manufacturer || 'Câmera IP'} · {camera.ip}</p></div><div className="camera-actions">{cameraZones.length > 0 && <button className={`ghost zone-toggle ${showZones ? 'active' : ''}`} onClick={() => toggleZoneOverlay(camera.id)}>{showZones ? 'Ocultar zonas' : `Mostrar zonas (${cameraZones.length})`}</button>}{!camera.status.connected && <button className="ghost" onClick={() => { setReconnectCamera(camera); setError('') }}>Conectar</button>}<button className="ghost danger" onClick={async () => { await api.deleteCamera(camera.id); await refresh() }}>Remover</button></div></div>
+      </article>
+    })}</section>
     {!cameras.length && <section className="panel"><Empty title="Nenhuma câmera cadastrada">Adicione até duas câmeras IP para começar o monitoramento local.</Empty></section>}
     {open && <div className="modal-backdrop"><form className="modal" onSubmit={submit}><div className="panel-head"><div><p className="eyebrow">NOVA CÂMERA</p><h2>Conectar câmera IP</h2></div><button type="button" className="close" onClick={() => setOpen(false)}>×</button></div>
       <button type="button" className="secondary full" onClick={discover} disabled={discovering}>{discovering ? 'Procurando na rede…' : 'Localizar automaticamente'}</button>
-      {candidates.length > 0 && <div className="candidate-list">{candidates.map(item => <button type="button" key={item.ip} onClick={() => setForm(value => ({ ...value, ip: item.ip, name: item.name }))}><strong>{item.name}</strong><span>{item.ip}</span></button>)}</div>}
+      {candidates.length > 0 && <div className="candidate-list">{candidates.map(item => <button type="button" key={item.ip} onClick={() => setForm(value => ({ ...value, ip: item.ip, name: item.name }))}><span><strong>{item.name}</strong><small>{[item.manufacturer, item.model].filter(Boolean).join(' · ') || item.reason || 'Dispositivo ONVIF'}</small></span><span>{item.ip}</span></button>)}</div>}
       <div className="form-grid"><label>Nome<input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ex.: Sala" /></label><label>Endereço IP<input required value={form.ip} onChange={e => setForm({ ...form, ip: e.target.value })} placeholder="192.168.1.100" /></label><label>Usuário<input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} autoComplete="username" /></label><label>Senha<input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} autoComplete="current-password" /></label><label className="wide">URL RTSP opcional<input value={form.rtsp_url} onChange={e => setForm({ ...form, rtsp_url: e.target.value })} placeholder="rtsp://192.168.1.100:554/stream" /></label></div>
       {error && <p className="form-error">{error}</p>}<button className="primary full" type="submit">Cadastrar câmera</button>
     </form></div>}
@@ -134,6 +153,6 @@ export default function App() {
   }, [])
 
   return <div className="app-shell"><aside className="sidebar"><div className="brand"><span className="brand-mark">M</span><div><strong>MonitoraPet</strong><small>Monitoramento local</small></div></div><nav>{(Object.keys(labels) as View[]).map(item => <button key={item} className={view === item ? 'active' : ''} onClick={() => setView(item)}><span>{item === 'dashboard' ? '⌂' : item === 'cameras' ? '◉' : item === 'zones' ? '◇' : item === 'history' ? '≡' : item === 'reviews' ? '✓' : '⚙'}</span>{labels[item]}{item === 'reviews' && pending.length > 0 && <b>{pending.length}</b>}</button>)}</nav><div className="local-note"><i>●</i><div><strong>100% local</strong><small>Seus dados ficam neste computador.</small></div></div></aside>
-    <main className="content">{error && <div className="global-error">{error}<button onClick={refresh}>Tentar novamente</button></div>}{view === 'dashboard' && <DashboardView data={dashboard} />}{view === 'cameras' && <CamerasView cameras={cameras} refresh={refresh} />}{view === 'zones' && <ZoneEditor cameras={cameras} zones={zones} refresh={refresh} />}{view === 'history' && <><div className="page-heading"><div><p className="eyebrow">REGISTROS</p><h1>Histórico</h1><p>Consulte as visitas detectadas pelo sistema.</p></div></div><section className="panel"><EventList events={events} /></section></>}{view === 'reviews' && <ReviewsView events={pending} refresh={refresh} />}{view === 'settings' && <><div className="page-heading"><div><p className="eyebrow">SISTEMA</p><h1>Configurações</h1><p>Preferências do monitoramento local.</p></div></div><section className="panel settings"><h2>Privacidade</h2><p>O processamento acontece localmente. Nenhuma imagem ou credencial é enviada para serviços externos.</p><h2>Versão</h2><p>MonitoraPet {dashboard?.health.version ?? '0.1.0'}</p></section></>}</main>
+    <main className="content">{error && <div className="global-error">{error}<button onClick={refresh}>Tentar novamente</button></div>}{view === 'dashboard' && <DashboardView data={dashboard} />}{view === 'cameras' && <CamerasView cameras={cameras} zones={zones} refresh={refresh} />}{view === 'zones' && <ZoneEditor cameras={cameras} zones={zones} refresh={refresh} />}{view === 'history' && <><div className="page-heading"><div><p className="eyebrow">REGISTROS</p><h1>Histórico</h1><p>Consulte as visitas detectadas pelo sistema.</p></div></div><section className="panel"><EventList events={events} /></section></>}{view === 'reviews' && <ReviewsView events={pending} refresh={refresh} />}{view === 'settings' && <><div className="page-heading"><div><p className="eyebrow">SISTEMA</p><h1>Configurações</h1><p>Preferências do monitoramento local.</p></div></div><section className="panel settings"><h2>Privacidade</h2><p>O processamento acontece localmente. Nenhuma imagem ou credencial é enviada para serviços externos.</p><h2>Versão</h2><p>MonitoraPet {dashboard?.health.version ?? '0.1.0'}</p></section></>}</main>
   </div>
 }
