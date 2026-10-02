@@ -1,4 +1,4 @@
-import { FormEvent, MouseEvent, memo, useEffect, useMemo, useState } from 'react'
+import { FormEvent, MouseEvent, memo, useEffect, useMemo, useRef, useState } from 'react'
 import * as api from '../api'
 import type { Camera, MonitoringFeedback, Zone } from '../api'
 
@@ -43,9 +43,11 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
+  const [draggingZone, setDraggingZone] = useState<{ start: Point; original: Point[] } | null>(null)
   const [feedback, setFeedback] = useState<MonitoringFeedback | null>(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const suppressCanvasClick = useRef(false)
 
   const camera = cameras.find(item => item.id === cameraId)
   const cameraZones = useMemo(() => zones.filter(zone => zone.camera_id === cameraId), [zones, cameraId])
@@ -78,6 +80,10 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
   }, [cameraId])
 
   function addPoint(event: MouseEvent<SVGSVGElement>) {
+    if (suppressCanvasClick.current) {
+      suppressCanvasClick.current = false
+      return
+    }
     if (!camera?.status.connected) return
     const bounds = event.currentTarget.getBoundingClientRect()
     const point = {
@@ -89,13 +95,50 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
   }
 
   function movePoint(event: React.PointerEvent<SVGSVGElement>) {
-    if (draggingIndex === null) return
     const bounds = event.currentTarget.getBoundingClientRect()
     const next = {
       x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
       y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
     }
-    setPoints(current => current.map((point, index) => index === draggingIndex ? next : point))
+    if (draggingIndex !== null) {
+      setPoints(current => current.map((point, index) => index === draggingIndex ? next : point))
+      return
+    }
+    if (!draggingZone) return
+    const minX = Math.min(...draggingZone.original.map(point => point.x))
+    const maxX = Math.max(...draggingZone.original.map(point => point.x))
+    const minY = Math.min(...draggingZone.original.map(point => point.y))
+    const maxY = Math.max(...draggingZone.original.map(point => point.y))
+    const deltaX = Math.max(-minX, Math.min(1 - maxX, next.x - draggingZone.start.x))
+    const deltaY = Math.max(-minY, Math.min(1 - maxY, next.y - draggingZone.start.y))
+    setPoints(draggingZone.original.map(point => ({ x: point.x + deltaX, y: point.y + deltaY })))
+  }
+
+  function startZoneDrag(event: React.PointerEvent<SVGPolygonElement>, original: Point[], zone?: Zone) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (zone) editZone(zone)
+    const svg = event.currentTarget.ownerSVGElement
+    if (!svg) return
+    const bounds = svg.getBoundingClientRect()
+    setDraggingIndex(null)
+    setDraggingZone({
+      start: {
+        x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
+        y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
+      },
+      original,
+    })
+    suppressCanvasClick.current = true
+    svg.setPointerCapture(event.pointerId)
+  }
+
+  function finishDragging(event: React.PointerEvent<SVGSVGElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    setDraggingIndex(null)
+    setDraggingZone(null)
   }
 
   function resetEditor() {
@@ -147,11 +190,11 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
           {camera?.status.connected
             ? <CameraVideo cameraId={camera.id} cameraName={camera.name} />
             : <div className="zone-video-empty"><strong>{camera ? 'Câmera offline' : 'Selecione uma câmera'}</strong><span>A câmera precisa estar conectada para desenhar a zona.</span></div>}
-          {camera?.status.connected && <svg viewBox="0 0 100 100" preserveAspectRatio="none" onClick={addPoint} onPointerMove={movePoint} onPointerUp={() => setDraggingIndex(null)} onPointerLeave={() => setDraggingIndex(null)}>
-            {cameraZones.filter(zone => zone.id !== editingId).map(zone => <polygon key={zone.id} className={`saved-zone ${zone.type.toLowerCase()} ${feedbackByZone.get(zone.id)?.inside ? 'detected' : ''}`} points={zone.polygon.map(point => `${point.x * 100},${point.y * 100}`).join(' ')} />)}
+          {camera?.status.connected && <svg viewBox="0 0 100 100" preserveAspectRatio="none" onClick={addPoint} onPointerMove={movePoint} onPointerUp={finishDragging}>
+            {cameraZones.filter(zone => zone.id !== editingId).map(zone => <polygon key={zone.id} className={`saved-zone ${zone.type.toLowerCase()} ${feedbackByZone.get(zone.id)?.inside ? 'detected' : ''}`} points={zone.polygon.map(point => `${point.x * 100},${point.y * 100}`).join(' ')} onPointerDown={event => startZoneDrag(event, zone.polygon, zone)} />)}
             {points.length >= 2 && <polyline className="draft-zone" points={points.map(point => `${point.x * 100},${point.y * 100}`).join(' ')} />}
-            {points.length >= 3 && <polygon className="draft-fill" points={points.map(point => `${point.x * 100},${point.y * 100}`).join(' ')} />}
-            {points.map((point, index) => <circle key={index} className="zone-handle" cx={point.x * 100} cy={point.y * 100} r="1.25" onPointerDown={event => { event.stopPropagation(); setDraggingIndex(index) }} onClick={event => event.stopPropagation()} />)}
+            {points.length >= 3 && <polygon className="draft-fill" points={points.map(point => `${point.x * 100},${point.y * 100}`).join(' ')} onPointerDown={event => startZoneDrag(event, points)} />}
+            {points.map((point, index) => <circle key={index} className="zone-handle" cx={point.x * 100} cy={point.y * 100} r="1.25" onPointerDown={event => { event.stopPropagation(); suppressCanvasClick.current = true; setDraggingZone(null); setDraggingIndex(index); event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId) }} onClick={event => { event.stopPropagation(); suppressCanvasClick.current = false }} />)}
             {(feedback?.detections ?? []).map((detection, index) => <g key={index} className="ai-detection"><rect x={detection.x1 * 100} y={detection.y1 * 100} width={(detection.x2 - detection.x1) * 100} height={(detection.y2 - detection.y1) * 100} /><text x={detection.x1 * 100} y={Math.max(3, detection.y1 * 100 - 1)}>Gato {Math.round(detection.confidence * 100)}%</text></g>)}
           </svg>}
           {camera?.status.connected && <div className={`ai-status ${feedback?.status === 'running' ? 'ready' : ''}`}><i />{feedback?.status === 'running' ? `IA ativa · ${feedback.detections.length} gato(s)` : feedback?.status === 'error' ? 'Falha na IA' : 'Iniciando IA'}</div>}
