@@ -25,6 +25,8 @@ COMMON_RTSP_PATHS = (
     "/cam/realmonitor?channel=1&subtype=0",
     "/cam/realmonitor?channel=1&subtype=1",
 )
+MAX_READ_FAILURES = 2
+RECONNECT_DELAY_SECONDS = 1.5
 
 
 class CameraConnectionError(RuntimeError):
@@ -67,52 +69,79 @@ class CameraStream:
         self._raw_frame: np.ndarray | None = None
         self._condition = threading.Condition()
         self._stop = threading.Event()
+        self._urls: list[str] = []
+        self._active_url: str | None = None
+        self._timeout_seconds = 5.0
         self.status = CameraStatus()
 
     def connect(self, urls: list[str], timeout_seconds: float = 5.0) -> None:
         self.disconnect()
+        self._urls = list(dict.fromkeys(urls))
+        self._timeout_seconds = timeout_seconds
         last_error = "Não foi possível abrir o stream."
-        for url in urls:
-            timeout_ms = int(timeout_seconds * 1000)
-            capture = cv2.VideoCapture(
-                url,
-                cv2.CAP_FFMPEG,
-                [
-                    cv2.CAP_PROP_OPEN_TIMEOUT_MSEC,
-                    timeout_ms,
-                    cv2.CAP_PROP_READ_TIMEOUT_MSEC,
-                    timeout_ms,
-                ],
-            )
-            if capture.isOpened():
-                ok, frame = capture.read()
-                if ok and frame is not None:
-                    encoded, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 82])
-                    if encoded:
-                        self._capture = capture
-                        self._frame = jpeg.tobytes()
-                        self._raw_frame = frame.copy()
-                        self.status = CameraStatus(True, "Ao vivo", frame.shape[1], frame.shape[0], time.time())
-                        self._stop.clear()
-                        self._thread = threading.Thread(target=self._read_loop, name="camera-reader", daemon=True)
-                        self._thread.start()
-                        return
-                last_error = "O stream abriu, mas não entregou imagens."
-            capture.release()
+        for url in self._urls:
+            capture, frame = self._open_capture(url)
+            if capture is not None and frame is not None and self._activate_capture(capture, frame):
+                self._active_url = url
+                self._stop.clear()
+                self._thread = threading.Thread(target=self._read_loop, name="camera-reader", daemon=True)
+                self._thread.start()
+                return
+            last_error = "O stream abriu, mas não entregou imagens."
         self.status = CameraStatus(False, last_error)
+        self._urls.clear()
         raise CameraConnectionError(last_error)
+
+    def _open_capture(self, url: str) -> tuple[cv2.VideoCapture | None, np.ndarray | None]:
+        timeout_ms = int(self._timeout_seconds * 1000)
+        capture = cv2.VideoCapture(
+            url,
+            cv2.CAP_FFMPEG,
+            [
+                cv2.CAP_PROP_OPEN_TIMEOUT_MSEC,
+                timeout_ms,
+                cv2.CAP_PROP_READ_TIMEOUT_MSEC,
+                timeout_ms,
+            ],
+        )
+        if capture.isOpened():
+            ok, frame = capture.read()
+            if ok and frame is not None:
+                return capture, frame
+        capture.release()
+        return None, None
+
+    def _activate_capture(self, capture: cv2.VideoCapture, frame: np.ndarray) -> bool:
+        encoded, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 82])
+        if not encoded:
+            capture.release()
+            return False
+        with self._condition:
+            self._capture = capture
+            self._frame = jpeg.tobytes()
+            self._raw_frame = frame.copy()
+            self.status = CameraStatus(True, "Ao vivo", frame.shape[1], frame.shape[0], time.time())
+            self._condition.notify_all()
+        return True
 
     def _read_loop(self) -> None:
         failures = 0
-        while not self._stop.is_set() and self._capture is not None:
-            ok, frame = self._capture.read()
+        while not self._stop.is_set():
+            capture = self._capture
+            if capture is None:
+                if not self._reconnect():
+                    return
+                failures = 0
+                continue
+            ok, frame = capture.read()
             if not ok or frame is None:
                 failures += 1
-                if failures >= 20:
-                    self.status.connected = False
-                    self.status.message = "Sinal interrompido"
-                    break
-                time.sleep(0.1)
+                if failures >= MAX_READ_FAILURES:
+                    if not self._reconnect():
+                        return
+                    failures = 0
+                else:
+                    self._stop.wait(0.1)
                 continue
             failures = 0
             encoded, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 82])
@@ -123,11 +152,40 @@ class CameraStream:
                     self.status.last_frame_at = time.time()
                     self._condition.notify_all()
 
+    def _reconnect(self) -> bool:
+        capture = self._capture
+        self._capture = None
+        if capture is not None:
+            capture.release()
+        with self._condition:
+            width = self.status.width
+            height = self.status.height
+            self._frame = None
+            self._raw_frame = None
+            self.status = CameraStatus(False, "Reconectando", width, height, self.status.last_frame_at)
+            self._condition.notify_all()
+        if not self._active_url:
+            return False
+        while not self._stop.is_set():
+            replacement, frame = self._open_capture(self._active_url)
+            if self._stop.is_set():
+                if replacement is not None:
+                    replacement.release()
+                return False
+            if replacement is not None and frame is not None and self._activate_capture(replacement, frame):
+                return True
+            if self._stop.wait(RECONNECT_DELAY_SECONDS):
+                return False
+        return False
+
     def frames(self) -> Iterator[bytes]:
         last_frame: bytes | None = None
-        while self.status.connected and not self._stop.is_set():
+        while self._urls and not self._stop.is_set():
             with self._condition:
-                self._condition.wait_for(lambda: self._frame is not last_frame or self._stop.is_set(), timeout=2)
+                self._condition.wait_for(
+                    lambda: (self._frame is not None and self._frame is not last_frame) or self._stop.is_set(),
+                    timeout=2,
+                )
                 frame = self._frame
             if frame is not None and frame is not last_frame:
                 last_frame = frame
@@ -135,7 +193,7 @@ class CameraStream:
 
     def latest_frame(self) -> np.ndarray | None:
         with self._condition:
-            return self._raw_frame.copy() if self._raw_frame is not None else None
+            return self._raw_frame.copy() if self.status.connected and self._raw_frame is not None else None
 
     def snapshot(self) -> bytes | None:
         with self._condition:
@@ -149,8 +207,10 @@ class CameraStream:
             self._capture.release()
             self._capture = None
         if self._thread is not None and self._thread.is_alive():
-            self._thread.join(timeout=1.0)
+            self._thread.join(timeout=self._timeout_seconds + 1)
         self._thread = None
         self._frame = None
         self._raw_frame = None
+        self._urls.clear()
+        self._active_url = None
         self.status = CameraStatus()

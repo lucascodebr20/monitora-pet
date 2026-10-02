@@ -1,4 +1,4 @@
-import { FormEvent, MouseEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, MouseEvent, memo, useEffect, useMemo, useState } from 'react'
 import * as api from '../api'
 import type { Camera, MonitoringFeedback, Zone } from '../api'
 
@@ -32,6 +32,10 @@ const emptyForm = {
   absence_tolerance_seconds: 1,
   cooldown_seconds: 10,
 }
+
+const CameraVideo = memo(function CameraVideo({ cameraId, cameraName }: { cameraId: string; cameraName: string }) {
+  return <img src={`/api/cameras/${cameraId}/video`} alt={`Vídeo de ${cameraName}`} />
+})
 
 export default function ZoneEditor({ cameras, zones, refresh }: Props) {
   const [cameraId, setCameraId] = useState('')
@@ -141,7 +145,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
         </div>
         <div className={`zone-canvas ${camera?.status.connected ? '' : 'disabled'}`}>
           {camera?.status.connected
-            ? <img src={`/api/cameras/${camera.id}/video`} alt={`Vídeo de ${camera.name}`} />
+            ? <CameraVideo cameraId={camera.id} cameraName={camera.name} />
             : <div className="zone-video-empty"><strong>{camera ? 'Câmera offline' : 'Selecione uma câmera'}</strong><span>A câmera precisa estar conectada para desenhar a zona.</span></div>}
           {camera?.status.connected && <svg viewBox="0 0 100 100" preserveAspectRatio="none" onClick={addPoint} onPointerMove={movePoint} onPointerUp={() => setDraggingIndex(null)} onPointerLeave={() => setDraggingIndex(null)}>
             {cameraZones.filter(zone => zone.id !== editingId).map(zone => <polygon key={zone.id} className={`saved-zone ${zone.type.toLowerCase()} ${feedbackByZone.get(zone.id)?.inside ? 'detected' : ''}`} points={zone.polygon.map(point => `${point.x * 100},${point.y * 100}`).join(' ')} />)}
