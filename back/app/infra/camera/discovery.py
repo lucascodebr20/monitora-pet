@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import socket
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from app.infra.camera.onvif import device_information
 from app.infra.camera.ws_discovery import discover, scan_subnet
@@ -44,9 +44,11 @@ def _friendly_name(scopes: list[str], fallback: str) -> str:
     for scope in scopes:
         parsed = urlparse(scope)
         if "/name/" in parsed.path:
-            return parsed.path.split("/name/", 1)[1].replace("_", " ")
+            return unquote(parsed.path.split("/name/", 1)[1]).replace("_", " ")
+    for scope in scopes:
+        parsed = urlparse(scope)
         if "/hardware/" in parsed.path:
-            return parsed.path.split("/hardware/", 1)[1].replace("_", " ")
+            return unquote(parsed.path.split("/hardware/", 1)[1]).replace("_", " ")
     return f"Câmera {fallback}"
 
 
@@ -93,9 +95,10 @@ def fallback_scan() -> list[dict[str, object]]:
             confidence = "low"
             reason = "Nenhum stream de vídeo detectado"
         identity = device_information(ip) if 8899 in ports else {}
+        manufacturer = identity.get("manufacturer", "")
         model = identity.get("model", "")
         if has_rtsp and model:
-            name = f"Câmera {model}"
+            name = model
         devices.append(
             {
                 "ip": ip,
@@ -105,6 +108,7 @@ def fallback_scan() -> list[dict[str, object]]:
                 "confidence": confidence,
                 "reason": reason,
                 "score": score,
+                "manufacturer": manufacturer,
                 "model": model,
             }
         )
