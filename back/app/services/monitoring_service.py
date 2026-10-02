@@ -147,12 +147,16 @@ class MonitoringService:
         now_utc = datetime.now(timezone.utc)
         feedback: list[dict[str, Any]] = []
         active_zone_ids = {zone["id"] for zone in zones}
+        polygons = {
+            zone["id"]: [(float(point["x"]), float(point["y"])) for point in zone["polygon"]]
+            for zone in zones
+        }
+        detections_by_zone = self._assign_detections(polygons, detections)
         for zone_id in list(self._runtimes):
             if zone_id not in active_zone_ids and self._runtimes[zone_id].event_id is None:
                 self._runtimes.pop(zone_id, None)
         for zone in zones:
-            polygon = [(float(point["x"]), float(point["y"])) for point in zone["polygon"]]
-            inside_detections = [detection for detection in detections if self._detection_in_zone(detection, polygon)]
+            inside_detections = detections_by_zone[zone["id"]]
             confidence = max((item.confidence for item in inside_detections), default=0.0)
             runtime = self._runtimes.setdefault(zone["id"], ZoneRuntime())
             if runtime.machine.state == PresenceState.OUTSIDE and inside_detections:
@@ -229,7 +233,32 @@ class MonitoringService:
 
     @staticmethod
     def _detection_in_zone(detection: Detection, polygon: list[tuple[float, float]]) -> bool:
-        if point_in_polygon(detection.centroid, polygon):
-            return True
+        return MonitoringService._detection_zone_score(detection, polygon) >= MINIMUM_ZONE_OVERLAP
+
+    @staticmethod
+    def _detection_zone_score(detection: Detection, polygon: list[tuple[float, float]]) -> float:
         rectangle = detection.x1, detection.y1, detection.x2, detection.y2
-        return polygon_rectangle_overlap_ratio(polygon, rectangle) >= MINIMUM_ZONE_OVERLAP
+        overlap = polygon_rectangle_overlap_ratio(polygon, rectangle)
+        if point_in_polygon(detection.centroid, polygon):
+            return max(1.0, overlap)
+        return overlap
+
+    @staticmethod
+    def _assign_detections(
+        polygons: dict[str, list[tuple[float, float]]],
+        detections: list[Detection],
+    ) -> dict[str, list[Detection]]:
+        assigned = {zone_id: [] for zone_id in polygons}
+        for detection in detections:
+            candidates: list[tuple[float, float, str]] = []
+            for zone_id, polygon in polygons.items():
+                score = MonitoringService._detection_zone_score(detection, polygon)
+                if score < MINIMUM_ZONE_OVERLAP:
+                    continue
+                center_x = sum(point[0] for point in polygon) / len(polygon)
+                center_y = sum(point[1] for point in polygon) / len(polygon)
+                distance = (detection.centroid[0] - center_x) ** 2 + (detection.centroid[1] - center_y) ** 2
+                candidates.append((score, -distance, zone_id))
+            if candidates:
+                assigned[max(candidates)[2]].append(detection)
+        return assigned
