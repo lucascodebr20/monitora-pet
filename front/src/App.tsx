@@ -1,6 +1,7 @@
 import { FormEvent, ReactNode, useEffect, useState } from 'react'
 import * as api from './api'
 import type { Camera, CameraCandidate, Dashboard, Event, Zone } from './api'
+import ZoneEditor from './components/ZoneEditor'
 
 type View = 'dashboard' | 'cameras' | 'zones' | 'history' | 'reviews' | 'settings'
 
@@ -51,6 +52,8 @@ function CamerasView({ cameras, refresh }: { cameras: Camera[]; refresh: () => P
   const [discovering, setDiscovering] = useState(false)
   const [candidates, setCandidates] = useState<CameraCandidate[]>([])
   const [form, setForm] = useState({ name: '', ip: '', username: '', password: '', rtsp_url: '' })
+  const [reconnectCamera, setReconnectCamera] = useState<Camera | null>(null)
+  const [credentials, setCredentials] = useState({ username: '', password: '', rtsp_url: '' })
   const [error, setError] = useState('')
 
   async function discover() {
@@ -71,11 +74,25 @@ function CamerasView({ cameras, refresh }: { cameras: Camera[]; refresh: () => P
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Falha ao cadastrar.') }
   }
 
+  async function reconnect(event: FormEvent) {
+    event.preventDefault()
+    if (!reconnectCamera) return
+    setError('')
+    try {
+      await api.connectCamera(reconnectCamera.id, { ...credentials, rtsp_url: credentials.rtsp_url || null })
+      setReconnectCamera(null)
+      setCredentials({ username: '', password: '', rtsp_url: '' })
+      await refresh()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Não foi possível conectar a câmera.')
+    }
+  }
+
   return <>
     <div className="page-heading"><div><p className="eyebrow">MONITORAMENTO</p><h1>Câmeras</h1><p>Gerencie as fontes de vídeo usadas pelo MonitoraPet.</p></div><button className="primary" onClick={() => setOpen(true)}>+ Adicionar câmera</button></div>
     <section className="camera-grid">{cameras.map(camera => <article className="camera-card" key={camera.id}>
       <div className="preview">{camera.status.connected ? <img src={`/api/cameras/${camera.id}/video`} alt={`Vídeo de ${camera.name}`} /> : <span>Sem sinal</span>}<Status connected={camera.status.connected} /></div>
-      <div className="camera-info"><div><h3>{camera.name}</h3><p>{camera.model || camera.manufacturer || 'Câmera IP'} · {camera.ip}</p></div><button className="ghost danger" onClick={async () => { await api.deleteCamera(camera.id); await refresh() }}>Remover</button></div>
+      <div className="camera-info"><div><h3>{camera.name}</h3><p>{camera.model || camera.manufacturer || 'Câmera IP'} · {camera.ip}</p></div><div>{!camera.status.connected && <button className="ghost" onClick={() => { setReconnectCamera(camera); setError('') }}>Conectar</button>}<button className="ghost danger" onClick={async () => { await api.deleteCamera(camera.id); await refresh() }}>Remover</button></div></div>
     </article>)}</section>
     {!cameras.length && <section className="panel"><Empty title="Nenhuma câmera cadastrada">Adicione até duas câmeras IP para começar o monitoramento local.</Empty></section>}
     {open && <div className="modal-backdrop"><form className="modal" onSubmit={submit}><div className="panel-head"><div><p className="eyebrow">NOVA CÂMERA</p><h2>Conectar câmera IP</h2></div><button type="button" className="close" onClick={() => setOpen(false)}>×</button></div>
@@ -84,19 +101,7 @@ function CamerasView({ cameras, refresh }: { cameras: Camera[]; refresh: () => P
       <div className="form-grid"><label>Nome<input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ex.: Sala" /></label><label>Endereço IP<input required value={form.ip} onChange={e => setForm({ ...form, ip: e.target.value })} placeholder="192.168.1.100" /></label><label>Usuário<input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} autoComplete="username" /></label><label>Senha<input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} autoComplete="current-password" /></label><label className="wide">URL RTSP opcional<input value={form.rtsp_url} onChange={e => setForm({ ...form, rtsp_url: e.target.value })} placeholder="rtsp://192.168.1.100:554/stream" /></label></div>
       {error && <p className="form-error">{error}</p>}<button className="primary full" type="submit">Cadastrar câmera</button>
     </form></div>}
-  </>
-}
-
-function ZonesView({ cameras, zones, refresh }: { cameras: Camera[]; zones: Zone[]; refresh: () => Promise<void> }) {
-  const [form, setForm] = useState({ camera_id: '', name: '', type: 'FOOD' as Zone['type'], minimum_presence_seconds: 3 })
-  async function submit(event: FormEvent) {
-    event.preventDefault()
-    await api.createZone({ ...form, polygon: [{ x: .2, y: .2 }, { x: .8, y: .2 }, { x: .8, y: .8 }, { x: .2, y: .8 }] })
-    setForm({ camera_id: '', name: '', type: 'FOOD', minimum_presence_seconds: 3 }); await refresh()
-  }
-  return <><div className="page-heading"><div><p className="eyebrow">DETECÇÃO</p><h1>Zonas monitoradas</h1><p>Defina as áreas de comida, água e caixa de areia.</p></div></div>
-    <div className="split"><section className="panel"><h2>Nova zona</h2><p className="muted">O editor visual será habilitado quando a câmera estiver online. Por enquanto, a área central é usada como base.</p><form onSubmit={submit} className="stack-form"><label>Câmera<select required value={form.camera_id} onChange={e => setForm({ ...form, camera_id: e.target.value })}><option value="">Selecione</option>{cameras.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>Nome<input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ex.: Pote de água" /></label><label>Tipo<select value={form.type} onChange={e => setForm({ ...form, type: e.target.value as Zone['type'] })}>{Object.entries(zoneLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>Permanência mínima<input type="number" min="0.5" step="0.5" value={form.minimum_presence_seconds} onChange={e => setForm({ ...form, minimum_presence_seconds: Number(e.target.value) })} /></label><button className="primary" disabled={!cameras.length}>Criar zona</button></form></section>
-      <section className="panel"><div className="panel-head"><div><h2>Zonas configuradas</h2><p>{zones.length} no total</p></div></div>{zones.length ? <div className="zone-list">{zones.map(zone => <div key={zone.id}><span className={`zone-dot ${zone.type.toLowerCase()}`} /><div><strong>{zone.name}</strong><small>{zoneLabels[zone.type]} · {zone.minimum_presence_seconds}s</small></div><button className="ghost danger" onClick={async () => { await api.deleteZone(zone.id); await refresh() }}>Remover</button></div>)}</div> : <Empty title="Nenhuma zona">Cadastre uma câmera e crie a primeira área de monitoramento.</Empty>}</section></div>
+    {reconnectCamera && <div className="modal-backdrop"><form className="modal compact-modal" onSubmit={reconnect}><div className="panel-head"><div><p className="eyebrow">RECONECTAR</p><h2>{reconnectCamera.name}</h2><p>{reconnectCamera.ip}</p></div><button type="button" className="close" onClick={() => setReconnectCamera(null)}>×</button></div><div className="form-grid"><label>Usuário<input value={credentials.username} onChange={event => setCredentials({ ...credentials, username: event.target.value })} autoComplete="username" /></label><label>Senha<input type="password" value={credentials.password} onChange={event => setCredentials({ ...credentials, password: event.target.value })} autoComplete="current-password" /></label><label className="wide">URL RTSP opcional<input value={credentials.rtsp_url} onChange={event => setCredentials({ ...credentials, rtsp_url: event.target.value })} placeholder="Use somente se a descoberta automática falhar" /></label></div>{error && <p className="form-error">{error}</p>}<button className="primary full">Conectar câmera</button></form></div>}
   </>
 }
 
@@ -104,7 +109,7 @@ function ReviewsView({ events, refresh }: { events: Event[]; refresh: () => Prom
   const current = events[0]
   if (!current) return <><div className="page-heading"><div><p className="eyebrow">AUDITORIA</p><h1>Revisões</h1><p>Confirme ou corrija as classificações automáticas.</p></div></div><section className="panel"><Empty title="Tudo revisado">Não há eventos pendentes na fila.</Empty></section></>
   const review = async (decision: string) => { await api.reviewEvent(current.id, decision); await refresh() }
-  return <><div className="page-heading"><div><p className="eyebrow">AUDITORIA</p><h1>Revisões</h1><p>{events.length} eventos aguardando sua análise.</p></div></div><section className="review-card"><div className="review-media">Clipe indisponível</div><div className="review-detail"><span className="eyebrow">EVENTO DETECTADO</span><h2>{zoneLabels[current.zone_type]}</h2><p>{current.camera_name} · {new Date(current.started_at).toLocaleString('pt-BR')}</p><div className="review-actions"><button onClick={() => review('CONFIRMED')} className="primary">Confirmar</button><button onClick={() => review('CORRECTED')} className="secondary">Corrigir</button><button onClick={() => review('INCONCLUSIVE')} className="secondary">Inconclusivo</button><button onClick={() => review('FALSE_POSITIVE')} className="ghost danger">Falso positivo</button></div></div></section></>
+  return <><div className="page-heading"><div><p className="eyebrow">AUDITORIA</p><h1>Revisões</h1><p>{events.length} eventos aguardando sua análise.</p></div></div><section className="review-card"><div className="review-media">{current.snapshot_path ? <img src={`/api/events/${current.id}/snapshot`} alt={`Registro de ${current.zone_name}`} /> : 'Snapshot indisponível'}</div><div className="review-detail"><span className="eyebrow">EVENTO DETECTADO</span><h2>{zoneLabels[current.zone_type]}</h2><p>{current.camera_name} · {new Date(current.started_at).toLocaleString('pt-BR')}</p><div className="review-actions"><button onClick={() => review('CONFIRMED')} className="primary">Confirmar</button><button onClick={() => review('CORRECTED')} className="secondary">Corrigir</button><button onClick={() => review('INCONCLUSIVE')} className="secondary">Inconclusivo</button><button onClick={() => review('FALSE_POSITIVE')} className="ghost danger">Falso positivo</button></div></div></section></>
 }
 
 export default function App() {
@@ -123,8 +128,12 @@ export default function App() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível carregar o MonitoraPet.') }
   }
   useEffect(() => { void refresh() }, [])
+  useEffect(() => {
+    const timer = window.setInterval(refresh, 10000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   return <div className="app-shell"><aside className="sidebar"><div className="brand"><span className="brand-mark">M</span><div><strong>MonitoraPet</strong><small>Monitoramento local</small></div></div><nav>{(Object.keys(labels) as View[]).map(item => <button key={item} className={view === item ? 'active' : ''} onClick={() => setView(item)}><span>{item === 'dashboard' ? '⌂' : item === 'cameras' ? '◉' : item === 'zones' ? '◇' : item === 'history' ? '≡' : item === 'reviews' ? '✓' : '⚙'}</span>{labels[item]}{item === 'reviews' && pending.length > 0 && <b>{pending.length}</b>}</button>)}</nav><div className="local-note"><i>●</i><div><strong>100% local</strong><small>Seus dados ficam neste computador.</small></div></div></aside>
-    <main className="content">{error && <div className="global-error">{error}<button onClick={refresh}>Tentar novamente</button></div>}{view === 'dashboard' && <DashboardView data={dashboard} />}{view === 'cameras' && <CamerasView cameras={cameras} refresh={refresh} />}{view === 'zones' && <ZonesView cameras={cameras} zones={zones} refresh={refresh} />}{view === 'history' && <><div className="page-heading"><div><p className="eyebrow">REGISTROS</p><h1>Histórico</h1><p>Consulte as visitas detectadas pelo sistema.</p></div></div><section className="panel"><EventList events={events} /></section></>}{view === 'reviews' && <ReviewsView events={pending} refresh={refresh} />}{view === 'settings' && <><div className="page-heading"><div><p className="eyebrow">SISTEMA</p><h1>Configurações</h1><p>Preferências do monitoramento local.</p></div></div><section className="panel settings"><h2>Privacidade</h2><p>O processamento acontece localmente. Nenhuma imagem ou credencial é enviada para serviços externos.</p><h2>Versão</h2><p>MonitoraPet {dashboard?.health.version ?? '0.1.0'}</p></section></>}</main>
+    <main className="content">{error && <div className="global-error">{error}<button onClick={refresh}>Tentar novamente</button></div>}{view === 'dashboard' && <DashboardView data={dashboard} />}{view === 'cameras' && <CamerasView cameras={cameras} refresh={refresh} />}{view === 'zones' && <ZoneEditor cameras={cameras} zones={zones} refresh={refresh} />}{view === 'history' && <><div className="page-heading"><div><p className="eyebrow">REGISTROS</p><h1>Histórico</h1><p>Consulte as visitas detectadas pelo sistema.</p></div></div><section className="panel"><EventList events={events} /></section></>}{view === 'reviews' && <ReviewsView events={pending} refresh={refresh} />}{view === 'settings' && <><div className="page-heading"><div><p className="eyebrow">SISTEMA</p><h1>Configurações</h1><p>Preferências do monitoramento local.</p></div></div><section className="panel settings"><h2>Privacidade</h2><p>O processamento acontece localmente. Nenhuma imagem ou credencial é enviada para serviços externos.</p><h2>Versão</h2><p>MonitoraPet {dashboard?.health.version ?? '0.1.0'}</p></section></>}</main>
   </div>
 }

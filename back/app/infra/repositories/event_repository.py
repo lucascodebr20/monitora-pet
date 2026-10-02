@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import uuid4
 
-from app.infra.database.database import Database
+from app.infra.database.database import Database, utc_now
 
 
 class EventRepository:
@@ -44,12 +45,52 @@ class EventRepository:
     def exists(self, event_id: str) -> bool:
         return self.database.one("SELECT id FROM events WHERE id = ?", (event_id,)) is not None
 
+    def get(self, event_id: str) -> dict[str, Any] | None:
+        return self.database.one("SELECT * FROM events WHERE id = ?", (event_id,))
+
     def create_review(self, review: dict[str, Any]) -> None:
         self.database.execute(
             """INSERT INTO human_reviews
                (id, event_id, decision, corrected_activity, cat_name, notes, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             tuple(review[key] for key in ("id", "event_id", "decision", "corrected_activity", "cat_name", "notes", "created_at")),
+        )
+
+    def create_detected_event(
+        self,
+        camera_id: str,
+        zone_id: str,
+        started_at: str,
+        confirmed_at: str,
+        confidence: float,
+        snapshot_path: str | None,
+    ) -> str:
+        event_id = str(uuid4())
+        self.database.execute(
+            """INSERT INTO events
+               (id, camera_id, zone_id, started_at, confirmed_at, confidence,
+                activity, snapshot_path, engine_version, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                event_id, camera_id, zone_id, started_at, confirmed_at, confidence,
+                "NEAR_ZONE", snapshot_path, "2", utc_now(),
+            ),
+        )
+        return event_id
+
+    def finish_detected_event(self, event_id: str, ended_at: str, duration: float, reason: str) -> None:
+        self.database.execute(
+            """UPDATE events SET ended_at = ?, duration_seconds = ?, end_reason = ?
+               WHERE id = ? AND ended_at IS NULL""",
+            (ended_at, duration, reason, event_id),
+        )
+
+    def finish_open_events(self, ended_at: str) -> None:
+        self.database.execute(
+            """UPDATE events SET ended_at = ?, end_reason = 'APPLICATION_RESTART',
+               duration_seconds = MAX(0, (julianday(?) - julianday(started_at)) * 86400)
+               WHERE ended_at IS NULL""",
+            (ended_at, ended_at),
         )
 
     def count_on_date(self, date: str) -> int:

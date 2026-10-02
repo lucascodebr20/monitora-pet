@@ -20,6 +20,17 @@ zonas normalizadas, histórico de eventos, fila de revisão humana, avisos locai
 e estado de saúde. A interface é responsiva para desktop e dispositivos na
 rede local.
 
+## Zonas e inteligência artificial
+
+O editor permite desenhar polígonos diretamente sobre o vídeo, mover seus
+vértices e configurar permanência, tolerância e cooldown. A detecção local usa
+YOLOX-Tiny em formato ONNX pelo OpenCV. Caixas e estados das zonas aparecem em
+tempo real; uma permanência confirmada gera evento e snapshot para revisão.
+
+O `start.bat` baixa o modelo oficial na primeira execução e valida seu SHA-256.
+O arquivo permanece em `back/app-data/models` e não é enviado ao Git. YOLOX é
+distribuído sob Apache-2.0 pelo projeto Megvii-BaseDetection.
+
 ## Executar no Windows
 
 Confirme que o computador e as câmeras estão na mesma rede. Depois execute:

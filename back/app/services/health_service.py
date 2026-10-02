@@ -5,6 +5,7 @@ from app.core.config import APP_VERSION
 from app.infra.repositories.event_repository import EventRepository
 from app.services.camera_service import CameraService
 from app.services.event_service import EventService
+from app.services.monitoring_service import MonitoringService
 
 
 class HealthService:
@@ -13,10 +14,12 @@ class HealthService:
         camera_service: CameraService,
         event_service: EventService,
         event_repository: EventRepository,
+        monitoring_service: MonitoringService,
     ) -> None:
         self.camera_service = camera_service
         self.event_service = event_service
         self.event_repository = event_repository
+        self.monitoring_service = monitoring_service
 
     def health(self) -> dict[str, Any]:
         return {
@@ -24,7 +27,7 @@ class HealthService:
             "version": APP_VERSION,
             "database": "available",
             "cameras": self.camera_service.health(),
-            "inference": {"status": "not_configured", "provider": None},
+            "inference": self.monitoring_service.health(),
         }
 
     def dashboard(self) -> dict[str, Any]:

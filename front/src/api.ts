@@ -30,7 +30,36 @@ export type Zone = {
   type: 'FOOD' | 'WATER' | 'LITTER' | 'CUSTOM'
   polygon: { x: number; y: number }[]
   minimum_presence_seconds: number
+  absence_tolerance_seconds: number
+  cooldown_seconds: number
   enabled: boolean
+}
+
+export type Detection = {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  confidence: number
+}
+
+export type ZoneFeedback = {
+  zone_id: string
+  state: 'OUTSIDE' | 'CANDIDATE' | 'ACTIVE' | 'COOLDOWN'
+  inside: boolean
+  elapsed_seconds: number
+  progress: number
+  confidence: number
+  event_id: string | null
+}
+
+export type MonitoringFeedback = {
+  camera_id: string
+  status: 'running' | 'stopped' | 'model_missing' | 'error'
+  updated_at: string | null
+  detections: Detection[]
+  zones: ZoneFeedback[]
+  error: string | null
 }
 
 export type Event = {
@@ -93,7 +122,9 @@ export const deleteCamera = (id: string) => request<void>(`/api/cameras/${id}`, 
 
 export const getZones = async () => (await request<{ zones: Zone[] }>('/api/zones')).zones
 export const createZone = (payload: Omit<Zone, 'id' | 'enabled'>) => request<Zone>('/api/zones', json('POST', payload))
+export const updateZone = (id: string, payload: Omit<Zone, 'id' | 'enabled'>) => request<Zone>(`/api/zones/${id}`, json('PUT', payload))
 export const deleteZone = (id: string) => request<void>(`/api/zones/${id}`, { method: 'DELETE' })
+export const getMonitoringFeedback = (cameraId: string) => request<MonitoringFeedback>(`/api/monitoring/${cameraId}`)
 
 export const getEvents = async (pendingReview = false) =>
   (await request<{ events: Event[] }>(`/api/events${pendingReview ? '?pending_review=true' : ''}`)).events

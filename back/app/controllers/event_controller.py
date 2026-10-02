@@ -1,6 +1,7 @@
 from typing import Any
 
 from fastapi import APIRouter, Query
+from fastapi.responses import FileResponse
 
 from app.controllers.schemas.event_schema import ReviewCreateRequest
 from app.core.container import event_service
@@ -23,3 +24,8 @@ def get_events(
 @router.post("/{event_id}/reviews", status_code=201)
 def review_event(event_id: str, request: ReviewCreateRequest) -> dict[str, Any]:
     return event_service.review(event_id, request.to_command())
+
+
+@router.get("/{event_id}/snapshot")
+def event_snapshot(event_id: str) -> FileResponse:
+    return FileResponse(event_service.snapshot(event_id), media_type="image/jpeg")

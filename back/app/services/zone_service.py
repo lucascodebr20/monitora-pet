@@ -34,3 +34,19 @@ class ZoneService:
         if not self.repository.get(zone_id):
             raise EntityNotFoundError("Zona não encontrada.")
         self.repository.delete(zone_id)
+
+    def update(self, zone_id: str, request: CreateZoneCommand) -> dict[str, Any]:
+        zone = self.repository.get(zone_id)
+        if not zone:
+            raise EntityNotFoundError("Zona não encontrada.")
+        if zone["camera_id"] != request.camera_id:
+            raise EntityNotFoundError("A zona não pertence à câmera informada.")
+        validate_polygon(list(request.polygon))
+        return self.repository.update(zone_id, {
+            "name": request.name,
+            "type": request.type,
+            "polygon": request.polygon,
+            "minimum_presence_seconds": request.minimum_presence_seconds,
+            "absence_tolerance_seconds": request.absence_tolerance_seconds,
+            "cooldown_seconds": request.cooldown_seconds,
+        })
