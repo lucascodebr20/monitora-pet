@@ -73,6 +73,7 @@ export type Event = {
   activity: string
   confidence: number | null
   snapshot_path: string | null
+  clip_path: string | null
   review_decision: string | null
 }
 

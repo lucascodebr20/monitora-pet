@@ -23,8 +23,9 @@ DATABASE_PATH = DATA_DIR / "monitorapet.sqlite3"
 MODEL_DIR = DATA_DIR / "models"
 MODEL_PATH = MODEL_DIR / "yolox_tiny.onnx"
 SNAPSHOT_DIR = DATA_DIR / "snapshots"
+CLIP_DIR = DATA_DIR / "clips"
 
 
 def ensure_data_directories() -> None:
-    for directory in (DATA_DIR, SNAPSHOT_DIR, DATA_DIR / "clips", DATA_DIR / "logs", MODEL_DIR):
+    for directory in (DATA_DIR, SNAPSHOT_DIR, CLIP_DIR, DATA_DIR / "logs", MODEL_DIR):
         directory.mkdir(parents=True, exist_ok=True)

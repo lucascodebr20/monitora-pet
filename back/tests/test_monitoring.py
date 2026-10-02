@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -38,6 +39,18 @@ class FakeSnapshotStore:
         return "snapshots/test.jpg"
 
 
+class FakeClipStore:
+    def __init__(self):
+        self.saved = []
+
+    def encode(self, frame):
+        return b"frame"
+
+    def save(self, frames, captured_at, fps):
+        self.saved.append((list(frames), captured_at, fps))
+        return "clips/test.webm"
+
+
 class MonitoringTests(unittest.TestCase):
     def test_creates_event_when_cat_remains_inside_zone(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -61,6 +74,7 @@ class MonitoringTests(unittest.TestCase):
                 zone_repository,
                 event_repository,
                 FakeSnapshotStore(),
+                FakeClipStore(),
                 FakeDetector(),
             )
 
@@ -94,6 +108,7 @@ class MonitoringTests(unittest.TestCase):
                 zone_repository,
                 event_repository,
                 FakeSnapshotStore(),
+                FakeClipStore(),
                 OverlappingDetector(),
             )
 
@@ -109,6 +124,50 @@ class MonitoringTests(unittest.TestCase):
         detection = Detection(0.49, 0.3, 0.8, 0.6, 0.9)
 
         self.assertFalse(MonitoringService._detection_in_zone(detection, zone))
+
+    def test_attaches_clip_when_event_finishes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Database(Path(directory) / "monitoring.sqlite3")
+            database.migrate()
+            camera_repository = CameraRepository(database)
+            zone_repository = ZoneRepository(database)
+            event_repository = EventRepository(database)
+            camera = camera_repository.create({"name": "Sala", "ip": "192.168.1.10"})
+            zone_repository.create({
+                "camera_id": camera["id"],
+                "name": "Comida",
+                "type": "FOOD",
+                "polygon": ((0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)),
+                "minimum_presence_seconds": 0,
+                "absence_tolerance_seconds": 1,
+                "cooldown_seconds": 5,
+            })
+            detector = FakeDetector()
+            clip_store = FakeClipStore()
+            service = MonitoringService(
+                FakeCameraManager(),
+                zone_repository,
+                event_repository,
+                FakeSnapshotStore(),
+                clip_store,
+                detector,
+            )
+
+            with patch(
+                "app.services.monitoring_service.time.monotonic",
+                side_effect=[10, 11, 13, 18],
+            ):
+                service._process_camera(camera["id"])
+                service._process_camera(camera["id"])
+                self.assertEqual(event_repository.list(pending_review=True), [])
+                detector.detect = lambda frame: []
+                service._process_camera(camera["id"])
+                service._process_camera(camera["id"])
+
+            event = event_repository.list(camera_id=camera["id"])[0]
+            self.assertEqual(event["clip_path"], "clips/test.webm")
+            self.assertEqual(len(clip_store.saved[0][0]), 2)
+            self.assertEqual(len(event_repository.list(pending_review=True)), 1)
 
 
 if __name__ == "__main__":
