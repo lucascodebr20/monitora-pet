@@ -18,6 +18,11 @@ if not exist "front\node_modules" (
     popd
 )
 
+echo Verificando o modelo de inteligencia artificial...
+pushd back
+"%MONITORAPET_PYTHON%" -m app.infra.ai.model_setup || exit /b 1
+popd
+
 echo Construindo a interface...
 pushd front
 call npm.cmd run build || exit /b 1

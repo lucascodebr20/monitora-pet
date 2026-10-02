@@ -5,11 +5,12 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import APP_NAME, APP_VERSION, FRONTEND_DIST, ensure_data_directories
-from app.core.container import camera_manager, database
+from app.core.container import camera_manager, database, monitoring_service
 from app.controllers.camera_controller import router as camera_router
 from app.controllers.event_controller import router as event_router
 from app.controllers.health_controller import router as health_router
 from app.controllers.notice_controller import router as notice_router
+from app.controllers.monitoring_controller import router as monitoring_router
 from app.controllers.web_controller import router as web_router
 from app.controllers.zone_controller import router as zone_router
 from app.domain.errors import (
@@ -24,7 +25,9 @@ from app.domain.errors import (
 async def lifespan(_: FastAPI):
     ensure_data_directories()
     database.migrate()
+    monitoring_service.start()
     yield
+    monitoring_service.stop()
     camera_manager.disconnect_all()
 
 
@@ -65,4 +68,5 @@ app.include_router(camera_router)
 app.include_router(zone_router)
 app.include_router(event_router)
 app.include_router(notice_router)
+app.include_router(monitoring_router)
 app.include_router(web_router)

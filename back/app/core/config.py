@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 APP_NAME = "MonitoraPet"
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0"
 BACK_DIR = Path(__file__).resolve().parents[2]
 PROJECT_DIR = BACK_DIR.parent
 FRONTEND_DIST = PROJECT_DIR / "front" / "dist"
@@ -20,8 +20,11 @@ def _default_data_dir() -> Path:
 
 DATA_DIR = _default_data_dir()
 DATABASE_PATH = DATA_DIR / "monitorapet.sqlite3"
+MODEL_DIR = DATA_DIR / "models"
+MODEL_PATH = MODEL_DIR / "yolox_tiny.onnx"
+SNAPSHOT_DIR = DATA_DIR / "snapshots"
 
 
 def ensure_data_directories() -> None:
-    for directory in (DATA_DIR, DATA_DIR / "snapshots", DATA_DIR / "clips", DATA_DIR / "logs"):
+    for directory in (DATA_DIR, SNAPSHOT_DIR, DATA_DIR / "clips", DATA_DIR / "logs", MODEL_DIR):
         directory.mkdir(parents=True, exist_ok=True)

@@ -19,6 +19,11 @@ def create_zone(request: ZoneCreateRequest) -> dict[str, Any]:
     return zone_service.create(request.to_command())
 
 
+@router.put("/{zone_id}")
+def update_zone(zone_id: str, request: ZoneCreateRequest) -> dict[str, Any]:
+    return zone_service.update(zone_id, request.to_command())
+
+
 @router.delete("/{zone_id}", status_code=204)
 def delete_zone(zone_id: str) -> None:
     zone_service.delete(zone_id)
