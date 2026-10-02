@@ -7,13 +7,16 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.domain.detection import Detection
-from app.domain.geometry import point_in_polygon
+from app.domain.geometry import point_in_polygon, polygon_rectangle_overlap_ratio
 from app.domain.zone_presence import PresenceState, TransitionType, ZonePresenceMachine
 from app.infra.ai.yolox_detector import YoloXDetector
 from app.infra.camera.manager import CameraManager
 from app.infra.media.snapshot_store import SnapshotStore
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.zone_repository import ZoneRepository
+
+
+MINIMUM_ZONE_OVERLAP = 0.2
 
 
 @dataclass
@@ -135,9 +138,7 @@ class MonitoringService:
                 self._runtimes.pop(zone_id, None)
         for zone in zones:
             polygon = [(float(point["x"]), float(point["y"])) for point in zone["polygon"]]
-            inside_detections = [
-                detection for detection in detections if point_in_polygon(detection.centroid, polygon)
-            ]
+            inside_detections = [detection for detection in detections if self._detection_in_zone(detection, polygon)]
             confidence = max((item.confidence for item in inside_detections), default=0.0)
             runtime = self._runtimes.setdefault(zone["id"], ZoneRuntime())
             transitions = runtime.machine.observe(
@@ -183,3 +184,10 @@ class MonitoringService:
                 "event_id": runtime.event_id,
             })
         return feedback
+
+    @staticmethod
+    def _detection_in_zone(detection: Detection, polygon: list[tuple[float, float]]) -> bool:
+        if point_in_polygon(detection.centroid, polygon):
+            return True
+        rectangle = detection.x1, detection.y1, detection.x2, detection.y2
+        return polygon_rectangle_overlap_ratio(polygon, rectangle) >= MINIMUM_ZONE_OVERLAP
