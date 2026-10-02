@@ -10,7 +10,7 @@ from app.infra.database.database import Database
 from app.infra.repositories.camera_repository import CameraRepository
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.zone_repository import ZoneRepository
-from app.services.monitoring_service import MonitoringService
+from app.services.monitoring_service import MAX_CLIP_FRAMES, MAX_CLIP_SECONDS, MonitoringService
 
 
 class FakeCameraManager:
@@ -52,6 +52,10 @@ class FakeClipStore:
 
 
 class MonitoringTests(unittest.TestCase):
+    def test_clip_limit_is_five_minutes(self):
+        self.assertEqual(MAX_CLIP_SECONDS, 300)
+        self.assertEqual(MAX_CLIP_FRAMES, 900)
+
     def test_creates_event_when_cat_remains_inside_zone(self):
         with tempfile.TemporaryDirectory() as directory:
             database = Database(Path(directory) / "monitoring.sqlite3")

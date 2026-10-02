@@ -19,7 +19,8 @@ from app.infra.repositories.zone_repository import ZoneRepository
 
 MINIMUM_ZONE_OVERLAP = 0.2
 CLIP_FPS = 3.0
-MAX_CLIP_FRAMES = 30
+MAX_CLIP_SECONDS = 300
+MAX_CLIP_FRAMES = round(CLIP_FPS * MAX_CLIP_SECONDS)
 
 
 @dataclass
@@ -28,6 +29,7 @@ class ZoneRuntime:
     event_id: str | None = None
     clip_frames: list[bytes] = field(default_factory=list)
     clip_path: str | None = None
+    clip_started_at: float | None = None
 
 
 class MonitoringService:
@@ -156,7 +158,9 @@ class MonitoringService:
             if runtime.machine.state == PresenceState.OUTSIDE and inside_detections:
                 runtime.clip_frames.clear()
                 runtime.clip_path = None
-            if inside_detections and runtime.clip_path is None and len(runtime.clip_frames) < MAX_CLIP_FRAMES:
+                runtime.clip_started_at = now_monotonic
+            clip_elapsed = now_monotonic - runtime.clip_started_at if runtime.clip_started_at is not None else 0
+            if inside_detections and runtime.clip_path is None and clip_elapsed <= MAX_CLIP_SECONDS and len(runtime.clip_frames) < MAX_CLIP_FRAMES:
                 encoded_frame = self.clip_store.encode(frame)
                 if encoded_frame:
                     runtime.clip_frames.append(encoded_frame)
@@ -194,11 +198,13 @@ class MonitoringService:
                     runtime.event_id = None
                     runtime.clip_frames.clear()
                     runtime.clip_path = None
-            if runtime.event_id and len(runtime.clip_frames) >= MAX_CLIP_FRAMES:
+                    runtime.clip_started_at = None
+            if runtime.event_id and (clip_elapsed >= MAX_CLIP_SECONDS or len(runtime.clip_frames) >= MAX_CLIP_FRAMES):
                 self._finalize_clip(runtime, now_utc)
             if runtime.machine.state == PresenceState.OUTSIDE and runtime.event_id is None:
                 runtime.clip_frames.clear()
                 runtime.clip_path = None
+                runtime.clip_started_at = None
             elapsed = runtime.machine.elapsed(now_monotonic)
             minimum = float(zone["minimum_presence_seconds"])
             feedback.append({
@@ -219,6 +225,7 @@ class MonitoringService:
         if clip_path:
             self.event_repository.attach_clip(runtime.event_id, clip_path)
             runtime.clip_path = clip_path
+            runtime.clip_frames.clear()
 
     @staticmethod
     def _detection_in_zone(detection: Detection, polygon: list[tuple[float, float]]) -> bool:

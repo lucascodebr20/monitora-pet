@@ -18,11 +18,12 @@ class ClipStore:
         return jpeg.tobytes() if encoded else None
 
     def save(self, frames: list[bytes], captured_at: datetime, fps: float = 3.0) -> str | None:
-        decoded = [cv2.imdecode(np.frombuffer(frame, dtype=np.uint8), cv2.IMREAD_COLOR) for frame in frames]
-        decoded = [frame for frame in decoded if frame is not None]
-        if len(decoded) < 2:
+        if len(frames) < 2:
             return None
-        height, width = decoded[0].shape[:2]
+        first_frame = cv2.imdecode(np.frombuffer(frames[0], dtype=np.uint8), cv2.IMREAD_COLOR)
+        if first_frame is None:
+            return None
+        height, width = first_frame.shape[:2]
         directory = CLIP_DIR / captured_at.strftime("%Y/%m/%d")
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / f"{uuid4()}.webm"
@@ -30,7 +31,11 @@ class ClipStore:
         if not writer.isOpened():
             return None
         try:
-            for frame in decoded:
+            writer.write(first_frame)
+            for encoded_frame in frames[1:]:
+                frame = cv2.imdecode(np.frombuffer(encoded_frame, dtype=np.uint8), cv2.IMREAD_COLOR)
+                if frame is None:
+                    continue
                 if frame.shape[:2] != (height, width):
                     frame = cv2.resize(frame, (width, height))
                 writer.write(frame)
