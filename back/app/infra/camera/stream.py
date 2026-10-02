@@ -10,6 +10,7 @@ from urllib.parse import quote, urlsplit, urlunsplit
 os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
 
 import cv2
+import numpy as np
 
 cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_SILENT)
 
@@ -63,6 +64,7 @@ class CameraStream:
         self._capture: cv2.VideoCapture | None = None
         self._thread: threading.Thread | None = None
         self._frame: bytes | None = None
+        self._raw_frame: np.ndarray | None = None
         self._condition = threading.Condition()
         self._stop = threading.Event()
         self.status = CameraStatus()
@@ -89,6 +91,7 @@ class CameraStream:
                     if encoded:
                         self._capture = capture
                         self._frame = jpeg.tobytes()
+                        self._raw_frame = frame.copy()
                         self.status = CameraStatus(True, "Ao vivo", frame.shape[1], frame.shape[0], time.time())
                         self._stop.clear()
                         self._thread = threading.Thread(target=self._read_loop, name="camera-reader", daemon=True)
@@ -116,6 +119,7 @@ class CameraStream:
             if encoded:
                 with self._condition:
                     self._frame = jpeg.tobytes()
+                    self._raw_frame = frame.copy()
                     self.status.last_frame_at = time.time()
                     self._condition.notify_all()
 
@@ -129,6 +133,14 @@ class CameraStream:
                 last_frame = frame
                 yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
 
+    def latest_frame(self) -> np.ndarray | None:
+        with self._condition:
+            return self._raw_frame.copy() if self._raw_frame is not None else None
+
+    def snapshot(self) -> bytes | None:
+        with self._condition:
+            return bytes(self._frame) if self._frame is not None else None
+
     def disconnect(self) -> None:
         self._stop.set()
         with self._condition:
@@ -140,4 +152,5 @@ class CameraStream:
             self._thread.join(timeout=1.0)
         self._thread = None
         self._frame = None
+        self._raw_frame = None
         self.status = CameraStatus()

@@ -3,6 +3,8 @@ from __future__ import annotations
 from threading import Lock
 from typing import Iterator
 
+import numpy as np
+
 from app.infra.camera.stream import CameraStream
 
 
@@ -38,6 +40,22 @@ class CameraManager:
         if not stream or not stream.status.connected:
             raise KeyError(camera_id)
         return stream.frames()
+
+    def latest_frame(self, camera_id: str) -> np.ndarray | None:
+        stream = self._streams.get(camera_id)
+        if not stream or not stream.status.connected:
+            return None
+        return stream.latest_frame()
+
+    def snapshot(self, camera_id: str) -> bytes | None:
+        stream = self._streams.get(camera_id)
+        if not stream or not stream.status.connected:
+            return None
+        return stream.snapshot()
+
+    def connected_ids(self) -> list[str]:
+        with self._lock:
+            return [camera_id for camera_id, stream in self._streams.items() if stream.status.connected]
 
     def disconnect_all(self) -> None:
         with self._lock:

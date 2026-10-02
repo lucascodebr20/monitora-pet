@@ -2,17 +2,20 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from typing import Any
+from pathlib import Path
 from uuid import uuid4
 
 from app.domain.errors import EntityNotFoundError
 from app.infra.database.database import utc_now
 from app.infra.repositories.event_repository import EventRepository
+from app.infra.media.snapshot_store import SnapshotStore
 from app.services.commands import ReviewEventCommand
 
 
 class EventService:
-    def __init__(self, repository: EventRepository) -> None:
+    def __init__(self, repository: EventRepository, snapshot_store: SnapshotStore) -> None:
         self.repository = repository
+        self.snapshot_store = snapshot_store
 
     def list(
         self,
@@ -35,3 +38,14 @@ class EventService:
         }
         self.repository.create_review(review)
         return review
+
+    def snapshot(self, event_id: str) -> Path:
+        event = self.repository.get(event_id)
+        if not event:
+            raise EntityNotFoundError("Evento não encontrado.")
+        if not event.get("snapshot_path"):
+            raise EntityNotFoundError("Este evento não possui snapshot.")
+        path = self.snapshot_store.resolve(event["snapshot_path"])
+        if not path.is_file():
+            raise EntityNotFoundError("O snapshot deste evento não está mais disponível.")
+        return path
