@@ -6,7 +6,7 @@ from pathlib import Path
 
 APP_NAME = "MonitoraPet"
 APP_VERSION = "0.1.0"
-BACK_DIR = Path(__file__).resolve().parent.parent
+BACK_DIR = Path(__file__).resolve().parents[2]
 PROJECT_DIR = BACK_DIR.parent
 FRONTEND_DIST = PROJECT_DIR / "front" / "dist"
 
