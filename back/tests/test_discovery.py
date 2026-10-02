@@ -22,6 +22,16 @@ class DiscoveryClassificationTests(unittest.TestCase):
         self.assertEqual(devices[0]["confidence"], "high")
         self.assertEqual(devices[-1]["name"], "Outro dispositivo da rede")
 
+    @patch("app.infra.camera.discovery.device_information", return_value={"manufacturer": "Acme", "model": "Pet Cam"})
+    @patch("app.infra.camera.discovery.local_ipv4_addresses", return_value=["192.168.15.18"])
+    @patch("app.infra.camera.discovery.scan_subnet", return_value={"192.168.15.21": [554, 8899]})
+    def test_device_identity_is_returned(self, _scan_subnet, _interfaces, _identity):
+        device = fallback_scan()[0]
+
+        self.assertEqual(device["name"], "Pet Cam")
+        self.assertEqual(device["manufacturer"], "Acme")
+        self.assertEqual(device["model"], "Pet Cam")
+
 
 if __name__ == "__main__":
     unittest.main()

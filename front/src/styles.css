@@ -81,12 +81,20 @@ button:disabled { cursor: wait; opacity: .55; }
 .camera-card { overflow: hidden; border: 1px solid var(--line); border-radius: 15px; background: white; }
 .preview { position: relative; aspect-ratio: 16/9; display: grid; place-items: center; color: #8b9992; background: #dfe6e1; }
 .preview img { width: 100%; height: 100%; object-fit: cover; }
-.status { position: absolute; top: 12px; left: 12px; padding: 6px 9px; display: flex; gap: 6px; align-items: center; border-radius: 99px; color: white; background: #1a2420cc; font-size: 9px; font-weight: 800; }
+.camera-zone-overlay, .camera-zone, .camera-zone svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.camera-zone polygon { fill: #34705a40; stroke: #54d69f; stroke-width: .7; vector-effect: non-scaling-stroke; }
+.camera-zone.water polygon { fill: #2b83c540; stroke: #55b8ff; }
+.camera-zone.food polygon { fill: #dd8d3140; stroke: #ffbd66; }
+.camera-zone.litter polygon { fill: #8d6cc340; stroke: #bd9cf2; }
+.camera-zone span { position: absolute; translate: -50% -50%; padding: 3px 7px; border-radius: 99px; color: white; background: #14221cdd; box-shadow: 0 1px 4px #0005; font-size: 9px; font-weight: 800; white-space: nowrap; }
+.status { position: absolute; z-index: 2; top: 12px; left: 12px; padding: 6px 9px; display: flex; gap: 6px; align-items: center; border-radius: 99px; color: white; background: #1a2420cc; font-size: 9px; font-weight: 800; }
 .status i { width: 6px; height: 6px; border-radius: 50%; background: #aeb7b2; }
 .status.online i { background: #5cd18f; }
 .camera-info { padding: 16px; display: flex; align-items: center; justify-content: space-between; }
 .camera-info h3 { font-size: 14px; }
 .camera-info p { margin-bottom: 0; color: var(--muted); font-size: 10px; }
+.camera-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.zone-toggle.active { color: var(--green); background: var(--green-soft); }
 .modal-backdrop { position: fixed; inset: 0; z-index: 10; padding: 20px; display: grid; place-items: center; background: #14221ccc; backdrop-filter: blur(4px); }
 .modal { width: min(580px, 100%); max-height: calc(100vh - 40px); overflow: auto; padding: 26px; border-radius: 16px; background: white; box-shadow: 0 24px 80px #0005; }
 .compact-modal { width: min(470px, 100%); }
@@ -97,7 +105,9 @@ input, select { width: 100%; height: 40px; margin-top: 6px; padding: 0 11px; out
 input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px #34705a18; }
 .wide { grid-column: 1 / -1; }
 .candidate-list { margin-top: 10px; display: grid; gap: 6px; }
-.candidate-list button { padding: 9px 11px; display: flex; justify-content: space-between; border: 1px solid var(--line); border-radius: 8px; background: white; font-size: 11px; }
+.candidate-list button { padding: 9px 11px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid var(--line); border-radius: 8px; background: white; font-size: 11px; text-align: left; }
+.candidate-list button > span:first-child { display: grid; gap: 2px; }
+.candidate-list small { color: var(--muted); font-size: 9px; font-weight: 500; }
 .form-error, .global-error { padding: 10px 12px; border-radius: 8px; color: var(--danger); background: #f9e9e7; font-size: 11px; }
 .global-error { margin-bottom: 20px; display: flex; justify-content: space-between; }
 .global-error button { border: 0; color: var(--danger); background: transparent; font-weight: 800; }
