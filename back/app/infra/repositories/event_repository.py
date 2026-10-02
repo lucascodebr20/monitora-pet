@@ -31,6 +31,7 @@ class EventRepository:
             parameters.append(date)
         if pending_review:
             filters.append("NOT EXISTS (SELECT 1 FROM human_reviews hr WHERE hr.event_id = e.id)")
+            filters.append("e.ended_at IS NOT NULL")
         where = f"WHERE {' AND '.join(filters)}" if filters else ""
         parameters.append(limit)
         return self.database.all(
@@ -85,6 +86,12 @@ class EventRepository:
             (ended_at, duration, reason, event_id),
         )
 
+    def attach_clip(self, event_id: str, clip_path: str) -> None:
+        self.database.execute(
+            "UPDATE events SET clip_path = ? WHERE id = ?",
+            (clip_path, event_id),
+        )
+
     def finish_open_events(self, ended_at: str) -> None:
         self.database.execute(
             """UPDATE events SET ended_at = ?, end_reason = 'APPLICATION_RESTART',
@@ -102,7 +109,8 @@ class EventRepository:
     def count_pending_reviews(self) -> int:
         row = self.database.one(
             """SELECT COUNT(*) AS total FROM events e
-               WHERE NOT EXISTS (SELECT 1 FROM human_reviews r WHERE r.event_id = e.id)"""
+               WHERE e.ended_at IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM human_reviews r WHERE r.event_id = e.id)"""
         )
         return int(row["total"]) if row else 0
 

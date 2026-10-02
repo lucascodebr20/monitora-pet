@@ -29,3 +29,8 @@ def review_event(event_id: str, request: ReviewCreateRequest) -> dict[str, Any]:
 @router.get("/{event_id}/snapshot")
 def event_snapshot(event_id: str) -> FileResponse:
     return FileResponse(event_service.snapshot(event_id), media_type="image/jpeg")
+
+
+@router.get("/{event_id}/clip")
+def event_clip(event_id: str) -> FileResponse:
+    return FileResponse(event_service.clip(event_id), media_type="video/webm")

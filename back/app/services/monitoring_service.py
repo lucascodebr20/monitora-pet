@@ -11,18 +11,23 @@ from app.domain.geometry import point_in_polygon, polygon_rectangle_overlap_rati
 from app.domain.zone_presence import PresenceState, TransitionType, ZonePresenceMachine
 from app.infra.ai.yolox_detector import YoloXDetector
 from app.infra.camera.manager import CameraManager
+from app.infra.media.clip_store import ClipStore
 from app.infra.media.snapshot_store import SnapshotStore
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.zone_repository import ZoneRepository
 
 
 MINIMUM_ZONE_OVERLAP = 0.2
+CLIP_FPS = 3.0
+MAX_CLIP_FRAMES = 30
 
 
 @dataclass
 class ZoneRuntime:
     machine: ZonePresenceMachine = field(default_factory=ZonePresenceMachine)
     event_id: str | None = None
+    clip_frames: list[bytes] = field(default_factory=list)
+    clip_path: str | None = None
 
 
 class MonitoringService:
@@ -32,6 +37,7 @@ class MonitoringService:
         zone_repository: ZoneRepository,
         event_repository: EventRepository,
         snapshot_store: SnapshotStore,
+        clip_store: ClipStore,
         detector: YoloXDetector | None,
         model_error: str | None = None,
     ) -> None:
@@ -39,6 +45,7 @@ class MonitoringService:
         self.zone_repository = zone_repository
         self.event_repository = event_repository
         self.snapshot_store = snapshot_store
+        self.clip_store = clip_store
         self.detector = detector
         self.model_error = model_error
         self._runtimes: dict[str, ZoneRuntime] = {}
@@ -61,6 +68,10 @@ class MonitoringService:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=3)
         self._thread = None
+        stopped_at = datetime.now(timezone.utc)
+        for runtime in self._runtimes.values():
+            self._finalize_clip(runtime, stopped_at)
+        self.event_repository.finish_open_events(stopped_at.isoformat())
 
     def health(self) -> dict[str, Any]:
         if self.detector is None:
@@ -100,7 +111,7 @@ class MonitoringService:
             detections = self.detector.detect(frame)
             self._last_error = None
             zones = self.zone_repository.list(camera_id)
-            feedback_zones = self._process_zones(camera_id, zones, detections)
+            feedback_zones = self._process_zones(camera_id, frame, zones, detections)
             feedback = {
                 "camera_id": camera_id,
                 "status": "running",
@@ -126,6 +137,7 @@ class MonitoringService:
     def _process_zones(
         self,
         camera_id: str,
+        frame,
         zones: list[dict[str, Any]],
         detections: list[Detection],
     ) -> list[dict[str, Any]]:
@@ -141,6 +153,13 @@ class MonitoringService:
             inside_detections = [detection for detection in detections if self._detection_in_zone(detection, polygon)]
             confidence = max((item.confidence for item in inside_detections), default=0.0)
             runtime = self._runtimes.setdefault(zone["id"], ZoneRuntime())
+            if runtime.machine.state == PresenceState.OUTSIDE and inside_detections:
+                runtime.clip_frames.clear()
+                runtime.clip_path = None
+            if inside_detections and runtime.clip_path is None and len(runtime.clip_frames) < MAX_CLIP_FRAMES:
+                encoded_frame = self.clip_store.encode(frame)
+                if encoded_frame:
+                    runtime.clip_frames.append(encoded_frame)
             transitions = runtime.machine.observe(
                 bool(inside_detections),
                 confidence,
@@ -164,6 +183,7 @@ class MonitoringService:
                         snapshot_path,
                     )
                 elif transition.type == TransitionType.FINISH and runtime.event_id:
+                    self._finalize_clip(runtime, now_utc)
                     ended_at = now_utc - timedelta(seconds=transition.seconds_since_seen)
                     self.event_repository.finish_detected_event(
                         runtime.event_id,
@@ -172,6 +192,13 @@ class MonitoringService:
                         "CAT_LEFT_ZONE",
                     )
                     runtime.event_id = None
+                    runtime.clip_frames.clear()
+                    runtime.clip_path = None
+            if runtime.event_id and len(runtime.clip_frames) >= MAX_CLIP_FRAMES:
+                self._finalize_clip(runtime, now_utc)
+            if runtime.machine.state == PresenceState.OUTSIDE and runtime.event_id is None:
+                runtime.clip_frames.clear()
+                runtime.clip_path = None
             elapsed = runtime.machine.elapsed(now_monotonic)
             minimum = float(zone["minimum_presence_seconds"])
             feedback.append({
@@ -184,6 +211,14 @@ class MonitoringService:
                 "event_id": runtime.event_id,
             })
         return feedback
+
+    def _finalize_clip(self, runtime: ZoneRuntime, captured_at: datetime) -> None:
+        if not runtime.event_id or runtime.clip_path or len(runtime.clip_frames) < 2:
+            return
+        clip_path = self.clip_store.save(runtime.clip_frames, captured_at, CLIP_FPS)
+        if clip_path:
+            self.event_repository.attach_clip(runtime.event_id, clip_path)
+            runtime.clip_path = clip_path
 
     @staticmethod
     def _detection_in_zone(detection: Detection, polygon: list[tuple[float, float]]) -> bool:
