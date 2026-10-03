@@ -187,7 +187,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
   return <>
     <div className="page-heading"><div><p className="eyebrow">DEFINA O QUE ACOMPANHAR</p><h1>Zonas monitoradas</h1></div><button className="primary" onClick={startCreate}>+ Cadastrar zona</button></div>
     {message&&<p className="review-notice" role="status">{message}</p>}
-    <section className="zone-management-layout"><div className="zone-inline-editor"><div className="zone-inline-heading"><div><p className="eyebrow">EDITOR DE ÁREA</p><h2>{editingId?'Editar zona':'Cadastrar nova zona'}</h2></div>{editingId&&<button className="tertiary" type="button" disabled={saving} onClick={closeEditor}>Cancelar edição</button>}</div><section className="zone-workspace">
+    <section className="zone-management-layout"><div className="zone-inline-editor"><section className="zone-workspace">
       <div className="zone-editor-panel">
         <div className="zone-toolbar">
           <fieldset className="zone-camera-picker"><legend>Câmera</legend><div>{cameras.map(item=><button type="button" aria-pressed={cameraId===item.id} className={cameraId===item.id?'selected':''} key={item.id} onClick={()=>{setCameraId(item.id);resetEditor()}}>{item.name}<small>{item.status.connected?'Online':'Offline'}</small></button>)}</div>{!cameras.length&&<p className="muted">Cadastre uma câmera antes de criar a zona.</p>}</fieldset>
@@ -211,7 +211,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
 
       <aside className="zone-settings">
         <form className="panel stack-form" onSubmit={submit}>
-          <div><p className="eyebrow">{editingId ? 'EDITAR ZONA' : 'NOVA ZONA'}</p><h2>{points.length < 3 ? 'Marque a área no vídeo' : 'Configure o monitoramento'}</h2></div>
+          <div>{editingId&&<p className="eyebrow">EDITAR ZONA</p>}<h2>{points.length < 3 ? 'Marque a área no vídeo' : 'Configure o monitoramento'}</h2></div>
           <label>Nome<input required value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} placeholder="Ex.: Pote de água" /></label>
           <fieldset className="zone-type-picker"><legend>Tipo</legend><div>{Object.entries(zoneLabels).map(([value,label])=><label className={form.type===value?'selected':''} key={value}><input type="radio" name="zone-type" checked={form.type===value} onChange={()=>setForm({...form,type:value as Zone['type']})}/>{label}</label>)}</div></fieldset>
           <label>Permanência para confirmar<input type="number" min="0.5" max="300" step="0.5" value={form.minimum_presence_seconds} onChange={event => setForm({ ...form, minimum_presence_seconds: Number(event.target.value) })} /><small>Segundos que o pet precisa permanecer na área.</small></label>
