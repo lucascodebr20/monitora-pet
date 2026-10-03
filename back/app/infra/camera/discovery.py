@@ -127,7 +127,8 @@ def discover_all(timeout: float = 3.0, attempts: int = 2) -> list[dict[str, obje
 def fallback_scan() -> list[dict[str, object]]:
     found: dict[str, set[int]] = {}
     announced: dict[str, dict[str, str]] = {}
-    for interface in local_ipv4_addresses():
+    interfaces = local_ipv4_addresses()
+    for interface in interfaces:
         network = ipaddress.ip_network(f"{interface}/24", strict=False)
         try:
             for ip, ports in scan_subnet(str(network)).items():
@@ -165,11 +166,15 @@ def fallback_scan() -> list[dict[str, object]]:
         hostname = device_hostname(ip)
         upnp_type = network_identity.get("upnp_type", "")
         normalized_upnp_type = upnp_type.lower()
+        is_local_host = ip in interfaces
         is_default_gateway = ip == gateway_ip
         is_router = is_default_gateway or "internetgatewaydevice" in normalized_upnp_type
         is_media_device = "mediarenderer" in normalized_upnp_type or "mediaserver" in normalized_upnp_type
-        web_title = device_web_title(ip, ports) if not model and not friendly_name and (is_router or not hostname) else ""
-        if is_router:
+        web_title = device_web_title(ip, ports) if not is_local_host and not model and not friendly_name and (is_router or not hostname) else ""
+        if is_local_host:
+            name = str(hostname or socket.gethostname() or "Servidor do MonitoraPet")
+            reason = "Servidor do MonitoraPet · Não é uma câmera"
+        elif is_router:
             name = str(model or friendly_name or hostname or "Roteador/modem da rede")
             reason = "Gateway padrão da rede · Não é uma câmera" if is_default_gateway else "Roteador anunciado na rede · Não é uma câmera"
         else:
@@ -197,7 +202,7 @@ def fallback_scan() -> list[dict[str, object]]:
                 "hostname": hostname,
                 "web_title": web_title,
                 "upnp_type": upnp_type,
-                "device_type": "router" if is_router else "camera" if has_rtsp else "media_device" if is_media_device else "network_device",
+                "device_type": "host" if is_local_host else "router" if is_router else "camera" if has_rtsp else "media_device" if is_media_device else "network_device",
             }
         )
 
