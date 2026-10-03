@@ -19,10 +19,9 @@ class CameraService:
         self.manager = manager
 
     def discover(self, fallback: bool = False) -> list[dict[str, object]]:
-        devices = discover_all()
-        if not devices and fallback:
-            devices = fallback_scan()
-        return devices
+        devices = fallback_scan() if fallback else discover_all()
+        registered_ips = {str(camera["ip"]) for camera in self.repository.list()}
+        return [device for device in devices if str(device.get("ip", "")) not in registered_ips]
 
     def list(self) -> list[dict[str, Any]]:
         return [self._view(camera) for camera in self.repository.list()]
