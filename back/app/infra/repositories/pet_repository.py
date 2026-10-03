@@ -23,6 +23,12 @@ class PetRepository:
     def get(self, pet_id: str) -> dict[str, Any] | None:
         return self.database.one("SELECT * FROM pets WHERE id = ?", (pet_id,))
 
+    def list_by_species(self, species: str) -> list[dict[str, Any]]:
+        return self.database.all(
+            "SELECT * FROM pets WHERE species = ? ORDER BY name COLLATE NOCASE",
+            (species,),
+        )
+
     def create(self, name: str, species: str, description: str, photo_path: str | None) -> dict[str, Any]:
         pet_id = str(uuid4())
         now = utc_now()
