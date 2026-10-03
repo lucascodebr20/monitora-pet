@@ -63,6 +63,7 @@ class CameraStatus:
 
 class CameraStream:
     def __init__(self) -> None:
+        self._lifecycle_lock = threading.Lock()
         self._capture: cv2.VideoCapture | None = None
         self._thread: threading.Thread | None = None
         self._frame: bytes | None = None
@@ -75,22 +76,24 @@ class CameraStream:
         self.status = CameraStatus()
 
     def connect(self, urls: list[str], timeout_seconds: float = 5.0) -> None:
-        self.disconnect()
-        self._urls = list(dict.fromkeys(urls))
-        self._timeout_seconds = timeout_seconds
-        last_error = "Não foi possível abrir o stream."
-        for url in self._urls:
-            capture, frame = self._open_capture(url)
-            if capture is not None and frame is not None and self._activate_capture(capture, frame):
-                self._active_url = url
-                self._stop.clear()
-                self._thread = threading.Thread(target=self._read_loop, name="camera-reader", daemon=True)
-                self._thread.start()
-                return
-            last_error = "O stream abriu, mas não entregou imagens."
-        self.status = CameraStatus(False, last_error)
-        self._urls.clear()
-        raise CameraConnectionError(last_error)
+        with self._lifecycle_lock:
+            if not self._disconnect_locked():
+                raise CameraConnectionError("A conexão anterior da câmera ainda está sendo encerrada.")
+            self._urls = list(dict.fromkeys(urls))
+            self._timeout_seconds = timeout_seconds
+            last_error = "Não foi possível abrir o stream."
+            for url in self._urls:
+                capture, frame = self._open_capture(url)
+                if capture is not None and frame is not None and self._activate_capture(capture, frame):
+                    self._active_url = url
+                    self._stop.clear()
+                    self._thread = threading.Thread(target=self._read_loop, name="camera-reader", daemon=True)
+                    self._thread.start()
+                    return
+                last_error = "O stream abriu, mas não entregou imagens."
+            self.status = CameraStatus(False, last_error)
+            self._urls.clear()
+            raise CameraConnectionError(last_error)
 
     def _open_capture(self, url: str) -> tuple[cv2.VideoCapture | None, np.ndarray | None]:
         timeout_ms = int(self._timeout_seconds * 1000)
@@ -200,17 +203,28 @@ class CameraStream:
             return bytes(self._frame) if self._frame is not None else None
 
     def disconnect(self) -> None:
+        with self._lifecycle_lock:
+            self._disconnect_locked()
+
+    def _disconnect_locked(self) -> bool:
         self._stop.set()
         with self._condition:
             self._condition.notify_all()
-        if self._capture is not None:
-            self._capture.release()
-            self._capture = None
-        if self._thread is not None and self._thread.is_alive():
-            self._thread.join(timeout=self._timeout_seconds + 1)
+        thread = self._thread
+        if thread is not None and thread is not threading.current_thread() and thread.is_alive():
+            thread.join(timeout=self._timeout_seconds + 1)
+        if thread is not None and thread.is_alive():
+            self.status.connected = False
+            self.status.message = "Encerrando conexão anterior"
+            return False
+        capture = self._capture
+        self._capture = None
+        if capture is not None:
+            capture.release()
         self._thread = None
         self._frame = None
         self._raw_frame = None
         self._urls.clear()
         self._active_url = None
         self.status = CameraStatus()
+        return True
