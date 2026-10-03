@@ -104,8 +104,7 @@ export default function PetManager({ pets, refresh }: Props) {
         {form.photo_data && <img className="pet-photo-preview" src={form.photo_data} alt="Prévia da foto do pet" />}
         {editing?.photo_path && !form.photo_data && <p className="muted">A foto atual será mantida se nenhuma nova for selecionada.</p>}
         {error && <p className="form-error">{error}</p>}
-        <button className="primary full" disabled={saving || readingPhoto}>{readingPhoto ? 'Preparando foto…' : saving ? 'Salvando…' : editing ? 'Salvar perfil' : 'Cadastrar pet'}</button>
-        <button type="button" className="tertiary full" disabled={saving} onClick={cancel}>Cancelar</button>
+        <div className="pet-form-actions"><button type="button" className="tertiary" disabled={saving} onClick={cancel}>Cancelar</button><button className="primary" disabled={saving || readingPhoto}>{readingPhoto ? 'Preparando foto…' : saving ? 'Salvando…' : editing ? 'Salvar perfil' : 'Cadastrar pet'}</button></div>
 </fieldset>
       </form>
     </dialog>}

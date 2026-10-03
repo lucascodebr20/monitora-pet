@@ -272,3 +272,4 @@ nav button.active{color:var(--primary);background:color-mix(in srgb,var(--second
 input:focus,input:focus-visible,select:focus,select:focus-visible,textarea:focus,textarea:focus-visible{outline:none;border-color:var(--secondary);box-shadow:none}
 .app-shell{min-height:100dvh}.main-shell{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto}.content{min-height:0;height:auto;align-self:stretch}@media(max-width:620px){.app-shell{display:flex;min-height:100dvh;flex-direction:column}.main-shell{flex:1}}
 dialog.modal{max-height:none;height:max-content}
+.pet-form-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:2px}.pet-form-actions .primary{margin-left:auto}
