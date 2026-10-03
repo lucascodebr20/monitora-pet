@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 from app.infra.camera.stream import CameraStream, build_authenticated_url, candidate_urls
+from app.services.camera_service import CameraService
 
 
 class CameraUrlTests(unittest.TestCase):
@@ -70,6 +71,35 @@ class CameraUrlTests(unittest.TestCase):
 
         self.assertFalse(disconnect_thread.is_alive())
         capture.release.assert_called_once()
+
+
+class CameraDiscoveryTests(unittest.TestCase):
+    @patch("app.services.camera_service.discover_all")
+    def test_registered_cameras_are_removed_from_discovery(self, discover_all):
+        discover_all.return_value = [
+            {"ip": "192.168.15.20", "name": "Câmera cadastrada"},
+            {"ip": "192.168.15.21", "name": "Câmera nova"},
+        ]
+        repository = Mock()
+        repository.list.return_value = [{"ip": "192.168.15.20"}]
+        service = CameraService(repository, Mock())
+
+        self.assertEqual(service.discover(), [{"ip": "192.168.15.21", "name": "Câmera nova"}])
+
+    @patch("app.services.camera_service.fallback_scan")
+    @patch("app.services.camera_service.discover_all")
+    def test_fallback_search_filters_registered_cameras(self, discover_all, fallback_scan):
+        fallback_scan.return_value = [
+            {"ip": "192.168.15.20", "name": "Câmera cadastrada"},
+            {"ip": "192.168.15.22", "name": "Câmera nova"},
+        ]
+        repository = Mock()
+        repository.list.return_value = [{"ip": "192.168.15.20"}]
+        service = CameraService(repository, Mock())
+
+        self.assertEqual(service.discover(fallback=True), [{"ip": "192.168.15.22", "name": "Câmera nova"}])
+        fallback_scan.assert_called_once_with()
+        discover_all.assert_not_called()
 
 
 if __name__ == "__main__":
