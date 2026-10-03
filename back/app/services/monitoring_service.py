@@ -7,11 +7,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.domain.detection import Detection
+from app.domain.enums import PetSpecies
 from app.domain.geometry import point_in_polygon, polygon_rectangle_overlap_ratio
 from app.domain.zone_presence import PresenceState, TransitionType, ZonePresenceMachine
 from app.infra.ai.yolox_detector import YoloXDetector
 from app.infra.camera.manager import CameraManager
 from app.infra.media.clip_store import ClipStore
+from app.infra.media.pet_image_store import PetImageStore
 from app.infra.media.snapshot_store import SnapshotStore
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.zone_repository import ZoneRepository
@@ -30,6 +32,7 @@ class ZoneRuntime:
     clip_frames: list[bytes] = field(default_factory=list)
     clip_path: str | None = None
     clip_started_at: float | None = None
+    species: PetSpecies = PetSpecies.CAT
 
 
 class MonitoringService:
@@ -42,12 +45,14 @@ class MonitoringService:
         clip_store: ClipStore,
         detector: YoloXDetector | None,
         model_error: str | None = None,
+        pet_image_store: PetImageStore | None = None,
     ) -> None:
         self.camera_manager = camera_manager
         self.zone_repository = zone_repository
         self.event_repository = event_repository
         self.snapshot_store = snapshot_store
         self.clip_store = clip_store
+        self.pet_image_store = pet_image_store
         self.detector = detector
         self.model_error = model_error
         self._runtimes: dict[str, ZoneRuntime] = {}
@@ -178,9 +183,12 @@ class MonitoringService:
             )
             for transition in transitions:
                 if transition.type == TransitionType.CONFIRM:
+                    primary_detection = max(inside_detections, key=lambda item: item.confidence)
+                    runtime.species = primary_detection.species
                     snapshot_path = self.snapshot_store.save(
                         self.camera_manager.snapshot(camera_id), now_utc
                     )
+                    pet_capture_path = self.pet_image_store.save_capture(frame, primary_detection) if self.pet_image_store else None
                     started_at = now_utc - timedelta(seconds=transition.elapsed_seconds)
                     runtime.event_id = self.event_repository.create_detected_event(
                         camera_id,
@@ -189,6 +197,8 @@ class MonitoringService:
                         now_utc.isoformat(),
                         transition.confidence,
                         snapshot_path,
+                        runtime.species.value,
+                        pet_capture_path,
                     )
                 elif transition.type == TransitionType.FINISH and runtime.event_id:
                     self._finalize_clip(runtime, now_utc)
