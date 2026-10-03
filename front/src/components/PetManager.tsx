@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import * as api from '../api'
 import type { Pet, PetSpecies } from '../api'
+import { useToast } from './Toast'
 
 type Props = { pets: Pet[]; refresh: () => Promise<void> }
 
@@ -22,10 +23,10 @@ async function cropPhoto(sourceUrl: string, position: { x: number; y: number }):
 }
 
 export default function PetManager({ pets, refresh }: Props) {
+  const showToast = useToast()
   const [form, setForm] = useState({ name: '', species: 'CAT' as PetSpecies, description: '', photo_data: null as string | null })
   const [open, setOpen] = useState(false)
   const dialogRef = useRef<HTMLDialogElement>(null)
-  const [notice, setNotice] = useState('')
   const [editing, setEditing] = useState<Pet | null>(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -46,12 +47,12 @@ export default function PetManager({ pets, refresh }: Props) {
     setForm({name:'',species:'CAT',description:'',photo_data:null})
     setPhotoSource(null);setCropPosition({x:50,y:50})
     photoReadId.current++;setReadingPhoto(false)
-    setError('');setNotice('');setOpen(true)
+    setError('');setOpen(true)
   }
 
   function edit(pet: Pet) {
     photoReadId.current++;setReadingPhoto(false)
-    setOpen(true);setNotice('')
+    setOpen(true)
     setEditing(pet)
     setForm({ name: pet.name, species: pet.species, description: pet.description, photo_data: null })
     setPhotoSource(null);setCropPosition({x:50,y:50})
@@ -79,7 +80,7 @@ export default function PetManager({ pets, refresh }: Props) {
       else await api.createPet(payload)
       cancel()
       await refresh()
-      setNotice(editing ? 'Perfil atualizado.' : 'Pet cadastrado.')
+      showToast(editing ? 'Perfil atualizado.' : 'Pet cadastrado.')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível salvar o pet.')
     } finally {
@@ -90,12 +91,11 @@ export default function PetManager({ pets, refresh }: Props) {
 
   return <>
     <div className="page-heading"><div><p className="eyebrow">PERFIS LOCAIS</p><h1>Pets</h1></div><button className="primary" onClick={startCreate}>+ Cadastrar pet</button></div>
-    {notice && <p className="review-notice" role="status">{notice}</p>}
     <section className="pet-layout pet-list-layout">
 
       <section className="pet-grid">{pets.map(pet => <article className="panel pet-card" key={pet.id}>
         {pet.photo_path ? <img src={`/api/pets/${pet.id}/photo`} alt={pet.name} /> : <div className="pet-placeholder">{pet.species === 'CAT' ? '🐈' : '🐕'}</div>}
-        <div className="pet-card-info"><span className="eyebrow">{pet.species === 'CAT' ? 'GATO' : 'CÃO'}</span><h2>{pet.name}</h2><p>{pet.description || 'Sem características cadastradas.'}</p><small>{pet.event_count} evento(s) · {pet.reference_count} captura(s) confirmada(s)</small><div><button className="tertiary" onClick={() => edit(pet)}>Editar</button><button className="tertiary danger" onClick={async () => { if (window.confirm(`Remover o perfil de ${pet.name}?`)) { await api.deletePet(pet.id); await refresh() } }}>Remover</button></div></div>
+        <div className="pet-card-info"><span className="eyebrow">{pet.species === 'CAT' ? 'GATO' : 'CÃO'}</span><h2>{pet.name}</h2><p>{pet.description || 'Sem características cadastradas.'}</p><small>{pet.event_count} evento(s) · {pet.reference_count} captura(s) confirmada(s)</small><div><button className="tertiary" onClick={() => edit(pet)}>Editar</button><button className="tertiary danger" onClick={async () => { if (window.confirm(`Remover o perfil de ${pet.name}?`)) { await api.deletePet(pet.id); await refresh(); showToast(`Perfil de ${pet.name} removido.`) } }}>Remover</button></div></div>
       </article>)}{!pets.length && <section className="panel pet-empty"><h2>Comece cadastrando um pet</h2><p>Adicione uma foto inicial. Depois, confirme o animal nas revisões para acumular capturas reais dele.</p></section>}</section>
     </section>
     {open && <dialog ref={dialogRef} className="modal pet-modal" aria-labelledby="pet-form-title" onCancel={event=>{event.preventDefault();if(!saving)cancel()}}>
