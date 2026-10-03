@@ -37,3 +37,4 @@ class ReviewEventCommand:
     corrected_activity: Activity | None
     pet_id: str | None
     notes: str | None
+    zone_type: ZoneType | None = None
