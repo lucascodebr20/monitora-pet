@@ -40,9 +40,7 @@ const CameraVideo = memo(function CameraVideo({ cameraId, cameraName }: { camera
 
 export default function ZoneEditor({ cameras, zones, refresh }: Props) {
   const [cameraId, setCameraId] = useState('')
-  const [open,setOpen] = useState(false)
   const [saving,setSaving] = useState(false)
-  const dialogRef = useRef<HTMLDialogElement>(null)
   const [points, setPoints] = useState<Point[]>([])
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -60,15 +58,8 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
     [feedback],
   )
 
-  useEffect(() => {
-    if(!open) return
-    const previous=document.activeElement as HTMLElement|null
-    dialogRef.current?.showModal()
-    return ()=>{dialogRef.current?.close();previous?.focus()}
-  },[open])
-
-  function closeEditor(){if(saving)return;setOpen(false);resetEditor()}
-  function startCreate(){resetEditor();setMessage('');setCameraId((cameras.find(c=>c.status.connected)??cameras[0])?.id??'');setOpen(true)}
+  function closeEditor(){if(saving)return;resetEditor()}
+  function startCreate(){resetEditor();setMessage('');setCameraId((cameras.find(c=>c.status.connected)??cameras[0])?.id??'')}
 
   useEffect(() => {
     if (!cameraId && cameras.length) {
@@ -78,7 +69,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
 
   useEffect(() => {
     setFeedback(null)
-    if (!cameraId || !open) return
+    if (!cameraId) return
     let active = true
     const load = async () => {
       try {
@@ -91,7 +82,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
     void load()
     const timer = window.setInterval(load, 750)
     return () => { active = false; window.clearInterval(timer) }
-  }, [cameraId, open])
+  }, [cameraId])
 
   function addPoint(event: MouseEvent<SVGSVGElement>) {
     if (suppressCanvasClick.current) {
@@ -163,7 +154,6 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
   }
 
   function editZone(zone: Zone) {
-    setOpen(true)
     setCameraId(zone.camera_id)
     setPoints(zone.polygon)
     setForm({
@@ -188,7 +178,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
       else await api.createZone(payload)
       await refresh()
       setMessage(editingId ? 'Zona atualizada.' : 'Zona criada e monitoramento iniciado.')
-      resetEditor();setOpen(false)
+      resetEditor()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível salvar a zona.')
     } finally {setSaving(false)}
@@ -196,9 +186,8 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
 
   return <>
     <div className="page-heading"><div><p className="eyebrow">DEFINA O QUE ACOMPANHAR</p><h1>Zonas monitoradas</h1></div><button className="primary" onClick={startCreate}>+ Cadastrar zona</button></div>
-    {!open&&message&&<p className="review-notice" role="status">{message}</p>}
-    <section className="zone-cards">{zones.map(zone=><article className="panel zone-card" key={zone.id}><span className={`event-kind ${zone.type.toLowerCase()}`}><Icon name={zone.type==='WATER'?'water':zone.type==='FOOD'?'food':zone.type==='LITTER'?'litter':'zones'}/></span><div className="zone-card-copy"><span className="eyebrow">{zoneLabels[zone.type]}</span><h2>{zone.name}</h2><p><Icon name="camera"/>{cameras.find(c=>c.id===zone.camera_id)?.name??'Câmera indisponível'}</p><small>Permanência mínima: {zone.minimum_presence_seconds}s</small></div><div className="zone-card-actions"><button className="tertiary" onClick={()=>editZone(zone)}>Editar</button><button className="tertiary danger" onClick={async()=>{if(window.confirm(`Remover a zona ${zone.name}?`)){await api.deleteZone(zone.id);await refresh()}}}>Remover</button></div></article>)}{!zones.length&&<div className="panel zone-empty"><h2>Nenhuma zona cadastrada</h2><p>Cadastre uma zona para acompanhar as visitas dos pets.</p><button className="primary" onClick={startCreate}>+ Cadastrar zona</button></div>}</section>
-    {open&&<dialog ref={dialogRef} className="modal zone-modal" aria-labelledby="zone-modal-title" onCancel={event=>{event.preventDefault();closeEditor()}}><div className="panel-head"><h2 id="zone-modal-title">{editingId?'Editar zona':'Cadastrar zona'}</h2><button className="close" aria-label="Fechar editor de zona" disabled={saving} onClick={closeEditor}>×</button></div><section className="zone-workspace">
+    {message&&<p className="review-notice" role="status">{message}</p>}
+    <section className="zone-management-layout"><div className="zone-inline-editor"><div className="zone-inline-heading"><div><p className="eyebrow">EDITOR DE ÁREA</p><h2>{editingId?'Editar zona':'Cadastrar nova zona'}</h2></div>{editingId&&<button className="tertiary" type="button" disabled={saving} onClick={closeEditor}>Cancelar edição</button>}</div><section className="zone-workspace">
       <div className="zone-editor-panel">
         <div className="zone-toolbar">
           <fieldset className="zone-camera-picker"><legend>Câmera</legend><div>{cameras.map(item=><button type="button" aria-pressed={cameraId===item.id} className={cameraId===item.id?'selected':''} key={item.id} onClick={()=>{setCameraId(item.id);resetEditor()}}>{item.name}<small>{item.status.connected?'Online':'Offline'}</small></button>)}</div>{!cameras.length&&<p className="muted">Cadastre uma câmera antes de criar a zona.</p>}</fieldset>
@@ -228,12 +217,11 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
           <label>Permanência para confirmar<input type="number" min="0.5" max="300" step="0.5" value={form.minimum_presence_seconds} onChange={event => setForm({ ...form, minimum_presence_seconds: Number(event.target.value) })} /><small>Segundos que o pet precisa permanecer na área.</small></label>
           <div className="two-inputs"><label>Tolerância<input type="number" min="0" max="30" step="0.5" value={form.absence_tolerance_seconds} onChange={event => setForm({ ...form, absence_tolerance_seconds: Number(event.target.value) })} /></label><label>Intervalo entre visitas<input type="number" min="0" max="3600" step="1" value={form.cooldown_seconds} onChange={event => setForm({ ...form, cooldown_seconds: Number(event.target.value) })} /></label></div>
           {error && <p className="form-error">{error}</p>}
-          {message && <p className="form-success">{message}</p>}
           <button className="primary full" disabled={saving || !camera?.status.connected || points.length < 3}>{saving?'Salvando…':editingId ? 'Salvar alterações' : 'Cadastrar zona'}</button>
-          <button className="tertiary full" type="button" disabled={saving} onClick={closeEditor}>Cancelar</button>
+          <button className="tertiary full" type="button" disabled={saving} onClick={closeEditor}>{editingId?'Cancelar edição':'Limpar campos'}</button>
         </form>
 
       </aside>
-    </section></dialog>}
+    </section></div><aside className="zone-card-column"><div className="zone-card-column-heading"><div><p className="eyebrow">ÁREAS CADASTRADAS</p><h2>Suas zonas</h2></div><span>{zones.length}</span></div><section className="zone-cards">{zones.map(zone=><article className={`panel zone-card ${editingId===zone.id?'selected':''}`} key={zone.id} role="button" tabIndex={0} aria-label={`Editar ${zone.name}`} onClick={()=>editZone(zone)} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();editZone(zone)}}}><span className={`event-kind ${zone.type.toLowerCase()}`}><Icon name={zone.type==='WATER'?'water':zone.type==='FOOD'?'food':zone.type==='LITTER'?'litter':'zones'}/></span><div className="zone-card-copy"><span className="eyebrow">{zoneLabels[zone.type]}</span><h2>{zone.name}</h2><p><Icon name="camera"/>{cameras.find(c=>c.id===zone.camera_id)?.name??'Câmera indisponível'}</p><small>Permanência mínima: {zone.minimum_presence_seconds}s</small></div><div className="zone-card-actions">{editingId===zone.id&&<span>Editando</span>}<button className="tertiary danger" onClick={async event=>{event.stopPropagation();if(window.confirm(`Remover a zona ${zone.name}?`)){await api.deleteZone(zone.id);if(editingId===zone.id)resetEditor();await refresh()}}}>Remover</button></div></article>)}{!zones.length&&<div className="panel zone-empty"><h2>Nenhuma zona cadastrada</h2><p>Desenhe a primeira área no editor ao lado.</p></div>}</section></aside></section>
   </>
 }
