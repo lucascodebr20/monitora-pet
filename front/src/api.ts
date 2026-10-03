@@ -42,6 +42,11 @@ export type CameraCandidate = {
   reason?: string
   manufacturer?: string
   model?: string
+  friendly_name?: string
+  hostname?: string
+  web_title?: string
+  upnp_type?: string
+  device_type?: 'router' | 'camera' | 'media_device' | 'network_device'
 }
 
 export type Zone = {
