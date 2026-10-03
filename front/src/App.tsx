@@ -120,7 +120,7 @@ function CamerasView({ cameras, zones, refresh }: { cameras: Camera[]; zones: Zo
     event.preventDefault(); setError('')
     try {
       await api.createCamera({ ...form, rtsp_url: form.rtsp_url || null })
-      setOpen(false); setForm({ name: '', ip: '', username: '', password: '', rtsp_url: '' }); await refresh(); showToast('Câmera cadastrada.')
+      setOpen(false); setCandidates([]); setForm({ name: '', ip: '', username: '', password: '', rtsp_url: '' }); await refresh(); showToast('Câmera cadastrada.')
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Falha ao cadastrar.') }
   }
 
@@ -140,7 +140,7 @@ function CamerasView({ cameras, zones, refresh }: { cameras: Camera[]; zones: Zo
   }
 
   return <>
-    <div className="page-heading"><div><p className="eyebrow">MONITORAMENTO</p><h1>Câmeras</h1><p>Gerencie as fontes de vídeo usadas pelo MonitoraPet.</p></div><button className="primary" onClick={() => setOpen(true)}>+ Adicionar câmera</button></div>
+    <div className="page-heading"><div><p className="eyebrow">MONITORAMENTO</p><h1>Câmeras</h1><p>Gerencie as fontes de vídeo usadas pelo MonitoraPet.</p></div><button className="primary" onClick={() => { setCandidates([]); setError(''); setOpen(true) }}>+ Adicionar câmera</button></div>
     <section className="camera-grid">{cameras.map(camera => {
       const cameraZones = zones.filter(zone => zone.camera_id === camera.id && zone.enabled)
       const showZones = zoneOverlays.includes(camera.id)
