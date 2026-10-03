@@ -1,0 +1,14 @@
+services:
+  monitorapet:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: monitorapet:latest
+    container_name: monitorapet
+    network_mode: host
+    environment:
+      MONITORAPET_DATA_DIR: /data
+    volumes:
+      # Banco SQLite, modelo e mídias permanecem no servidor entre versões.
+      - ./app-data:/data
+    restart: unless-stopped

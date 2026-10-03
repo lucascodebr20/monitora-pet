@@ -25,6 +25,8 @@ credentials.*
 secrets.*
 config.local.*
 *.log
+deploy.local.py
+monitorapet-deploy.tar.gz
 .coverage
 htmlcov/
 .ruff_cache/
