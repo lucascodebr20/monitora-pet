@@ -15,6 +15,9 @@ const paths: Record<string, string> = {
   clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18 M12 7v5l3 2',
   shield: 'M12 3 3 7v6c0 5 9 9 9 9s9-4 9-9V7Z M8 12l3 3 5-6',
   info: 'M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18 M12 11v6 M12 7v1',
+  accept: 'M5 12l4 4L19 6',
+  correct: 'M4 7h10 M4 17h16 M14 4v6 M9 14v6',
+  reject: 'M6 6l12 12 M18 6 6 18',
 }
 
 export default function Icon({ name }: { name: string }) {
