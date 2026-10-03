@@ -7,6 +7,7 @@ import numpy as np
 
 from app.domain.detection import Detection
 from app.infra.database.database import Database
+from app.infra.ai.pet_identifier import PetAnalysis, PetMatch
 from app.infra.repositories.camera_repository import CameraRepository
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.zone_repository import ZoneRepository
@@ -59,6 +60,23 @@ class FakeClipStore:
         return "clips/test.webm"
 
 
+class FakePetImageStore:
+    def save_capture(self, frame, detection):
+        return "pets/captures/test.jpg"
+
+
+class FakePetIdentifier:
+    def __init__(self, pet_id):
+        self.pet_id = pet_id
+
+    def analyze(self, capture_path, species):
+        match = PetMatch(self.pet_id, 0.91)
+        return PetAnalysis(match, "MATCHED", ({"pet_id": self.pet_id, "confidence": 0.91, "reference_count": 1},), 0.72, 0.08)
+
+    def record_analysis(self, event_id, capture_path, species, analysis):
+        return None
+
+
 class MonitoringTests(unittest.TestCase):
     def test_clip_limit_is_five_minutes(self):
         self.assertEqual(MAX_CLIP_SECONDS, 300)
@@ -97,6 +115,40 @@ class MonitoringTests(unittest.TestCase):
             self.assertEqual(len(events), 1)
             self.assertEqual(events[0]["zone_type"], "WATER")
             self.assertEqual(events[0]["activity"], "NEAR_ZONE")
+
+    def test_assigns_automatically_identified_cat_to_new_event(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Database(Path(directory) / "monitoring.sqlite3")
+            database.migrate()
+            camera_repository = CameraRepository(database)
+            zone_repository = ZoneRepository(database)
+            event_repository = EventRepository(database)
+            camera = camera_repository.create({"name": "Sala", "ip": "192.168.1.10"})
+            zone_repository.create({
+                "camera_id": camera["id"],
+                "name": "Água",
+                "type": "WATER",
+                "polygon": ((0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)),
+                "minimum_presence_seconds": 0,
+                "absence_tolerance_seconds": 1,
+                "cooldown_seconds": 5,
+            })
+            database.execute(
+                """INSERT INTO pets (id, name, species, description, created_at, updated_at)
+                   VALUES ('mingau', 'Mingau', 'CAT', '', 'now', 'now')"""
+            )
+            service = MonitoringService(
+                FakeCameraManager(), zone_repository, event_repository, FakeSnapshotStore(),
+                FakeClipStore(), FakeDetector(), None, FakePetImageStore(), FakePetIdentifier("mingau"),
+            )
+
+            service._process_camera(camera["id"])
+            service._process_camera(camera["id"])
+
+            event = event_repository.list(camera_id=camera["id"])[0]
+            self.assertEqual(event["pet_id"], "mingau")
+            self.assertEqual(event["automatically_identified_pet_id"], "mingau")
+            self.assertEqual(event["pet_identification_confidence"], 0.91)
 
     def test_creates_event_when_detection_overlaps_zone_with_centroid_outside(self):
         with tempfile.TemporaryDirectory() as directory:

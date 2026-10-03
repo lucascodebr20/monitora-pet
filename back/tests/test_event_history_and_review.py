@@ -8,6 +8,8 @@ from app.domain.errors import InvalidDomainValueError
 from app.infra.database.database import Database, utc_now
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.pet_repository import PetRepository
+from app.infra.repositories.pet_identification_repository import PetIdentificationRepository
+from app.infra.ai.pet_identifier import PetIdentifier
 from app.services.commands import ReviewEventCommand
 from app.services.event_service import EventService
 from app.infra.media.clip_store import ClipStore
@@ -104,6 +106,59 @@ class EventHistoryAndReviewTests(unittest.TestCase):
 
         self.assertIsNone(self.events.get("unknown-pet")["pet_id"])
         self.assertEqual(self.events.count_on_date(self.today), 1)
+
+    def test_review_can_replace_automatically_identified_cat(self):
+        other_pet = self.pets.create("Luna", "CAT", "", "pets/profiles/luna.jpg")
+        self.database.execute(
+            """INSERT INTO events
+               (id, camera_id, zone_id, started_at, detected_species, pet_capture_path,
+                pet_id, automatically_identified_pet_id, pet_identification_confidence,
+                pet_identification_method, created_at)
+               VALUES (?, ?, ?, ?, 'CAT', ?, ?, ?, ?, ?, ?)""",
+            (
+                "auto-cat", "camera-1", "water-zone", f"{self.today}T12:00:00+00:00",
+                "pets/captures/cat.jpg", self.pet["id"], self.pet["id"], 0.91,
+                "appearance-histogram-v1", utc_now(),
+            ),
+        )
+
+        self.review("auto-cat", ReviewDecision.CONFIRMED, other_pet["id"])
+
+        event = self.events.get("auto-cat")
+        self.assertEqual(event["pet_id"], other_pet["id"])
+        self.assertEqual(event["automatically_identified_pet_id"], self.pet["id"])
+        reference = self.database.one(
+            "SELECT pet_id FROM pet_reference_images WHERE event_id = ?", ("auto-cat",)
+        )
+        self.assertEqual(reference["pet_id"], other_pet["id"])
+
+    def test_tenth_review_persists_new_identification_calibration(self):
+        identifications = PetIdentificationRepository(self.database)
+        identifier = PetIdentifier(self.pets, None, identifications)
+        service = EventService(self.events, SnapshotStore(), ClipStore(), self.pets, None, identifier)
+        for index in range(10):
+            event_id = f"learning-{index}"
+            self.create_event(event_id)
+            identifications.create_analysis(
+                event_id, "CAT", None, "MATCHED", self.pet["id"], 0.88, 0.72, 0.08,
+                [{"pet_id": self.pet["id"], "confidence": 0.88, "reference_count": 1}],
+            )
+            service.review(
+                event_id,
+                ReviewEventCommand(
+                    decision=ReviewDecision.CONFIRMED,
+                    corrected_activity=None,
+                    pet_id=self.pet["id"],
+                    notes=None,
+                    zone_type=None,
+                ),
+            )
+
+        calibration = identifications.current_calibration()
+        logs = identifications.list_analyses()
+        self.assertEqual(calibration["interaction_count"], 10)
+        self.assertEqual(calibration["accuracy"], 1.0)
+        self.assertEqual(logs[0]["scores"][0]["pet_name"], "Mingau")
 
     def test_correction_requires_a_different_supported_zone_type(self):
         self.create_event("invalid-correction")

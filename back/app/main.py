@@ -9,6 +9,7 @@ from app.core.container import camera_manager, database, monitoring_service
 from app.controllers.camera_controller import router as camera_router
 from app.controllers.event_controller import router as event_router
 from app.controllers.health_controller import router as health_router
+from app.controllers.identification_controller import router as identification_router
 from app.controllers.notice_controller import router as notice_router
 from app.controllers.pet_controller import router as pet_router
 from app.controllers.monitoring_controller import router as monitoring_router
@@ -65,6 +66,7 @@ if (FRONTEND_DIST / "assets").exists():
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
 
 app.include_router(health_router)
+app.include_router(identification_router)
 app.include_router(camera_router)
 app.include_router(zone_router)
 app.include_router(event_router)
