@@ -1,4 +1,5 @@
 import unittest
+import threading
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -37,6 +38,38 @@ class CameraUrlTests(unittest.TestCase):
         self.assertTrue(stream.status.connected)
         self.assertEqual(stream.status.message, "Ao vivo")
         self.assertIs(stream._capture, replacement)
+
+    def test_disconnect_waits_for_active_read_before_releasing_capture(self):
+        stream = CameraStream()
+        read_started = threading.Event()
+        finish_read = threading.Event()
+        read_finished = threading.Event()
+        capture = Mock()
+
+        def read():
+            read_started.set()
+            finish_read.wait(timeout=2)
+            read_finished.set()
+            return False, None
+
+        capture.read.side_effect = read
+        capture.release.side_effect = lambda: self.assertTrue(read_finished.is_set())
+        stream._capture = capture
+        stream._urls = ["rtsp://camera/live"]
+        stream._active_url = stream._urls[0]
+        stream._stop.clear()
+        stream._thread = threading.Thread(target=stream._read_loop, daemon=True)
+        stream._thread.start()
+        self.assertTrue(read_started.wait(timeout=1))
+
+        disconnect_thread = threading.Thread(target=stream.disconnect)
+        disconnect_thread.start()
+        self.assertFalse(capture.release.called)
+        finish_read.set()
+        disconnect_thread.join(timeout=2)
+
+        self.assertFalse(disconnect_thread.is_alive())
+        capture.release.assert_called_once()
 
 
 if __name__ == "__main__":
