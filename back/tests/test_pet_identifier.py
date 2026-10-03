@@ -1,0 +1,128 @@
+import tempfile
+import unittest
+from pathlib import Path
+
+import cv2
+import numpy as np
+
+from app.infra.ai.pet_identifier import PetIdentifier
+
+
+class FakePetRepository:
+    def __init__(self, pets, references=None):
+        self.pets = pets
+        self.references = references or {}
+
+    def list_by_species(self, species):
+        return [pet for pet in self.pets if pet["species"] == species]
+
+    def list_reference_images(self, pet_id):
+        return self.references.get(pet_id, [])
+
+
+class FakeImageStore:
+    def __init__(self, root):
+        self.root = root
+
+    def resolve(self, relative_path):
+        return self.root / relative_path
+
+
+class FakeLearningRepository:
+    def __init__(self):
+        self.reviewed = 0
+        self.calibrations = []
+
+    def current_calibration(self):
+        if self.calibrations:
+            return self.calibrations[-1]
+        return {"minimum_similarity": 0.72, "minimum_margin": 0.08, "interaction_count": 0, "accuracy": None}
+
+    def mark_review(self, event_id, pet_id):
+        self.reviewed += 1
+        return True
+
+    def reviewed_count(self):
+        return self.reviewed
+
+    def reviewed_samples(self):
+        return [
+            {
+                "selected_pet_id": "mingau",
+                "reviewed_pet_id": "mingau",
+                "scores": [
+                    {"pet_id": "mingau", "confidence": 0.88},
+                    {"pet_id": "luna", "confidence": 0.42},
+                ],
+            }
+            for _ in range(self.reviewed)
+        ]
+
+    def create_calibration(self, minimum_similarity, minimum_margin, interaction_count, accuracy):
+        self.calibrations.append({
+            "minimum_similarity": minimum_similarity,
+            "minimum_margin": minimum_margin,
+            "interaction_count": interaction_count,
+            "accuracy": accuracy,
+        })
+
+
+class PetIdentifierTests(unittest.TestCase):
+    @staticmethod
+    def write_image(path, color):
+        image = np.full((120, 120, 3), color, dtype=np.uint8)
+        cv2.imwrite(str(path), image)
+
+    def test_identifies_cat_with_closest_visual_reference(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_image(root / "capture.jpg", (15, 35, 185))
+            self.write_image(root / "mingau.jpg", (15, 35, 185))
+            self.write_image(root / "luna.jpg", (180, 35, 15))
+            repository = FakePetRepository([
+                {"id": "mingau", "species": "CAT", "photo_path": "mingau.jpg"},
+                {"id": "luna", "species": "CAT", "photo_path": "luna.jpg"},
+            ])
+
+            match = PetIdentifier(repository, FakeImageStore(root)).identify("capture.jpg", "CAT")
+
+            self.assertIsNotNone(match)
+            self.assertEqual(match.pet_id, "mingau")
+            self.assertGreaterEqual(match.confidence, PetIdentifier.MINIMUM_SIMILARITY)
+
+    def test_does_not_assign_when_two_cats_are_visually_ambiguous(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("capture.jpg", "first.jpg", "second.jpg"):
+                self.write_image(root / name, (40, 80, 140))
+            repository = FakePetRepository([
+                {"id": "first", "species": "CAT", "photo_path": "first.jpg"},
+                {"id": "second", "species": "CAT", "photo_path": "second.jpg"},
+            ])
+
+            match = PetIdentifier(repository, FakeImageStore(root)).identify("capture.jpg", "CAT")
+
+            self.assertIsNone(match)
+
+    def test_limits_automatic_identification_to_cats(self):
+        repository = FakePetRepository([])
+        match = PetIdentifier(repository, FakeImageStore(Path("."))).identify("capture.jpg", "DOG")
+        self.assertIsNone(match)
+
+    def test_recalibrates_thresholds_after_each_ten_confirmed_interactions(self):
+        learning = FakeLearningRepository()
+        identifier = PetIdentifier(FakePetRepository([]), FakeImageStore(Path(".")), learning)
+
+        for index in range(9):
+            identifier.learn_from_review(f"event-{index}", "mingau")
+        self.assertEqual(learning.calibrations, [])
+
+        identifier.learn_from_review("event-9", "mingau")
+
+        self.assertEqual(len(learning.calibrations), 1)
+        self.assertEqual(learning.calibrations[0]["interaction_count"], 10)
+        self.assertEqual(learning.calibrations[0]["accuracy"], 1.0)
+
+
+if __name__ == "__main__":
+    unittest.main()
