@@ -1,12 +1,13 @@
 import { FormEvent, ReactNode, useEffect, useState } from 'react'
 import * as api from './api'
-import type { Camera, CameraCandidate, Dashboard, Event, Zone } from './api'
+import type { Camera, CameraCandidate, Dashboard, Event, Pet, Zone } from './api'
 import ZoneEditor from './components/ZoneEditor'
+import PetManager from './components/PetManager'
 
-type View = 'dashboard' | 'cameras' | 'zones' | 'history' | 'reviews' | 'settings'
+type View = 'dashboard' | 'cameras' | 'zones' | 'pets' | 'history' | 'reviews' | 'settings'
 
 const labels: Record<View, string> = {
-  dashboard: 'Visão geral', cameras: 'Câmeras', zones: 'Zonas', history: 'Histórico',
+  dashboard: 'Visão geral', cameras: 'Câmeras', zones: 'Zonas', pets: 'Pets', history: 'Histórico',
   reviews: 'Revisões', settings: 'Configurações',
 }
 
@@ -23,10 +24,10 @@ function Status({ connected }: { connected: boolean }) {
 }
 
 function EventList({ events }: { events: Event[] }) {
-  if (!events.length) return <Empty title="Nenhuma visita registrada">Os eventos aparecerão quando o monitoramento detectar um gato em uma zona.</Empty>
+  if (!events.length) return <Empty title="Nenhuma visita registrada">Os eventos aparecerão quando o monitoramento detectar um pet em uma zona.</Empty>
   return <div className="event-list">{events.map(event => <article className="event-row" key={event.id}>
     <div className={`event-kind ${event.zone_type.toLowerCase()}`}>{event.zone_type === 'WATER' ? '◉' : event.zone_type === 'FOOD' ? '●' : '◆'}</div>
-    <div><strong>{zoneLabels[event.zone_type] ?? event.zone_name}</strong><span>{event.camera_name} · {new Date(event.started_at).toLocaleString('pt-BR')}</span></div>
+    <div><strong>{event.pet_name ? `${event.pet_name} · ` : ''}{zoneLabels[event.zone_type] ?? event.zone_name}</strong><span>{event.camera_name} · {new Date(event.started_at).toLocaleString('pt-BR')}</span></div>
     <div className="event-meta"><strong>{Math.round(event.duration_seconds)}s</strong><span>{event.review_decision ? 'Revisado' : 'Pendente'}</span></div>
   </article>)}</div>
 }
@@ -35,7 +36,7 @@ function DashboardView({ data }: { data: Dashboard | null }) {
   if (!data) return <div className="loading">Carregando resumo…</div>
   const totalCameras = data.health.cameras.registered
   return <>
-    <div className="page-heading"><div><p className="eyebrow">HOJE</p><h1>Olá! Como estão seus gatos?</h1><p>Acompanhe as visitas detectadas nas áreas importantes da casa.</p></div><span className="date-pill">{new Date(`${data.date}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}</span></div>
+    <div className="page-heading"><div><p className="eyebrow">HOJE</p><h1>Olá! Como estão seus pets?</h1><p>Acompanhe as visitas detectadas nas áreas importantes da casa.</p></div><span className="date-pill">{new Date(`${data.date}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}</span></div>
     <section className="metrics">
       <article><span>Visitas hoje</span><strong>{data.events_today}</strong><small>eventos confirmados</small></article>
       <article><span>Água</span><strong>{data.by_zone_type.WATER ?? 0}</strong><small>visitas à zona</small></article>
@@ -124,11 +125,14 @@ function CamerasView({ cameras, zones, refresh }: { cameras: Camera[]; zones: Zo
   </>
 }
 
-function ReviewsView({ events, refresh }: { events: Event[]; refresh: () => Promise<void> }) {
+function ReviewsView({ events, pets, refresh }: { events: Event[]; pets: Pet[]; refresh: () => Promise<void> }) {
   const current = events[0]
+  const [selectedPetId, setSelectedPetId] = useState('')
+  useEffect(() => { setSelectedPetId(current?.pet_id ?? '') }, [current?.id, current?.pet_id])
   if (!current) return <><div className="page-heading"><div><p className="eyebrow">AUDITORIA</p><h1>Revisões</h1><p>Confirme ou corrija as classificações automáticas.</p></div></div><section className="panel"><Empty title="Tudo revisado">Não há eventos pendentes na fila.</Empty></section></>
-  const review = async (decision: string) => { await api.reviewEvent(current.id, decision); await refresh() }
-  return <><div className="page-heading"><div><p className="eyebrow">AUDITORIA</p><h1>Revisões</h1><p>{events.length} eventos aguardando sua análise.</p></div></div><section className="review-card"><div className="review-media">{current.clip_path ? <video key={current.id} controls preload="metadata" poster={current.snapshot_path ? `/api/events/${current.id}/snapshot` : undefined}><source src={`/api/events/${current.id}/clip`} type="video/webm" />Seu navegador não conseguiu reproduzir este vídeo.</video> : current.snapshot_path ? <div className="review-snapshot"><img src={`/api/events/${current.id}/snapshot`} alt={`Registro de ${current.zone_name}`} /><span>{current.duration_seconds ? 'Clipe indisponível para este evento' : 'Finalizando o clipe…'}</span></div> : 'Mídia indisponível'}</div><div className="review-detail"><span className="eyebrow">EVENTO DETECTADO</span><h2>{zoneLabels[current.zone_type]}</h2><p>{current.camera_name} · {new Date(current.started_at).toLocaleString('pt-BR')}</p><p>{current.duration_seconds ? `${Math.round(current.duration_seconds)} segundos na zona` : 'Evento em andamento'}</p><div className="review-actions"><button onClick={() => review('CONFIRMED')} className="primary">Confirmar</button><button onClick={() => review('CORRECTED')} className="secondary">Corrigir</button><button onClick={() => review('INCONCLUSIVE')} className="secondary">Inconclusivo</button><button onClick={() => review('FALSE_POSITIVE')} className="ghost danger">Falso positivo</button></div></div></section></>
+  const compatiblePets = pets.filter(pet => pet.species === current.detected_species)
+  const review = async (decision: string) => { const petId = decision === 'CONFIRMED' || decision === 'CORRECTED' ? selectedPetId || null : null; await api.reviewEvent(current.id, decision, petId); await refresh() }
+  return <><div className="page-heading"><div><p className="eyebrow">AUDITORIA</p><h1>Revisões</h1><p>{events.length} eventos aguardando sua análise.</p></div></div><section className="review-card"><div className="review-media">{current.clip_path ? <video key={current.id} controls preload="metadata" poster={current.snapshot_path ? `/api/events/${current.id}/snapshot` : undefined}><source src={`/api/events/${current.id}/clip`} type="video/webm" />Seu navegador não conseguiu reproduzir este vídeo.</video> : current.snapshot_path ? <div className="review-snapshot"><img src={`/api/events/${current.id}/snapshot`} alt={`Registro de ${current.zone_name}`} /><span>{current.duration_seconds ? 'Clipe indisponível para este evento' : 'Finalizando o clipe…'}</span></div> : 'Mídia indisponível'}</div><div className="review-detail"><span className="eyebrow">AUDITORIA · {current.detected_species === 'CAT' ? 'GATO' : 'CÃO'}</span><h2>{zoneLabels[current.zone_type]}</h2><p>{current.camera_name} · {new Date(current.started_at).toLocaleString('pt-BR')}</p><p>{current.duration_seconds ? `${Math.round(current.duration_seconds)} segundos na zona` : 'Evento em andamento'}</p><label>Qual pet aparece neste evento?<select value={selectedPetId} onChange={event => setSelectedPetId(event.target.value)}><option value="">Não consegui identificar</option>{compatiblePets.map(pet => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></label>{selectedPetId && <p className="form-success">Ao confirmar ou corrigir, esta captura será adicionada às referências do pet.</p>}{!compatiblePets.length && <p className="muted">Nenhum {current.detected_species === 'CAT' ? 'gato' : 'cão'} cadastrado ainda. Você pode revisar sem identificar e cadastrar pets na seção Pets.</p>}<div className="review-actions"><button onClick={() => review('CONFIRMED')} className="primary">Confirmar</button><button onClick={() => review('CORRECTED')} className="secondary">Corrigir</button><button onClick={() => review('INCONCLUSIVE')} className="secondary">Inconclusivo</button><button onClick={() => review('FALSE_POSITIVE')} className="ghost danger">Falso positivo</button></div></div></section></>
 }
 
 export default function App() {
@@ -136,14 +140,16 @@ export default function App() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [cameras, setCameras] = useState<Camera[]>([])
   const [zones, setZones] = useState<Zone[]>([])
+  const [pets, setPets] = useState<Pet[]>([])
   const [events, setEvents] = useState<Event[]>([])
   const [pending, setPending] = useState<Event[]>([])
   const [error, setError] = useState('')
+  const [historyPetId, setHistoryPetId] = useState('')
 
   async function refresh() {
     try {
-      const [summary, cameraList, zoneList, eventList, pendingList] = await Promise.all([api.getDashboard(), api.getCameras(), api.getZones(), api.getEvents(), api.getEvents(true)])
-      setDashboard(summary); setCameras(cameraList); setZones(zoneList); setEvents(eventList); setPending(pendingList); setError('')
+      const [summary, cameraList, zoneList, petList, eventList, pendingList] = await Promise.all([api.getDashboard(), api.getCameras(), api.getZones(), api.getPets(), api.getEvents(), api.getEvents(true)])
+      setDashboard(summary); setCameras(cameraList); setZones(zoneList); setPets(petList); setEvents(eventList); setPending(pendingList); setError('')
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível carregar o MonitoraPet.') }
   }
   useEffect(() => { void refresh() }, [])
@@ -152,7 +158,9 @@ export default function App() {
     return () => window.clearInterval(timer)
   }, [])
 
-  return <div className="app-shell"><aside className="sidebar"><div className="brand"><span className="brand-mark">M</span><div><strong>MonitoraPet</strong><small>Monitoramento local</small></div></div><nav>{(Object.keys(labels) as View[]).map(item => <button key={item} className={view === item ? 'active' : ''} onClick={() => setView(item)}><span>{item === 'dashboard' ? '⌂' : item === 'cameras' ? '◉' : item === 'zones' ? '◇' : item === 'history' ? '≡' : item === 'reviews' ? '✓' : '⚙'}</span>{labels[item]}{item === 'reviews' && pending.length > 0 && <b>{pending.length}</b>}</button>)}</nav><div className="local-note"><i>●</i><div><strong>100% local</strong><small>Seus dados ficam neste computador.</small></div></div></aside>
-    <main className="content">{error && <div className="global-error">{error}<button onClick={refresh}>Tentar novamente</button></div>}{view === 'dashboard' && <DashboardView data={dashboard} />}{view === 'cameras' && <CamerasView cameras={cameras} zones={zones} refresh={refresh} />}{view === 'zones' && <ZoneEditor cameras={cameras} zones={zones} refresh={refresh} />}{view === 'history' && <><div className="page-heading"><div><p className="eyebrow">REGISTROS</p><h1>Histórico</h1><p>Consulte as visitas detectadas pelo sistema.</p></div></div><section className="panel"><EventList events={events} /></section></>}{view === 'reviews' && <ReviewsView events={pending} refresh={refresh} />}{view === 'settings' && <><div className="page-heading"><div><p className="eyebrow">SISTEMA</p><h1>Configurações</h1><p>Preferências do monitoramento local.</p></div></div><section className="panel settings"><h2>Privacidade</h2><p>O processamento acontece localmente. Nenhuma imagem ou credencial é enviada para serviços externos.</p><h2>Versão</h2><p>MonitoraPet {dashboard?.health.version ?? '0.1.0'}</p></section></>}</main>
+  const historyEvents = historyPetId ? events.filter(event => event.pet_id === historyPetId) : events
+
+  return <div className="app-shell"><aside className="sidebar"><div className="brand"><span className="brand-mark">M</span><div><strong>MonitoraPet</strong><small>Monitoramento local</small></div></div><nav>{(Object.keys(labels) as View[]).map(item => <button key={item} className={view === item ? 'active' : ''} onClick={() => setView(item)}><span>{item === 'dashboard' ? '⌂' : item === 'cameras' ? '◉' : item === 'zones' ? '◇' : item === 'pets' ? '♥' : item === 'history' ? '≡' : item === 'reviews' ? '✓' : '⚙'}</span>{labels[item]}{item === 'reviews' && pending.length > 0 && <b>{pending.length}</b>}</button>)}</nav><div className="local-note"><i>●</i><div><strong>100% local</strong><small>Seus dados ficam neste computador.</small></div></div></aside>
+    <main className="content">{error && <div className="global-error">{error}<button onClick={refresh}>Tentar novamente</button></div>}{view === 'dashboard' && <DashboardView data={dashboard} />}{view === 'cameras' && <CamerasView cameras={cameras} zones={zones} refresh={refresh} />}{view === 'zones' && <ZoneEditor cameras={cameras} zones={zones} refresh={refresh} />}{view === 'pets' && <PetManager pets={pets} refresh={refresh} />}{view === 'history' && <><div className="page-heading"><div><p className="eyebrow">REGISTROS</p><h1>Histórico</h1><p>Consulte as visitas detectadas pelo sistema.</p></div><select className="history-pet-filter" value={historyPetId} onChange={event => setHistoryPetId(event.target.value)}><option value="">Todos os pets</option>{pets.map(pet => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></div><section className="panel"><EventList events={historyEvents} /></section></>}{view === 'reviews' && <ReviewsView events={pending} pets={pets} refresh={refresh} />}{view === 'settings' && <><div className="page-heading"><div><p className="eyebrow">SISTEMA</p><h1>Configurações</h1><p>Preferências do monitoramento local.</p></div></div><section className="panel settings"><h2>Privacidade</h2><p>O processamento acontece localmente. Nenhuma imagem ou credencial é enviada para serviços externos.</p><h2>Versão</h2><p>MonitoraPet {dashboard?.health.version ?? '0.1.0'}</p></section></>}</main>
   </div>
 }

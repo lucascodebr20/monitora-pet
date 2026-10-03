@@ -3,15 +3,18 @@ from app.infra.ai.yolox_detector import YoloXDetector
 from app.infra.camera.manager import CameraManager
 from app.infra.database.database import Database
 from app.infra.media.clip_store import ClipStore
+from app.infra.media.pet_image_store import PetImageStore
 from app.infra.repositories.camera_repository import CameraRepository
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.notice_repository import NoticeRepository
+from app.infra.repositories.pet_repository import PetRepository
 from app.infra.repositories.zone_repository import ZoneRepository
 from app.infra.media.snapshot_store import SnapshotStore
 from app.services.camera_service import CameraService
 from app.services.event_service import EventService
 from app.services.health_service import HealthService
 from app.services.notice_service import NoticeService
+from app.services.pet_service import PetService
 from app.services.monitoring_service import MonitoringService
 from app.services.zone_service import ZoneService
 
@@ -20,15 +23,18 @@ database = Database(DATABASE_PATH)
 camera_manager = CameraManager()
 snapshot_store = SnapshotStore()
 clip_store = ClipStore()
+pet_image_store = PetImageStore()
 
 camera_repository = CameraRepository(database)
 zone_repository = ZoneRepository(database)
 event_repository = EventRepository(database)
+pet_repository = PetRepository(database)
 notice_repository = NoticeRepository(database)
 
 camera_service = CameraService(camera_repository, camera_manager)
 zone_service = ZoneService(zone_repository, camera_service)
-event_service = EventService(event_repository, snapshot_store, clip_store)
+pet_service = PetService(pet_repository, pet_image_store)
+event_service = EventService(event_repository, snapshot_store, clip_store, pet_repository, pet_image_store)
 model_error = None
 detector = None
 if MODEL_PATH.exists():
@@ -46,6 +52,7 @@ monitoring_service = MonitoringService(
     clip_store,
     detector,
     model_error,
+    pet_image_store,
 )
 health_service = HealthService(camera_service, event_service, event_repository, monitoring_service)
 notice_service = NoticeService(notice_repository)

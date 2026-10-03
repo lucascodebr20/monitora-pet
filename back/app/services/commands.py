@@ -35,5 +35,5 @@ class CreateZoneCommand:
 class ReviewEventCommand:
     decision: ReviewDecision
     corrected_activity: Activity | None
-    cat_name: str | None
+    pet_id: str | None
     notes: str | None

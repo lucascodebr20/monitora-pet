@@ -10,6 +10,7 @@ from app.controllers.camera_controller import router as camera_router
 from app.controllers.event_controller import router as event_router
 from app.controllers.health_controller import router as health_router
 from app.controllers.notice_controller import router as notice_router
+from app.controllers.pet_controller import router as pet_router
 from app.controllers.monitoring_controller import router as monitoring_router
 from app.controllers.web_controller import router as web_router
 from app.controllers.zone_controller import router as zone_router
@@ -67,6 +68,7 @@ app.include_router(health_router)
 app.include_router(camera_router)
 app.include_router(zone_router)
 app.include_router(event_router)
+app.include_router(pet_router)
 app.include_router(notice_router)
 app.include_router(monitoring_router)
 app.include_router(web_router)
