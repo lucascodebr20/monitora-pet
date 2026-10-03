@@ -4,24 +4,21 @@ import type { Pet, PetSpecies } from '../api'
 
 type Props = { pets: Pet[]; refresh: () => Promise<void> }
 
-async function preparePhoto(file: File): Promise<string> {
+async function cropPhoto(sourceUrl: string, position: { x: number; y: number }): Promise<string> {
   const source = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onerror = () => reject(new Error('Não foi possível abrir a foto.'))
-    reader.onload = () => {
-      const image = new Image()
-      image.onerror = () => reject(new Error('O arquivo não parece ser uma imagem.'))
-      image.onload = () => resolve(image)
-      image.src = String(reader.result)
-    }
-    reader.readAsDataURL(file)
+    const image = new Image()
+    image.onerror = () => reject(new Error('O arquivo não parece ser uma imagem.'))
+    image.onload = () => resolve(image)
+    image.src = sourceUrl
   })
-  const scale = Math.min(1, 900 / Math.max(source.width, source.height))
+  const cropSize = Math.min(source.width, source.height)
+  const sourceX = (source.width - cropSize) * position.x / 100
+  const sourceY = (source.height - cropSize) * position.y / 100
   const canvas = document.createElement('canvas')
-  canvas.width = Math.round(source.width * scale)
-  canvas.height = Math.round(source.height * scale)
-  canvas.getContext('2d')?.drawImage(source, 0, 0, canvas.width, canvas.height)
-  return canvas.toDataURL('image/jpeg', 0.84)
+  canvas.width = 640
+  canvas.height = 640
+  canvas.getContext('2d')?.drawImage(source, sourceX, sourceY, cropSize, cropSize, 0, 0, 640, 640)
+  return canvas.toDataURL('image/jpeg', 0.88)
 }
 
 export default function PetManager({ pets, refresh }: Props) {
@@ -33,6 +30,8 @@ export default function PetManager({ pets, refresh }: Props) {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [readingPhoto,setReadingPhoto] = useState(false)
+  const [photoSource,setPhotoSource] = useState<string | null>(null)
+  const [cropPosition,setCropPosition] = useState({x:50,y:50})
   const photoReadId = useRef(0)
 
   useEffect(() => {
@@ -45,6 +44,7 @@ export default function PetManager({ pets, refresh }: Props) {
   function startCreate() {
     setEditing(null)
     setForm({name:'',species:'CAT',description:'',photo_data:null})
+    setPhotoSource(null);setCropPosition({x:50,y:50})
     photoReadId.current++;setReadingPhoto(false)
     setError('');setNotice('');setOpen(true)
   }
@@ -54,6 +54,7 @@ export default function PetManager({ pets, refresh }: Props) {
     setOpen(true);setNotice('')
     setEditing(pet)
     setForm({ name: pet.name, species: pet.species, description: pet.description, photo_data: null })
+    setPhotoSource(null);setCropPosition({x:50,y:50})
     setError('')
   }
 
@@ -62,6 +63,7 @@ export default function PetManager({ pets, refresh }: Props) {
     setOpen(false)
     setEditing(null)
     setForm({ name: '', species: 'CAT', description: '', photo_data: null })
+    setPhotoSource(null);setCropPosition({x:50,y:50})
     setError('')
   }
 
@@ -71,8 +73,10 @@ export default function PetManager({ pets, refresh }: Props) {
     setSaving(true)
     setError('')
     try {
-      if (editing) await api.updatePet(editing.id, form)
-      else await api.createPet(form)
+      const photo_data = photoSource ? await cropPhoto(photoSource, cropPosition) : form.photo_data
+      const payload = { ...form, photo_data }
+      if (editing) await api.updatePet(editing.id, payload)
+      else await api.createPet(payload)
       cancel()
       await refresh()
       setNotice(editing ? 'Perfil atualizado.' : 'Pet cadastrado.')
@@ -100,9 +104,9 @@ export default function PetManager({ pets, refresh }: Props) {
         <fieldset className="pet-form-fields" disabled={saving}><label>Nome<input autoFocus required maxLength={80} value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} placeholder="Ex.: Mingau" /></label>
         <fieldset className="species-options"><legend>Espécie</legend>{(['CAT','DOG'] as PetSpecies[]).map(species=><label className={form.species===species?'chosen':''} key={species}><input type="radio" name="pet-species" value={species} checked={form.species===species} onChange={()=>setForm({...form,species})}/>{species==='CAT'?'Gato':'Cão'}</label>)}</fieldset>
         <label>Características visuais<textarea maxLength={500} value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} placeholder="Ex.: pelo preto, mancha branca no peito" /></label>
-        <label>Foto de referência<input type="file" accept="image/*" required={!editing?.photo_path && !form.photo_data} onChange={async event => { const file = event.target.files?.[0]; if (!file) return; const readId=++photoReadId.current;setReadingPhoto(true);try { setForm(current => ({ ...current, photo_data: null })); const photo_data = await preparePhoto(file);if(readId!==photoReadId.current)return; setForm(current => ({ ...current, photo_data })) } catch (reason) { if(readId===photoReadId.current)setError(reason instanceof Error ? reason.message : 'Falha ao carregar a foto.') } finally {if(readId===photoReadId.current)setReadingPhoto(false)} }} /></label>
-        {form.photo_data && <img className="pet-photo-preview" src={form.photo_data} alt="Prévia da foto do pet" />}
-        {editing?.photo_path && !form.photo_data && <p className="muted">A foto atual será mantida se nenhuma nova for selecionada.</p>}
+        <label>Foto de referência<input type="file" accept="image/*" required={!editing?.photo_path && !photoSource} onChange={event => { const file = event.target.files?.[0]; if (!file) return; const readId=++photoReadId.current;setReadingPhoto(true);setError('');const reader=new FileReader();reader.onerror=()=>{if(readId===photoReadId.current){setError('Não foi possível abrir a foto.');setReadingPhoto(false)}};reader.onload=()=>{if(readId===photoReadId.current){setPhotoSource(String(reader.result));setCropPosition({x:50,y:50});setReadingPhoto(false)}};reader.readAsDataURL(file) }} /></label>
+        {photoSource && <section className="pet-photo-crop" aria-label="Recortar foto de perfil"><div><p className="eyebrow">PRÉVIA DO PERFIL</p><div className="pet-crop-frame"><img src={photoSource} alt="Prévia do recorte da foto" style={{objectPosition:`${cropPosition.x}% ${cropPosition.y}%`}}/><span aria-hidden="true" /></div><small>A área dentro do círculo será a parte principal da foto de perfil.</small></div><div className="pet-crop-controls"><label>Posição horizontal<input type="range" min="0" max="100" value={cropPosition.x} onChange={event=>setCropPosition(current=>({...current,x:Number(event.target.value)}))}/></label><label>Posição vertical<input type="range" min="0" max="100" value={cropPosition.y} onChange={event=>setCropPosition(current=>({...current,y:Number(event.target.value)}))}/></label></div></section>}
+        {editing?.photo_path && !photoSource && <p className="muted">A foto atual será mantida se nenhuma nova for selecionada.</p>}
         {error && <p className="form-error">{error}</p>}
         <div className="pet-form-actions"><button type="button" className="tertiary" disabled={saving} onClick={cancel}>Cancelar</button><button className="primary" disabled={saving || readingPhoto}>{readingPhoto ? 'Preparando foto…' : saving ? 'Salvando…' : editing ? 'Salvar perfil' : 'Cadastrar pet'}</button></div>
 </fieldset>
