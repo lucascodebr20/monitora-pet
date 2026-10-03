@@ -24,7 +24,7 @@ class DiscoveryClassificationTests(unittest.TestCase):
     @patch("app.infra.camera.discovery.device_web_title", side_effect=lambda ip, ports: "Vivo" if ip == "192.168.15.1" else "")
     @patch("app.infra.camera.discovery.device_hostname", side_effect=lambda ip: "motorola-50401b" if ip == "192.168.15.1" else "")
     @patch("app.infra.camera.discovery.device_information", return_value={})
-    @patch("app.infra.camera.discovery.local_ipv4_addresses", return_value=["192.168.15.18"])
+    @patch("app.infra.camera.discovery.local_ipv4_addresses", return_value=["192.168.15.12"])
     @patch("app.infra.camera.discovery.scan_subnet")
     def test_rtsp_camera_is_named_and_ranked_first(self, scan_subnet, _interfaces, _identity, _hostname, _web_title, _gateway, _ssdp):
         scan_subnet.return_value = {
@@ -43,6 +43,9 @@ class DiscoveryClassificationTests(unittest.TestCase):
         self.assertEqual(devices[-1]["web_title"], "Vivo")
         self.assertEqual(devices[-1]["reason"], "Gateway padrão da rede · Não é uma câmera")
         self.assertEqual(devices[-1]["device_type"], "router")
+        local_host = next(device for device in devices if device["ip"] == "192.168.15.12")
+        self.assertEqual(local_host["device_type"], "host")
+        self.assertEqual(local_host["reason"], "Servidor do MonitoraPet · Não é uma câmera")
 
     @patch("app.infra.camera.discovery.discover_ssdp", return_value={})
     @patch("app.infra.camera.discovery.default_gateway_ipv4", return_value="192.168.15.1")
