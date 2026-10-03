@@ -11,6 +11,7 @@ from app.domain.enums import PetSpecies
 from app.domain.geometry import point_in_polygon, polygon_rectangle_overlap_ratio
 from app.domain.zone_presence import PresenceState, TransitionType, ZonePresenceMachine
 from app.infra.ai.yolox_detector import YoloXDetector
+from app.infra.ai.pet_identifier import PetIdentifier
 from app.infra.camera.manager import CameraManager
 from app.infra.media.clip_store import ClipStore
 from app.infra.media.pet_image_store import PetImageStore
@@ -46,6 +47,7 @@ class MonitoringService:
         detector: YoloXDetector | None,
         model_error: str | None = None,
         pet_image_store: PetImageStore | None = None,
+        pet_identifier: PetIdentifier | None = None,
     ) -> None:
         self.camera_manager = camera_manager
         self.zone_repository = zone_repository
@@ -53,6 +55,7 @@ class MonitoringService:
         self.snapshot_store = snapshot_store
         self.clip_store = clip_store
         self.pet_image_store = pet_image_store
+        self.pet_identifier = pet_identifier
         self.detector = detector
         self.model_error = model_error
         self._runtimes: dict[str, ZoneRuntime] = {}
@@ -189,6 +192,8 @@ class MonitoringService:
                         self.camera_manager.snapshot(camera_id), now_utc
                     )
                     pet_capture_path = self.pet_image_store.save_capture(frame, primary_detection) if self.pet_image_store else None
+                    pet_analysis = self.pet_identifier.analyze(pet_capture_path, runtime.species.value) if self.pet_identifier else None
+                    pet_match = pet_analysis.match if pet_analysis else None
                     started_at = now_utc - timedelta(seconds=transition.elapsed_seconds)
                     runtime.event_id = self.event_repository.create_detected_event(
                         camera_id,
@@ -199,7 +204,14 @@ class MonitoringService:
                         snapshot_path,
                         runtime.species.value,
                         pet_capture_path,
+                        pet_match.pet_id if pet_match else None,
+                        pet_match.confidence if pet_match else None,
+                        pet_match.method if pet_match else None,
                     )
+                    if self.pet_identifier and pet_analysis:
+                        self.pet_identifier.record_analysis(
+                            runtime.event_id, pet_capture_path, runtime.species.value, pet_analysis
+                        )
                 elif transition.type == TransitionType.FINISH and runtime.event_id:
                     self._finalize_clip(runtime, now_utc)
                     ended_at = now_utc - timedelta(seconds=transition.seconds_since_seen)

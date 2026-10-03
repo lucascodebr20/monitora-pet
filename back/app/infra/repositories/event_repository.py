@@ -159,16 +159,22 @@ class EventRepository:
         snapshot_path: str | None,
         species: str,
         pet_capture_path: str | None,
+        pet_id: str | None = None,
+        identification_confidence: float | None = None,
+        identification_method: str | None = None,
     ) -> str:
         event_id = str(uuid4())
         self.database.execute(
             """INSERT INTO events
                (id, camera_id, zone_id, started_at, confirmed_at, confidence,
-                activity, snapshot_path, engine_version, created_at, detected_species, pet_capture_path)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                activity, snapshot_path, engine_version, created_at, detected_species, pet_capture_path,
+                pet_id, automatically_identified_pet_id, pet_identification_confidence,
+                pet_identification_method)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 event_id, camera_id, zone_id, started_at, confirmed_at, confidence,
-                "NEAR_ZONE", snapshot_path, "2", utc_now(), species, pet_capture_path,
+                "NEAR_ZONE", snapshot_path, "3", utc_now(), species, pet_capture_path,
+                pet_id, pet_id, identification_confidence, identification_method,
             ),
         )
         return event_id
