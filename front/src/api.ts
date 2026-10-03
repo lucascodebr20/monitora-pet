@@ -14,6 +14,26 @@ export type Camera = {
   status: ConnectionStatus
 }
 
+export type PetSpecies = 'CAT' | 'DOG'
+
+export type Pet = {
+  id: string
+  name: string
+  species: PetSpecies
+  description: string
+  photo_path: string | null
+  event_count: number
+  reference_count: number
+}
+
+export type PetReferenceImage = {
+  id: string
+  pet_id: string
+  event_id: string | null
+  url: string
+  created_at: string
+}
+
 export type CameraCandidate = {
   ip: string
   name: string
@@ -42,6 +62,7 @@ export type Detection = {
   x2: number
   y2: number
   confidence: number
+  species: PetSpecies
 }
 
 export type ZoneFeedback = {
@@ -74,6 +95,9 @@ export type Event = {
   confidence: number | null
   snapshot_path: string | null
   clip_path: string | null
+  pet_id: string | null
+  pet_name: string | null
+  detected_species: PetSpecies
   review_decision: string | null
 }
 
@@ -128,7 +152,16 @@ export const updateZone = (id: string, payload: Omit<Zone, 'id' | 'enabled'>) =>
 export const deleteZone = (id: string) => request<void>(`/api/zones/${id}`, { method: 'DELETE' })
 export const getMonitoringFeedback = (cameraId: string) => request<MonitoringFeedback>(`/api/monitoring/${cameraId}`)
 
+export const getPets = async () => (await request<{ pets: Pet[] }>('/api/pets')).pets
+export const createPet = (payload: { name: string; species: PetSpecies; description: string; photo_data: string | null }) =>
+  request<Pet>('/api/pets', json('POST', payload))
+export const updatePet = (id: string, payload: { name: string; species: PetSpecies; description: string; photo_data: string | null }) =>
+  request<Pet>(`/api/pets/${id}`, json('PUT', payload))
+export const deletePet = (id: string) => request<void>(`/api/pets/${id}`, { method: 'DELETE' })
+export const getPetReferences = async (id: string) =>
+  (await request<{ images: PetReferenceImage[] }>(`/api/pets/${id}/references`)).images
+
 export const getEvents = async (pendingReview = false) =>
   (await request<{ events: Event[] }>(`/api/events${pendingReview ? '?pending_review=true' : ''}`)).events
-export const reviewEvent = (id: string, decision: string) =>
-  request(`/api/events/${id}/reviews`, json('POST', { decision }))
+export const reviewEvent = (id: string, decision: string, pet_id: string | null) =>
+  request(`/api/events/${id}/reviews`, json('POST', { decision, pet_id }))

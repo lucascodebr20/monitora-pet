@@ -37,8 +37,10 @@ class EventRepository:
         return self.database.all(
             f"""SELECT e.*, c.name AS camera_name, z.name AS zone_name, z.type AS zone_type,
                        (SELECT decision FROM human_reviews r WHERE r.event_id = e.id
-                        ORDER BY created_at DESC LIMIT 1) AS review_decision
+                        ORDER BY created_at DESC LIMIT 1) AS review_decision,
+                       p.name AS pet_name
                 FROM events e JOIN cameras c ON c.id = e.camera_id JOIN zones z ON z.id = e.zone_id
+                LEFT JOIN pets p ON p.id = e.pet_id
                 {where} ORDER BY e.started_at DESC LIMIT ?""",
             tuple(parameters),
         )
@@ -52,10 +54,13 @@ class EventRepository:
     def create_review(self, review: dict[str, Any]) -> None:
         self.database.execute(
             """INSERT INTO human_reviews
-               (id, event_id, decision, corrected_activity, cat_name, notes, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            tuple(review[key] for key in ("id", "event_id", "decision", "corrected_activity", "cat_name", "notes", "created_at")),
+               (id, event_id, decision, corrected_activity, cat_name, notes, created_at, pet_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            tuple(review.get(key) for key in ("id", "event_id", "decision", "corrected_activity", "cat_name", "notes", "created_at", "pet_id")),
         )
+
+    def assign_pet(self, event_id: str, pet_id: str | None) -> None:
+        self.database.execute("UPDATE events SET pet_id = ? WHERE id = ?", (pet_id, event_id))
 
     def create_detected_event(
         self,
@@ -65,16 +70,18 @@ class EventRepository:
         confirmed_at: str,
         confidence: float,
         snapshot_path: str | None,
+        species: str,
+        pet_capture_path: str | None,
     ) -> str:
         event_id = str(uuid4())
         self.database.execute(
             """INSERT INTO events
                (id, camera_id, zone_id, started_at, confirmed_at, confidence,
-                activity, snapshot_path, engine_version, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                activity, snapshot_path, engine_version, created_at, detected_species, pet_capture_path)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 event_id, camera_id, zone_id, started_at, confirmed_at, confidence,
-                "NEAR_ZONE", snapshot_path, "2", utc_now(),
+                "NEAR_ZONE", snapshot_path, "2", utc_now(), species, pet_capture_path,
             ),
         )
         return event_id

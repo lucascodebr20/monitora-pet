@@ -7,9 +7,15 @@ import cv2
 import numpy as np
 
 from app.domain.detection import Detection
+from app.domain.enums import PetSpecies
 
 
 CAT_CLASS_INDEX = 15
+DOG_CLASS_INDEX = 16
+PET_CLASS_INDICES = {
+    PetSpecies.CAT: CAT_CLASS_INDEX,
+    PetSpecies.DOG: DOG_CLASS_INDEX,
+}
 
 
 class YoloXDetector:
@@ -34,30 +40,40 @@ class YoloXDetector:
             self._network.setInput(blob)
             output = self._network.forward()
         predictions = self._decode(output)[0]
-        scores = predictions[:, 4] * predictions[:, 5 + CAT_CLASS_INDEX]
+        class_scores = predictions[:, 5:]
+        pet_scores = np.stack([class_scores[:, index] * predictions[:, 4] for index in PET_CLASS_INDICES.values()], axis=1)
+        best_classes = np.argmax(pet_scores, axis=1)
+        scores = pet_scores[np.arange(len(predictions)), best_classes]
+        species = np.array(list(PET_CLASS_INDICES), dtype=object)[best_classes]
         selected = scores >= self.confidence
         predictions = predictions[selected]
         scores = scores[selected]
+        species = species[selected]
         if not len(predictions):
             return []
         centers = predictions[:, :2]
         sizes = predictions[:, 2:4]
         top_left = centers - sizes / 2
         boxes = np.concatenate((top_left, sizes), axis=1) / ratio
-        indices = cv2.dnn.NMSBoxes(boxes.tolist(), scores.tolist(), self.confidence, self.nms)
         detections: list[Detection] = []
-        for raw_index in indices:
-            index = int(np.asarray(raw_index).reshape(-1)[0])
-            x, y, box_width, box_height = boxes[index]
-            detections.append(
-                Detection(
+        for pet_species in PET_CLASS_INDICES:
+            class_indices = np.flatnonzero(species == pet_species)
+            if not len(class_indices):
+                continue
+            selected_boxes = boxes[class_indices]
+            selected_scores = scores[class_indices]
+            indices = cv2.dnn.NMSBoxes(selected_boxes.tolist(), selected_scores.tolist(), self.confidence, self.nms)
+            for raw_index in indices:
+                index = int(np.asarray(raw_index).reshape(-1)[0])
+                x, y, box_width, box_height = selected_boxes[index]
+                detections.append(Detection(
                     x1=max(0.0, min(1.0, float(x / width))),
                     y1=max(0.0, min(1.0, float(y / height))),
                     x2=max(0.0, min(1.0, float((x + box_width) / width))),
                     y2=max(0.0, min(1.0, float((y + box_height) / height))),
-                    confidence=float(scores[index]),
-                )
-            )
+                    confidence=float(selected_scores[index]),
+                    species=pet_species,
+                ))
         return detections
 
     def _decode(self, output: np.ndarray) -> np.ndarray:

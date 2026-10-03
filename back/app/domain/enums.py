@@ -21,3 +21,8 @@ class ReviewDecision(StrEnum):
     CORRECTED = "CORRECTED"
     FALSE_POSITIVE = "FALSE_POSITIVE"
     INCONCLUSIVE = "INCONCLUSIVE"
+
+
+class PetSpecies(StrEnum):
+    CAT = "CAT"
+    DOG = "DOG"
