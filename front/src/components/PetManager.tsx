@@ -91,7 +91,7 @@ export default function PetManager({ pets, refresh }: Props) {
 
       <section className="pet-grid">{pets.map(pet => <article className="panel pet-card" key={pet.id}>
         {pet.photo_path ? <img src={`/api/pets/${pet.id}/photo`} alt={pet.name} /> : <div className="pet-placeholder">{pet.species === 'CAT' ? '🐈' : '🐕'}</div>}
-        <div className="pet-card-info"><span className="eyebrow">{pet.species === 'CAT' ? 'GATO' : 'CÃO'}</span><h2>{pet.name}</h2><p>{pet.description || 'Sem características cadastradas.'}</p><small>{pet.event_count} evento(s) · {pet.reference_count} captura(s) confirmada(s)</small><div><button className="ghost" onClick={() => edit(pet)}>Editar</button><button className="ghost danger" onClick={async () => { if (window.confirm(`Remover o perfil de ${pet.name}?`)) { await api.deletePet(pet.id); await refresh() } }}>Remover</button></div></div>
+        <div className="pet-card-info"><span className="eyebrow">{pet.species === 'CAT' ? 'GATO' : 'CÃO'}</span><h2>{pet.name}</h2><p>{pet.description || 'Sem características cadastradas.'}</p><small>{pet.event_count} evento(s) · {pet.reference_count} captura(s) confirmada(s)</small><div><button className="tertiary" onClick={() => edit(pet)}>Editar</button><button className="tertiary danger" onClick={async () => { if (window.confirm(`Remover o perfil de ${pet.name}?`)) { await api.deletePet(pet.id); await refresh() } }}>Remover</button></div></div>
       </article>)}{!pets.length && <section className="panel pet-empty"><h2>Comece cadastrando um pet</h2><p>Adicione uma foto inicial. Depois, confirme o animal nas revisões para acumular capturas reais dele.</p></section>}</section>
     </section>
     {open && <dialog ref={dialogRef} className="modal pet-modal" aria-labelledby="pet-form-title" onCancel={event=>{event.preventDefault();if(!saving)cancel()}}>
@@ -105,7 +105,7 @@ export default function PetManager({ pets, refresh }: Props) {
         {editing?.photo_path && !form.photo_data && <p className="muted">A foto atual será mantida se nenhuma nova for selecionada.</p>}
         {error && <p className="form-error">{error}</p>}
         <button className="primary full" disabled={saving || readingPhoto}>{readingPhoto ? 'Preparando foto…' : saving ? 'Salvando…' : editing ? 'Salvar perfil' : 'Cadastrar pet'}</button>
-        <button type="button" className="ghost full" disabled={saving} onClick={cancel}>Cancelar</button>
+        <button type="button" className="tertiary full" disabled={saving} onClick={cancel}>Cancelar</button>
 </fieldset>
       </form>
     </dialog>}
