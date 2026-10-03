@@ -1,6 +1,7 @@
 import { FormEvent, MouseEvent, memo, useEffect, useMemo, useRef, useState } from 'react'
 import * as api from '../api'
 import type { Camera, MonitoringFeedback, Zone } from '../api'
+import Icon from './Icon'
 
 
 const zoneLabels: Record<Zone['type'], string> = {
@@ -34,11 +35,14 @@ const emptyForm = {
 }
 
 const CameraVideo = memo(function CameraVideo({ cameraId, cameraName }: { cameraId: string; cameraName: string }) {
-  return <img src={`/api/cameras/${cameraId}/video`} alt={`Vídeo de ${cameraName}`} />
+  return <img src={`/api/cameras/${cameraId}/video`} alt={`Vídeo ao vivo de ${cameraName}`} />
 })
 
 export default function ZoneEditor({ cameras, zones, refresh }: Props) {
   const [cameraId, setCameraId] = useState('')
+  const [open,setOpen] = useState(false)
+  const [saving,setSaving] = useState(false)
+  const dialogRef = useRef<HTMLDialogElement>(null)
   const [points, setPoints] = useState<Point[]>([])
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -57,6 +61,16 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
   )
 
   useEffect(() => {
+    if(!open) return
+    const previous=document.activeElement as HTMLElement|null
+    dialogRef.current?.showModal()
+    return ()=>{dialogRef.current?.close();previous?.focus()}
+  },[open])
+
+  function closeEditor(){if(saving)return;setOpen(false);resetEditor()}
+  function startCreate(){resetEditor();setMessage('');setCameraId((cameras.find(c=>c.status.connected)??cameras[0])?.id??'');setOpen(true)}
+
+  useEffect(() => {
     if (!cameraId && cameras.length) {
       setCameraId((cameras.find(item => item.status.connected) ?? cameras[0]).id)
     }
@@ -64,7 +78,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
 
   useEffect(() => {
     setFeedback(null)
-    if (!cameraId) return
+    if (!cameraId || !open) return
     let active = true
     const load = async () => {
       try {
@@ -77,7 +91,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
     void load()
     const timer = window.setInterval(load, 750)
     return () => { active = false; window.clearInterval(timer) }
-  }, [cameraId])
+  }, [cameraId, open])
 
   function addPoint(event: MouseEvent<SVGSVGElement>) {
     if (suppressCanvasClick.current) {
@@ -149,6 +163,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
   }
 
   function editZone(zone: Zone) {
+    setOpen(true)
     setCameraId(zone.camera_id)
     setPoints(zone.polygon)
     setForm({
@@ -164,26 +179,29 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (!cameraId || points.length < 3) return
+    if (!cameraId || points.length < 3 || saving) return
     setError('')
     const payload = { camera_id: cameraId, ...form, polygon: points }
+    setSaving(true)
     try {
       if (editingId) await api.updateZone(editingId, payload)
       else await api.createZone(payload)
       await refresh()
       setMessage(editingId ? 'Zona atualizada.' : 'Zona criada e monitoramento iniciado.')
-      resetEditor()
+      resetEditor();setOpen(false)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível salvar a zona.')
-    }
+    } finally {setSaving(false)}
   }
 
   return <>
-    <div className="page-heading"><div><p className="eyebrow">DETECÇÃO POR IA</p><h1>Zonas monitoradas</h1><p>Desenhe no vídeo a área que a IA deve acompanhar.</p></div></div>
-    <section className="zone-workspace">
+    <div className="page-heading"><div><p className="eyebrow">DEFINA O QUE ACOMPANHAR</p><h1>Zonas monitoradas</h1></div><button className="primary" onClick={startCreate}>+ Cadastrar zona</button></div>
+    {!open&&message&&<p className="review-notice" role="status">{message}</p>}
+    <section className="zone-cards">{zones.map(zone=><article className="panel zone-card" key={zone.id}><span className={`event-kind ${zone.type.toLowerCase()}`}><Icon name={zone.type==='WATER'?'water':zone.type==='FOOD'?'food':zone.type==='LITTER'?'litter':'zones'}/></span><div className="zone-card-copy"><span className="eyebrow">{zoneLabels[zone.type]}</span><h2>{zone.name}</h2><p><Icon name="camera"/>{cameras.find(c=>c.id===zone.camera_id)?.name??'Câmera indisponível'}</p><small>Permanência mínima: {zone.minimum_presence_seconds}s</small></div><div className="zone-card-actions"><button className="ghost" onClick={()=>editZone(zone)}>Editar</button><button className="ghost danger" onClick={async()=>{if(window.confirm(`Remover a zona ${zone.name}?`)){await api.deleteZone(zone.id);await refresh()}}}>Remover</button></div></article>)}{!zones.length&&<div className="panel zone-empty"><h2>Nenhuma zona cadastrada</h2><p>Cadastre uma zona para acompanhar as visitas dos pets.</p><button className="primary" onClick={startCreate}>+ Cadastrar zona</button></div>}</section>
+    {open&&<dialog ref={dialogRef} className="modal zone-modal" aria-labelledby="zone-modal-title" onCancel={event=>{event.preventDefault();closeEditor()}}><div className="panel-head"><h2 id="zone-modal-title">{editingId?'Editar zona':'Cadastrar zona'}</h2><button className="close" aria-label="Fechar editor de zona" disabled={saving} onClick={closeEditor}>×</button></div><section className="zone-workspace">
       <div className="zone-editor-panel">
         <div className="zone-toolbar">
-          <label>Câmera<select value={cameraId} onChange={event => { setCameraId(event.target.value); resetEditor() }}><option value="">Selecione</option>{cameras.map(item => <option key={item.id} value={item.id}>{item.name} · {item.status.connected ? 'online' : 'offline'}</option>)}</select></label>
+          <fieldset className="zone-camera-picker"><legend>Câmera</legend><div>{cameras.map(item=><button type="button" aria-pressed={cameraId===item.id} className={cameraId===item.id?'selected':''} key={item.id} onClick={()=>{setCameraId(item.id);resetEditor()}}>{item.name}<small>{item.status.connected?'Online':'Offline'}</small></button>)}</div>{!cameras.length&&<p className="muted">Cadastre uma câmera antes de criar a zona.</p>}</fieldset>
           <div><button className="secondary" type="button" disabled={!points.length} onClick={() => setPoints(current => current.slice(0, -1))}>Desfazer ponto</button><button className="ghost" type="button" disabled={!points.length} onClick={() => setPoints([])}>Limpar</button></div>
         </div>
         <div className={`zone-canvas ${camera?.status.connected ? '' : 'disabled'}`}>
@@ -197,7 +215,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
             {points.map((point, index) => <circle key={index} className="zone-handle" cx={point.x * 100} cy={point.y * 100} r="1.25" onPointerDown={event => { event.stopPropagation(); suppressCanvasClick.current = true; setDraggingZone(null); setDraggingIndex(index); event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId) }} onClick={event => { event.stopPropagation(); suppressCanvasClick.current = false }} />)}
             {(feedback?.detections ?? []).map((detection, index) => <g key={index} className="ai-detection"><rect x={detection.x1 * 100} y={detection.y1 * 100} width={(detection.x2 - detection.x1) * 100} height={(detection.y2 - detection.y1) * 100} /><text x={detection.x1 * 100} y={Math.max(3, detection.y1 * 100 - 1)}>{detection.species === 'CAT' ? 'Gato' : 'Cão'} {Math.round(detection.confidence * 100)}%</text></g>)}
           </svg>}
-          {camera?.status.connected && <div className={`ai-status ${feedback?.status === 'running' ? 'ready' : ''}`}><i />{feedback?.status === 'running' ? `IA ativa · ${feedback.detections.length} pet(s)` : feedback?.status === 'error' ? 'Falha na IA' : 'Iniciando IA'}</div>}
+          {camera?.status.connected && <div className={`ai-status ${feedback?.status === 'running' ? 'ready' : ''}`}><i />{feedback?.status === 'running' ? `Prévia de zonas · sem inferência` : feedback?.status === 'error' ? 'Falha na IA' : 'Iniciando IA'}</div>}
         </div>
         <p className="drawing-hint">Clique na imagem para adicionar os limites da zona. Use pelo menos três pontos.</p>
       </div>
@@ -206,16 +224,16 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
         <form className="panel stack-form" onSubmit={submit}>
           <div><p className="eyebrow">{editingId ? 'EDITAR ZONA' : 'NOVA ZONA'}</p><h2>{points.length < 3 ? 'Marque a área no vídeo' : 'Configure o monitoramento'}</h2></div>
           <label>Nome<input required value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} placeholder="Ex.: Pote de água" /></label>
-          <label>Tipo<select value={form.type} onChange={event => setForm({ ...form, type: event.target.value as Zone['type'] })}>{Object.entries(zoneLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+          <fieldset className="zone-type-picker"><legend>Tipo</legend><div>{Object.entries(zoneLabels).map(([value,label])=><label className={form.type===value?'selected':''} key={value}><input type="radio" name="zone-type" checked={form.type===value} onChange={()=>setForm({...form,type:value as Zone['type']})}/>{label}</label>)}</div></fieldset>
           <label>Permanência para confirmar<input type="number" min="0.5" max="300" step="0.5" value={form.minimum_presence_seconds} onChange={event => setForm({ ...form, minimum_presence_seconds: Number(event.target.value) })} /><small>Segundos que o pet precisa permanecer na área.</small></label>
-          <div className="two-inputs"><label>Tolerância<input type="number" min="0" max="30" step="0.5" value={form.absence_tolerance_seconds} onChange={event => setForm({ ...form, absence_tolerance_seconds: Number(event.target.value) })} /></label><label>Cooldown<input type="number" min="0" max="3600" step="1" value={form.cooldown_seconds} onChange={event => setForm({ ...form, cooldown_seconds: Number(event.target.value) })} /></label></div>
+          <div className="two-inputs"><label>Tolerância<input type="number" min="0" max="30" step="0.5" value={form.absence_tolerance_seconds} onChange={event => setForm({ ...form, absence_tolerance_seconds: Number(event.target.value) })} /></label><label>Intervalo entre visitas<input type="number" min="0" max="3600" step="1" value={form.cooldown_seconds} onChange={event => setForm({ ...form, cooldown_seconds: Number(event.target.value) })} /></label></div>
           {error && <p className="form-error">{error}</p>}
           {message && <p className="form-success">{message}</p>}
-          <button className="primary full" disabled={!camera?.status.connected || points.length < 3}>{editingId ? 'Salvar alterações' : 'Criar e monitorar zona'}</button>
-          {editingId && <button className="ghost full" type="button" onClick={resetEditor}>Cancelar edição</button>}
+          <button className="primary full" disabled={saving || !camera?.status.connected || points.length < 3}>{saving?'Salvando…':editingId ? 'Salvar alterações' : 'Cadastrar zona'}</button>
+          <button className="ghost full" type="button" disabled={saving} onClick={closeEditor}>Cancelar</button>
         </form>
-        <section className="panel zone-feedback"><div className="panel-head"><div><h2>Feedback ao vivo</h2><p>{cameraZones.length} zona(s) nesta câmera</p></div></div>{cameraZones.length ? <div className="zone-list">{cameraZones.map(zone => { const state = feedbackByZone.get(zone.id); return <div key={zone.id}><span className={`zone-dot ${zone.type.toLowerCase()} ${state?.inside ? 'pulse' : ''}`} /><div><strong>{zone.name}</strong><small>{state ? stateLabels[state.state] : 'Aguardando IA'}{state?.state === 'CANDIDATE' ? ` · ${Math.round(state.progress * 100)}%` : ''}</small></div><div className="zone-actions"><button className="ghost" onClick={() => editZone(zone)}>Editar</button><button className="ghost danger" onClick={async () => { await api.deleteZone(zone.id); await refresh() }}>Remover</button></div></div>})}</div> : <p className="muted">Desenhe a primeira zona nesta câmera.</p>}</section>
+
       </aside>
-    </section>
+    </section></dialog>}
   </>
 }

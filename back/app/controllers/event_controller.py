@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 
 from app.controllers.schemas.event_schema import ReviewCreateRequest
 from app.core.container import event_service
+from app.domain.enums import ZoneType
 
 
 router = APIRouter(prefix="/api/events", tags=["events"])
@@ -16,9 +17,22 @@ def get_events(
     zone_id: str | None = None,
     date: str | None = None,
     pending_review: bool = False,
-    limit: int = Query(default=100, ge=1, le=500),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=500),
+    pet_id: str | None = None,
+    zone_type: ZoneType | None = None,
+    limit: int | None = Query(default=None, ge=1, le=500),
 ) -> dict[str, Any]:
-    return {"events": event_service.list(camera_id, zone_id, date, pending_review, limit)}
+    return event_service.search(
+        page,
+        limit or page_size,
+        pet_id,
+        zone_type,
+        pending_review,
+        camera_id,
+        zone_id,
+        date,
+    )
 
 
 @router.post("/{event_id}/reviews", status_code=201)
