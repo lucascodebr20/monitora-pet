@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from app.domain.errors import EntityNotFoundError
 from app.domain.errors import InvalidDomainValueError
+from app.domain.enums import ReviewDecision, ZoneType
 from app.infra.database.database import utc_now
 from app.infra.media.clip_store import ClipStore
 from app.infra.media.pet_image_store import PetImageStore
@@ -35,10 +36,38 @@ class EventService:
     ) -> list[dict[str, Any]]:
         return self.repository.list(camera_id, zone_id, date, pending_review, limit)
 
+    def search(
+        self,
+        page: int,
+        page_size: int,
+        pet_id: str | None = None,
+        zone_type: ZoneType | None = None,
+        pending_review: bool = False,
+        camera_id: str | None = None,
+        zone_id: str | None = None,
+        date: str | None = None,
+    ) -> dict[str, Any]:
+        events, total = self.repository.search(
+            page, page_size, pet_id, zone_type.value if zone_type else None, pending_review,
+            camera_id, zone_id, date,
+        )
+        return {"events": events, "total": total, "page": page, "page_size": page_size}
+
     def review(self, event_id: str, request: ReviewEventCommand) -> dict[str, Any]:
         if not self.repository.exists(event_id):
             raise EntityNotFoundError("Evento não encontrado.")
+        if self.repository.has_review(event_id):
+            raise InvalidDomainValueError("Este registro já foi revisado.")
         event = self.repository.get(event_id)
+        if request.decision == ReviewDecision.CORRECTED:
+            if request.zone_type not in {ZoneType.WATER, ZoneType.FOOD, ZoneType.LITTER}:
+                raise InvalidDomainValueError("Selecione água, comida ou caixa de areia como tipo corrigido.")
+            if request.zone_type.value == event["zone_type"]:
+                raise InvalidDomainValueError("O tipo corrigido deve ser diferente do tipo detectado.")
+        elif request.zone_type is not None:
+            raise InvalidDomainValueError("O tipo da área só pode ser informado ao corrigir o registro.")
+        if request.decision == ReviewDecision.FALSE_POSITIVE and request.pet_id:
+            raise InvalidDomainValueError("Uma evidência recusada não pode ser atribuída a um pet.")
         pet = self.pet_repository.get(request.pet_id) if request.pet_id else None
         if request.pet_id and not pet:
             raise EntityNotFoundError("Pet não encontrado.")
@@ -52,11 +81,7 @@ class EventService:
             "pet_id": confirmed_pet["id"] if confirmed_pet else None,
             "created_at": utc_now(),
         }
-        self.repository.create_review(review)
-        if confirmed_pet:
-            self.repository.assign_pet(event_id, confirmed_pet["id"])
-            if event.get("pet_capture_path"):
-                self.pet_repository.create_reference_image(confirmed_pet["id"], event_id, event["pet_capture_path"])
+        self.repository.complete_review(review)
         return review
 
     def snapshot(self, event_id: str) -> Path:
