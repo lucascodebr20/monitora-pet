@@ -101,6 +101,13 @@ export type Event = {
   review_decision: string | null
 }
 
+export type EventPage = {
+  events: Event[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export type Dashboard = {
   date: string
   events_today: number
@@ -161,7 +168,17 @@ export const deletePet = (id: string) => request<void>(`/api/pets/${id}`, { meth
 export const getPetReferences = async (id: string) =>
   (await request<{ images: PetReferenceImage[] }>(`/api/pets/${id}/references`)).images
 
-export const getEvents = async (pendingReview = false) =>
-  (await request<{ events: Event[] }>(`/api/events${pendingReview ? '?pending_review=true' : ''}`)).events
-export const reviewEvent = (id: string, decision: string, pet_id: string | null) =>
-  request(`/api/events/${id}/reviews`, json('POST', { decision, pet_id }))
+export const getEvents = async (pendingReview = false, limit = 100, date?: string) => {
+  const query = new URLSearchParams({ limit: String(limit) })
+  if (pendingReview) query.set('pending_review', 'true')
+  if (date) query.set('date', date)
+  return (await request<EventPage>(`/api/events?${query.toString()}`)).events
+}
+export const getEventPage = (page: number, petId: string, zoneType: Zone['type'] | '', pageSize = 10) => {
+  const query = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+  if (petId) query.set('pet_id', petId)
+  if (zoneType) query.set('zone_type', zoneType)
+  return request<EventPage>(`/api/events?${query.toString()}`)
+}
+export const reviewEvent = (id: string, decision: string, pet_id: string | null, zone_type?: Zone['type']) =>
+  request(`/api/events/${id}/reviews`, json('POST', { decision, pet_id, ...(zone_type ? { zone_type } : {}) }))
