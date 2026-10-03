@@ -2,6 +2,7 @@ import { FormEvent, MouseEvent, memo, useEffect, useMemo, useRef, useState } fro
 import * as api from '../api'
 import type { Camera, MonitoringFeedback, Zone } from '../api'
 import Icon from './Icon'
+import { useToast } from './Toast'
 
 
 const zoneLabels: Record<Zone['type'], string> = {
@@ -39,6 +40,7 @@ const CameraVideo = memo(function CameraVideo({ cameraId, cameraName }: { camera
 })
 
 export default function ZoneEditor({ cameras, zones, refresh }: Props) {
+  const showToast = useToast()
   const [cameraId, setCameraId] = useState('')
   const [saving,setSaving] = useState(false)
   const [points, setPoints] = useState<Point[]>([])
@@ -48,7 +50,6 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
   const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null)
   const [draggingZone, setDraggingZone] = useState<{ start: Point; original: Point[] } | null>(null)
   const [feedback, setFeedback] = useState<MonitoringFeedback | null>(null)
-  const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const suppressCanvasClick = useRef(false)
 
@@ -60,7 +61,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
   )
 
   function closeEditor(){if(saving)return;resetEditor()}
-  function startCreate(){resetEditor();setMessage('');setCameraId((cameras.find(c=>c.status.connected)??cameras[0])?.id??'')}
+  function startCreate(){resetEditor();setCameraId((cameras.find(c=>c.status.connected)??cameras[0])?.id??'')}
 
   useEffect(() => {
     if (!cameraId && cameras.length) {
@@ -93,7 +94,6 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
       event.preventDefault()
       setPoints(current => current.filter((_, index) => index !== selectedPointIndex))
       setSelectedPointIndex(null)
-      setMessage('')
     }
     window.addEventListener('keydown', removeSelectedPoint)
     return () => window.removeEventListener('keydown', removeSelectedPoint)
@@ -112,7 +112,6 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
     }
     setPoints(current => [...current, point])
     setSelectedPointIndex(null)
-    setMessage('')
   }
 
   function movePoint(event: React.PointerEvent<SVGSVGElement>) {
@@ -181,7 +180,6 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
       cooldown_seconds: zone.cooldown_seconds,
     })
     setEditingId(zone.id)
-    setMessage(`Editando ${zone.name}. Ajuste os pontos e salve.`)
   }
 
   async function submit(event: FormEvent) {
@@ -194,7 +192,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
       if (editingId) await api.updateZone(editingId, payload)
       else await api.createZone(payload)
       await refresh()
-      setMessage(editingId ? 'Zona atualizada.' : 'Zona criada e monitoramento iniciado.')
+      showToast(editingId ? 'Zona atualizada.' : 'Zona criada e monitoramento iniciado.')
       resetEditor()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível salvar a zona.')
@@ -230,14 +228,13 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
           <label>Permanência para confirmar<input type="number" min="0.5" max="300" step="0.5" value={form.minimum_presence_seconds} onChange={event => setForm({ ...form, minimum_presence_seconds: Number(event.target.value) })} /><small>Segundos que o pet precisa permanecer na área.</small></label>
           <div className="two-inputs"><label>Tolerância<input type="number" min="0" max="30" step="0.5" value={form.absence_tolerance_seconds} onChange={event => setForm({ ...form, absence_tolerance_seconds: Number(event.target.value) })} /></label><label>Intervalo entre visitas<input type="number" min="0" max="3600" step="1" value={form.cooldown_seconds} onChange={event => setForm({ ...form, cooldown_seconds: Number(event.target.value) })} /></label></div>
           {error && <p className="form-error">{error}</p>}
-          <div className="zone-form-actions"><button className="tertiary" type="button" disabled={saving} onClick={closeEditor}>{editingId?'Cancelar':'Limpar campos'}</button>{editingId&&<button className="tertiary danger" type="button" disabled={saving} onClick={async()=>{const zone=zones.find(item=>item.id===editingId);if(zone&&window.confirm(`Remover a zona ${zone.name}?`)){await api.deleteZone(zone.id);resetEditor();await refresh()}}}>Remover</button>}<button className="primary" disabled={saving || !camera?.status.connected || points.length < 3}>{saving?'Salvando…':editingId ? 'Salvar' : 'Cadastrar zona'}</button></div>
+          <div className="zone-form-actions"><button className="tertiary" type="button" disabled={saving} onClick={closeEditor}>{editingId?'Cancelar':'Limpar campos'}</button>{editingId&&<button className="tertiary danger" type="button" disabled={saving} onClick={async()=>{const zone=zones.find(item=>item.id===editingId);if(zone&&window.confirm(`Remover a zona ${zone.name}?`)){await api.deleteZone(zone.id);resetEditor();await refresh();showToast(`Zona ${zone.name} removida.`)}}}>Remover</button>}<button className="primary" disabled={saving || !camera?.status.connected || points.length < 3}>{saving?'Salvando…':editingId ? 'Salvar' : 'Cadastrar zona'}</button></div>
         </form>
       </aside>
     </section>
 
   return <>
     <div className="page-heading"><div><p className="eyebrow">DEFINA O QUE ACOMPANHAR</p><h1>Zonas monitoradas</h1></div><button className="primary" onClick={startCreate}>+ Cadastrar zona</button></div>
-    {message&&<p className="review-notice" role="status">{message}</p>}
     <section className="zone-filter-panel" aria-label="Selecionar zona"><span>Zonas</span><div>{zones.map(zone=><button type="button" className={editingId===zone.id?'selected':''} aria-pressed={editingId===zone.id} key={zone.id} onClick={()=>editZone(zone)}><Icon name={zone.type==='WATER'?'water':zone.type==='FOOD'?'food':zone.type==='LITTER'?'litter':'zones'}/>{zone.name}</button>)}{!zones.length&&<p>Nenhuma zona cadastrada.</p>}</div></section>
     {editorContent}
   </>

@@ -4,6 +4,7 @@ import type { Camera, CameraCandidate, Dashboard, Event, EventPage, Pet, Zone } 
 import ZoneEditor from './components/ZoneEditor'
 import PetManager from './components/PetManager'
 import Icon from './components/Icon'
+import { useToast } from './components/Toast'
 
 type View = 'dashboard' | 'cameras' | 'zones' | 'pets' | 'history' | 'reviews' | 'settings'
 
@@ -90,6 +91,7 @@ function DashboardView({ data, pets, cameras, events, onNavigate }: { data: Dash
 }
 
 function CamerasView({ cameras, zones, refresh }: { cameras: Camera[]; zones: Zone[]; refresh: () => Promise<void> }) {
+  const showToast = useToast()
   const [open, setOpen] = useState(false)
   const [discovering, setDiscovering] = useState(false)
   const [candidates, setCandidates] = useState<CameraCandidate[]>([])
@@ -118,7 +120,7 @@ function CamerasView({ cameras, zones, refresh }: { cameras: Camera[]; zones: Zo
     event.preventDefault(); setError('')
     try {
       await api.createCamera({ ...form, rtsp_url: form.rtsp_url || null })
-      setOpen(false); setForm({ name: '', ip: '', username: '', password: '', rtsp_url: '' }); await refresh()
+      setOpen(false); setForm({ name: '', ip: '', username: '', password: '', rtsp_url: '' }); await refresh(); showToast('Câmera cadastrada.')
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Falha ao cadastrar.') }
   }
 
@@ -131,6 +133,7 @@ function CamerasView({ cameras, zones, refresh }: { cameras: Camera[]; zones: Zo
       setReconnectCamera(null)
       setCredentials({ username: '', password: '', rtsp_url: '' })
       await refresh()
+      showToast(`${reconnectCamera.name} conectada.`)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível conectar a câmera.')
     }
@@ -153,7 +156,7 @@ function CamerasView({ cameras, zones, refresh }: { cameras: Camera[]; zones: Zo
           })}</div>}
           <Status connected={camera.status.connected} />
         </div>
-        <div className="camera-info"><div><h3>{camera.name}</h3><p>{camera.model || camera.manufacturer || 'Câmera IP'} · {camera.ip}</p></div><div className="camera-actions">{cameraZones.length > 0 && <button className={`tertiary zone-toggle ${showZones ? 'active' : ''}`} onClick={() => toggleZoneOverlay(camera.id)}>{showZones ? 'Ocultar zonas' : `Mostrar zonas (${cameraZones.length})`}</button>}{!camera.status.connected && <button className="tertiary" onClick={() => { setReconnectCamera(camera); setError('') }}>Conectar</button>}<button className="tertiary danger" onClick={async () => { if(window.confirm(`Remover a câmera ${camera.name} e suas áreas?`)){await api.deleteCamera(camera.id); await refresh()} }}>Remover</button></div></div>
+        <div className="camera-info"><div><h3>{camera.name}</h3><p>{camera.model || camera.manufacturer || 'Câmera IP'} · {camera.ip}</p></div><div className="camera-actions">{cameraZones.length > 0 && <button className={`tertiary zone-toggle ${showZones ? 'active' : ''}`} onClick={() => toggleZoneOverlay(camera.id)}>{showZones ? 'Ocultar zonas' : `Mostrar zonas (${cameraZones.length})`}</button>}{!camera.status.connected && <button className="tertiary" onClick={() => { setReconnectCamera(camera); setError('') }}>Conectar</button>}<button className="tertiary danger" onClick={async () => { if(window.confirm(`Remover a câmera ${camera.name} e suas áreas?`)){await api.deleteCamera(camera.id); await refresh(); showToast(`Câmera ${camera.name} removida.`)} }}>Remover</button></div></div>
       </article>
     })}</section>
     {!cameras.length && <section className="panel"><Empty title="Nenhuma câmera cadastrada">Adicione até duas câmeras IP para começar o monitoramento local.</Empty></section>}
@@ -168,6 +171,7 @@ function CamerasView({ cameras, zones, refresh }: { cameras: Camera[]; zones: Zo
 }
 
 function ReviewsView({ events, pets, refresh }: { events: Event[]; pets: Pet[]; refresh: () => Promise<void> }) {
+  const showToast = useToast()
   const current = events[0]
   const [decision, setDecision] = useState<'accept' | 'reject' | 'correct' | ''>('')
   const [stage,setStage] = useState<'validate'|'type'|'pet'>('validate')
@@ -176,7 +180,6 @@ function ReviewsView({ events, pets, refresh }: { events: Event[]; pets: Pet[]; 
   const [petId, setPetId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
   useEffect(() => { setDecision('');setStage('validate');setCorrectedType('');setPetId(current?.pet_id ?? '');setError('') }, [current?.id])
   const compatiblePets = pets.filter(pet => pet.species === current?.detected_species)
   useEffect(()=>{stageHeading.current?.focus()},[stage])
@@ -184,19 +187,18 @@ function ReviewsView({ events, pets, refresh }: { events: Event[]; pets: Pet[]; 
   const canSave = decision==='reject' || (stage==='pet'&&validPet&&(decision!=='correct'||(!!correctedType&&correctedType!==current?.zone_type)))
   async function saveReview() {
     if (!current || !canSave || saving) return
-    setSaving(true);setError('');setNotice('')
+    setSaving(true);setError('')
     try {
       const apiDecision = decision === 'reject' ? 'FALSE_POSITIVE' : decision === 'correct' ? 'CORRECTED' : 'CONFIRMED'
       await api.reviewEvent(current.id, apiDecision, decision === 'reject' || petId==='unknown' ? null : petId || null, decision === 'correct' && correctedType ? correctedType : undefined)
       await refresh()
-      setNotice(decision === 'reject' ? 'Evidência recusada.' : decision === 'correct' ? `Tipo corrigido para ${zoneLabels[correctedType].toLowerCase()}.` : 'Evidência aceita.')
+      showToast(decision === 'reject' ? 'Evidência recusada.' : decision === 'correct' ? `Tipo corrigido para ${zoneLabels[correctedType].toLowerCase()}.` : 'Evidência aceita.')
     } catch(reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível salvar. Tente novamente.') }
     finally { setSaving(false) }
   }
   function chooseDecision(value: 'accept' | 'reject' | 'correct') { setDecision(value);setError('');setStage(value==='accept'?'pet':value==='correct'?'type':'validate') }
   return <>
     <div className="page-heading"><div><p className="eyebrow">REGISTROS PARA CONFERIR</p><h1>Revisões</h1><p>{events.length ? `${events.length} ${events.length === 1 ? 'registro aguardando' : 'registros aguardando'} revisão.` : 'Nenhum registro pendente.'}</p></div></div>
-    {notice && <p className="review-notice" role="status"><Icon name="reviews"/>{notice}{current && ' Confira o próximo registro abaixo.'}</p>}
     {!current ? <section className="panel"><Empty title="Tudo revisado">Novos registros aparecerão aqui quando uma visita for detectada.</Empty></section> : <section className="review-card review-flow">
       <div className="review-evidence"><div className="review-step-heading"><span>1</span><h2>Confira a evidência</h2></div><div className="review-media">{current.clip_path ? <video key={current.id} controls preload="metadata" poster={current.snapshot_path ? `/api/events/${current.id}/snapshot` : undefined}><source src={`/api/events/${current.id}/clip`} type="video/webm"/>Seu navegador não conseguiu reproduzir este vídeo.</video> : current.snapshot_path ? <div className="review-snapshot"><img src={`/api/events/${current.id}/snapshot`} alt={`Evidência de uma visita à área ${current.zone_name}`}/></div> : <p>Mídia indisponível para este registro.</p>}</div><div className="review-record-details"><div><strong>{zoneLabels[current.zone_type]}</strong><p>{current.camera_name} · {new Date(current.started_at).toLocaleString('pt-BR')}</p></div><span>{current.duration_seconds ? `${Math.round(current.duration_seconds)}s na área` : 'Em andamento'}</span></div></div>
       <div className="review-detail review-wizard"><div className="review-step-heading"><span>{stage==='validate'?2:stage==='type'||decision==='accept'?3:4}</span><h2 ref={stageHeading} tabIndex={-1}>{stage==='validate'?'A evidência está correta?':stage==='type'?'Qual é o tipo correto?':'Qual animal aparece?'}</h2></div>
