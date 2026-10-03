@@ -113,7 +113,8 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px #3
 .wide { grid-column: 1 / -1; }
 .candidate-list { margin-top: 10px; display: grid; gap: 6px; }
 .candidate-list button { padding: 9px 11px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid var(--line); border-radius: 8px; background: white; font-size: 11px; text-align: left; }
-.candidate-list button > span:first-child { display: grid; gap: 2px; }
+.candidate-list button > span:first-child { display: grid; gap: 2px; min-width: 0; }
+.candidate-list strong, .candidate-list small { overflow-wrap: anywhere; }
 .candidate-list small { color: var(--muted); font-size: 9px; font-weight: 500; }
 .pet-layout { display: grid; grid-template-columns: minmax(260px, .7fr) 1.3fr; gap: 18px; align-items: start; }
 .pet-form { margin-top: 0; }
