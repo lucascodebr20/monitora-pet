@@ -26,8 +26,13 @@ class MigrationTests(unittest.TestCase):
                     ).fetchall()
                 }
 
-            self.assertEqual(versions, [(1,)])
+            self.assertEqual(versions, [(1,), (2,), (3,)])
             self.assertTrue({"cameras", "zones", "events", "human_reviews"} <= tables)
+            with closing(sqlite3.connect(database.path)) as connection:
+                event_columns = {
+                    row[1] for row in connection.execute("PRAGMA table_info(events)")
+                }
+            self.assertIn("corrected_zone_type", event_columns)
 
 
 if __name__ == "__main__":
