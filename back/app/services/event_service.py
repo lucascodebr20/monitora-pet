@@ -14,17 +14,20 @@ from app.infra.media.pet_image_store import PetImageStore
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.pet_repository import PetRepository
 from app.infra.media.snapshot_store import SnapshotStore
+from app.infra.ai.pet_identifier import PetIdentifier
 from app.services.commands import ReviewEventCommand
 
 
 class EventService:
     def __init__(self, repository: EventRepository, snapshot_store: SnapshotStore, clip_store: ClipStore,
-                 pet_repository: PetRepository, pet_image_store: PetImageStore) -> None:
+                 pet_repository: PetRepository, pet_image_store: PetImageStore,
+                 pet_identifier: PetIdentifier | None = None) -> None:
         self.repository = repository
         self.snapshot_store = snapshot_store
         self.clip_store = clip_store
         self.pet_repository = pet_repository
         self.pet_image_store = pet_image_store
+        self.pet_identifier = pet_identifier
 
     def list(
         self,
@@ -82,6 +85,8 @@ class EventService:
             "created_at": utc_now(),
         }
         self.repository.complete_review(review)
+        if confirmed_pet and self.pet_identifier:
+            self.pet_identifier.learn_from_review(event_id, confirmed_pet["id"])
         return review
 
     def snapshot(self, event_id: str) -> Path:

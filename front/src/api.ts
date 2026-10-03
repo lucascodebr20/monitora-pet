@@ -97,6 +97,9 @@ export type Event = {
   clip_path: string | null
   pet_id: string | null
   pet_name: string | null
+  automatically_identified_pet_id: string | null
+  pet_identification_confidence: number | null
+  pet_identification_method: string | null
   detected_species: PetSpecies
   review_decision: string | null
 }
@@ -106,6 +109,44 @@ export type EventPage = {
   total: number
   page: number
   page_size: number
+}
+
+export type IdentificationScore = {
+  pet_id: string
+  pet_name: string
+  confidence: number
+  reference_count: number
+  rank: number
+}
+
+export type IdentificationAnalysis = {
+  id: string
+  event_id: string
+  decision: 'MATCHED' | 'LOW_SIMILARITY' | 'AMBIGUOUS' | 'NO_REFERENCES' | 'CAPTURE_UNAVAILABLE' | 'UNSUPPORTED'
+  selected_pet_id: string | null
+  selected_pet_name: string | null
+  selected_confidence: number | null
+  minimum_similarity: number
+  minimum_margin: number
+  reviewed_pet_id: string | null
+  reviewed_pet_name: string | null
+  was_correct: number | null
+  camera_name: string
+  zone_name: string
+  created_at: string
+  scores: IdentificationScore[]
+}
+
+export type IdentificationLogs = {
+  analyses: IdentificationAnalysis[]
+  calibration: {
+    minimum_similarity: number
+    minimum_margin: number
+    interaction_count: number
+    accuracy: number | null
+    created_at: string | null
+  }
+  interactions_until_calibration: number
 }
 
 export type Dashboard = {
@@ -158,6 +199,7 @@ export const createZone = (payload: Omit<Zone, 'id' | 'enabled'>) => request<Zon
 export const updateZone = (id: string, payload: Omit<Zone, 'id' | 'enabled'>) => request<Zone>(`/api/zones/${id}`, json('PUT', payload))
 export const deleteZone = (id: string) => request<void>(`/api/zones/${id}`, { method: 'DELETE' })
 export const getMonitoringFeedback = (cameraId: string) => request<MonitoringFeedback>(`/api/monitoring/${cameraId}`)
+export const getIdentificationLogs = () => request<IdentificationLogs>('/api/identification/logs')
 
 export const getPets = async () => (await request<{ pets: Pet[] }>('/api/pets')).pets
 export const createPet = (payload: { name: string; species: PetSpecies; description: string; photo_data: string | null }) =>
