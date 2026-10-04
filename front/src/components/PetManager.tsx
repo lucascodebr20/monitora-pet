@@ -198,7 +198,7 @@ export default function PetManager({ pets, refresh }: Props) {
     <section className="pet-layout pet-list-layout"><section className="pet-grid">{pets.map(pet => <article className="panel pet-card" key={pet.id}>
       {pet.photo_path ? <img src={`/api/pets/${pet.id}/photo`} alt={pet.name} /> : <div className="pet-placeholder">{pet.species === 'CAT' ? '🐈' : '🐕'}</div>}
       <div className="pet-card-info"><span className="eyebrow">{pet.species === 'CAT' ? 'GATO' : 'CÃO'}</span><h2>{pet.name}</h2><p>{pet.description || 'Sem características cadastradas.'}</p><small>{pet.event_count} evento(s) · {pet.reference_count} captura(s) confirmada(s)</small></div>
-      <div className="pet-card-actions"><button className="tertiary" onClick={() => openPet(pet, 'edit')}>Editar</button><button className="secondary" onClick={() => openPet(pet, 'details')}>Detalhes</button><button className="tertiary danger" onClick={async () => { if (window.confirm(`Remover o perfil de ${pet.name}?`)) { await api.deletePet(pet.id); await refresh(); showToast(`Perfil de ${pet.name} removido.`) } }}>Excluir</button></div>
+      <div className="pet-card-actions"><button className="tertiary" onClick={() => openPet(pet, 'edit')}>Editar</button><button className="tertiary danger" onClick={async () => { if (window.confirm(`Remover o perfil de ${pet.name}?`)) { await api.deletePet(pet.id); await refresh(); showToast(`Perfil de ${pet.name} removido.`) } }}>Excluir</button></div>
     </article>)}{!pets.length && <section className="panel pet-empty"><h2>Comece cadastrando um pet</h2><p>Adicione uma foto inicial. Depois, confirme o animal nas revisões para acumular capturas reais dele.</p></section>}</section></section>
   </>
 }
