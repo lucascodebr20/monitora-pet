@@ -214,6 +214,8 @@ export const updatePet = (id: string, payload: { name: string; species: PetSpeci
 export const deletePet = (id: string) => request<void>(`/api/pets/${id}`, { method: 'DELETE' })
 export const getPetReferences = async (id: string) =>
   (await request<{ images: PetReferenceImage[] }>(`/api/pets/${id}/references`)).images
+export const deletePetReference = (petId: string, imageId: string) =>
+  request<void>(`/api/pets/${petId}/references/${imageId}`, { method: 'DELETE' })
 
 export const getEvents = async (pendingReview = false, limit = 100, date?: string) => {
   const query = new URLSearchParams({ limit: String(limit) })

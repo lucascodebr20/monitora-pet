@@ -33,7 +33,7 @@ class FakeLearningRepository:
         self.reviewed = 0
         self.calibrations = []
 
-    def current_calibration(self):
+    def current_calibration(self, method=None):
         if self.calibrations:
             return self.calibrations[-1]
         return {"minimum_similarity": 0.72, "minimum_margin": 0.08, "interaction_count": 0, "accuracy": None}
@@ -42,10 +42,10 @@ class FakeLearningRepository:
         self.reviewed += 1
         return True
 
-    def reviewed_count(self):
+    def reviewed_count(self, method=None):
         return self.reviewed
 
-    def reviewed_samples(self):
+    def reviewed_samples(self, method=None):
         return [
             {
                 "selected_pet_id": "mingau",
@@ -58,12 +58,13 @@ class FakeLearningRepository:
             for _ in range(self.reviewed)
         ]
 
-    def create_calibration(self, minimum_similarity, minimum_margin, interaction_count, accuracy):
+    def create_calibration(self, minimum_similarity, minimum_margin, interaction_count, accuracy, method=None):
         self.calibrations.append({
             "minimum_similarity": minimum_similarity,
             "minimum_margin": minimum_margin,
             "interaction_count": interaction_count,
             "accuracy": accuracy,
+            "method": method,
         })
 
 
@@ -122,6 +123,39 @@ class PetIdentifierTests(unittest.TestCase):
         self.assertEqual(len(learning.calibrations), 1)
         self.assertEqual(learning.calibrations[0]["interaction_count"], 10)
         self.assertEqual(learning.calibrations[0]["accuracy"], 1.0)
+
+    def test_combines_multiple_observations_by_median(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_image(root / "mingau.jpg", (15, 35, 185))
+            self.write_image(root / "luna.jpg", (180, 35, 15))
+            repository = FakePetRepository([
+                {"id": "mingau", "species": "CAT", "photo_path": "mingau.jpg"},
+                {"id": "luna", "species": "CAT", "photo_path": "luna.jpg"},
+            ])
+            observations = [np.full((120, 120, 3), (15, 35, 185), dtype=np.uint8) for _ in range(3)]
+
+            analysis = PetIdentifier(repository, FakeImageStore(root)).analyze_images(observations, "CAT")
+
+            self.assertIsNotNone(analysis.match)
+            self.assertEqual(analysis.match.pet_id, "mingau")
+            self.assertEqual(analysis.method, PetIdentifier.METHOD)
+
+    def test_selects_more_than_eight_reference_images(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            references = []
+            for index in range(12):
+                path = f"ref-{index}.jpg"
+                self.write_image(root / path, (20 + index, 40, 160))
+                references.append({"image_path": path})
+            repository = FakePetRepository(
+                [{"id": "mingau", "species": "CAT", "photo_path": None}],
+                {"mingau": references},
+            )
+            identifier = PetIdentifier(repository, FakeImageStore(root))
+
+            self.assertEqual(len(identifier._reference_descriptors(repository.pets[0])), 12)
 
 
 if __name__ == "__main__":
