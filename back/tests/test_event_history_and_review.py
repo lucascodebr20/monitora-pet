@@ -142,6 +142,7 @@ class EventHistoryAndReviewTests(unittest.TestCase):
             identifications.create_analysis(
                 event_id, "CAT", None, "MATCHED", self.pet["id"], 0.88, 0.72, 0.08,
                 [{"pet_id": self.pet["id"], "confidence": 0.88, "reference_count": 1}],
+                PetIdentifier.METHOD,
             )
             service.review(
                 event_id,
@@ -168,6 +169,16 @@ class EventHistoryAndReviewTests(unittest.TestCase):
 
         with self.assertRaises(InvalidDomainValueError):
             self.review("invalid-correction", ReviewDecision.CORRECTED, zone_type=ZoneType.WATER)
+
+    def test_reference_image_can_be_removed_without_deleting_event(self):
+        self.create_event("reference-event", capture_path="pets/captures/cat.jpg")
+        self.review("reference-event", ReviewDecision.CONFIRMED, self.pet["id"])
+        reference = self.pets.list_reference_images(self.pet["id"])[0]
+
+        self.assertTrue(self.pets.delete_reference_image(self.pet["id"], reference["id"]))
+
+        self.assertEqual(self.pets.list_reference_images(self.pet["id"]), [])
+        self.assertIsNotNone(self.events.get("reference-event"))
 
 
 if __name__ == "__main__":

@@ -7,15 +7,17 @@ from app.infra.database.database import Database, utc_now
 
 
 class PetIdentificationRepository:
-    DEFAULT_MINIMUM_SIMILARITY = 0.72
-    DEFAULT_MINIMUM_MARGIN = 0.08
+    DEFAULT_MINIMUM_SIMILARITY = 0.731
+    DEFAULT_MINIMUM_MARGIN = 0.064
 
     def __init__(self, database: Database) -> None:
         self.database = database
 
-    def current_calibration(self) -> dict[str, Any]:
+    def current_calibration(self, method: str | None = None) -> dict[str, Any]:
         calibration = self.database.one(
-            "SELECT * FROM pet_identification_calibrations ORDER BY id DESC LIMIT 1"
+            """SELECT * FROM pet_identification_calibrations
+               WHERE method = COALESCE(?, method) ORDER BY id DESC LIMIT 1""",
+            (method,),
         )
         return calibration or {
             "id": 0,
@@ -24,6 +26,7 @@ class PetIdentificationRepository:
             "interaction_count": 0,
             "accuracy": None,
             "created_at": None,
+            "method": method,
         }
 
     def create_analysis(
@@ -37,17 +40,18 @@ class PetIdentificationRepository:
         minimum_similarity: float,
         minimum_margin: float,
         scores: list[dict[str, Any]],
+        method: str = "appearance-histogram-v1",
     ) -> None:
         analysis_id = str(uuid4())
         with self.database.connect() as connection:
             connection.execute(
                 """INSERT INTO pet_identification_analyses
                    (id, event_id, species, capture_path, decision, selected_pet_id,
-                    selected_confidence, minimum_similarity, minimum_margin, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    selected_confidence, minimum_similarity, minimum_margin, created_at, method)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     analysis_id, event_id, species, capture_path, decision, selected_pet_id,
-                    selected_confidence, minimum_similarity, minimum_margin, utc_now(),
+                    selected_confidence, minimum_similarity, minimum_margin, utc_now(), method,
                 ),
             )
             connection.executemany(
@@ -75,17 +79,21 @@ class PetIdentificationRepository:
         )
         return True
 
-    def reviewed_count(self) -> int:
+    def reviewed_count(self, method: str | None = None) -> int:
         row = self.database.one(
-            "SELECT COUNT(*) AS total FROM pet_identification_analyses WHERE reviewed_pet_id IS NOT NULL"
+            """SELECT COUNT(*) AS total FROM pet_identification_analyses
+               WHERE reviewed_pet_id IS NOT NULL AND method = COALESCE(?, method)""",
+            (method,),
         )
         return int(row["total"]) if row else 0
 
-    def reviewed_samples(self) -> list[dict[str, Any]]:
+    def reviewed_samples(self, method: str | None = None) -> list[dict[str, Any]]:
         analyses = self.database.all(
             """SELECT id, selected_pet_id, reviewed_pet_id
                FROM pet_identification_analyses
-               WHERE reviewed_pet_id IS NOT NULL ORDER BY reviewed_at"""
+               WHERE reviewed_pet_id IS NOT NULL AND method = COALESCE(?, method)
+               ORDER BY reviewed_at""",
+            (method,),
         )
         for analysis in analyses:
             analysis["scores"] = self.database.all(
@@ -100,13 +108,35 @@ class PetIdentificationRepository:
         minimum_margin: float,
         interaction_count: int,
         accuracy: float,
+        method: str = "appearance-histogram-v1",
     ) -> None:
         self.database.execute(
             """INSERT INTO pet_identification_calibrations
-               (minimum_similarity, minimum_margin, interaction_count, accuracy, created_at)
-               VALUES (?, ?, ?, ?, ?)""",
-            (minimum_similarity, minimum_margin, interaction_count, accuracy, utc_now()),
+               (minimum_similarity, minimum_margin, interaction_count, accuracy, created_at, method)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (minimum_similarity, minimum_margin, interaction_count, accuracy, utc_now(), method),
         )
+
+    def performance_metrics(self, method: str) -> dict[str, Any]:
+        metrics = self.database.one(
+            """SELECT COUNT(*) AS reviewed,
+                      COALESCE(SUM(top.pet_id = a.reviewed_pet_id), 0) AS top1_correct,
+                      COALESCE(SUM(a.selected_pet_id = a.reviewed_pet_id), 0) AS accepted_correct,
+                      COALESCE(SUM(a.selected_pet_id IS NOT NULL), 0) AS accepted
+               FROM pet_identification_analyses a
+               LEFT JOIN pet_identification_scores top
+                 ON top.analysis_id = a.id AND top.rank = 1
+               WHERE a.reviewed_pet_id IS NOT NULL AND a.method = ?""",
+            (method,),
+        ) or {"reviewed": 0, "top1_correct": 0, "accepted_correct": 0, "accepted": 0}
+        reviewed = int(metrics["reviewed"])
+        accepted = int(metrics["accepted"])
+        return {
+            **metrics,
+            "top1_accuracy": round(int(metrics["top1_correct"]) / reviewed, 4) if reviewed else None,
+            "accepted_precision": round(int(metrics["accepted_correct"]) / accepted, 4) if accepted else None,
+            "coverage": round(accepted / reviewed, 4) if reviewed else None,
+        }
 
     def list_analyses(self, limit: int = 100) -> list[dict[str, Any]]:
         analyses = self.database.all(
