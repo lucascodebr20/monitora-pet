@@ -146,15 +146,19 @@ class PetIdentifier:
             round(top1_correct / len(usable), 4), self.METHOD,
         )
 
-    def logs(self, limit: int = 100) -> dict:
+    def logs(self, page: int = 1, page_size: int = 10) -> dict:
         if not self.analysis_repository:
-            return {"analyses": [], "calibration": None,
+            return {"analyses": [], "total": 0, "page": page, "page_size": page_size,
+                    "calibration": None,
                     "interactions_until_calibration": self.CALIBRATION_INTERVAL, "metrics": {}}
         calibration = self.analysis_repository.current_calibration(self.METHOD)
         reviewed_count = self.analysis_repository.reviewed_count(self.METHOD)
         progress = reviewed_count - int(calibration["interaction_count"])
         return {
-            "analyses": self.analysis_repository.list_analyses(limit),
+            "analyses": self.analysis_repository.list_analyses(page_size, (page - 1) * page_size),
+            "total": self.analysis_repository.count_analyses(),
+            "page": page,
+            "page_size": page_size,
             "calibration": calibration,
             "interactions_until_calibration": max(0, self.CALIBRATION_INTERVAL - progress),
             "metrics": self.analysis_repository.performance_metrics(self.METHOD),

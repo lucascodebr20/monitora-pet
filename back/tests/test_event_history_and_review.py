@@ -159,6 +159,8 @@ class EventHistoryAndReviewTests(unittest.TestCase):
         logs = identifications.list_analyses()
         self.assertEqual(calibration["interaction_count"], 10)
         self.assertEqual(calibration["accuracy"], 1.0)
+        self.assertEqual(identifications.count_analyses(), 10)
+        self.assertEqual(len(identifications.list_analyses(3, 2)), 3)
         self.assertEqual(logs[0]["scores"][0]["pet_name"], "Mingau")
 
     def test_correction_requires_a_different_supported_zone_type(self):
