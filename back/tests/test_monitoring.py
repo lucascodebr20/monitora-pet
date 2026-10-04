@@ -61,6 +61,12 @@ class FakeClipStore:
 
 
 class FakePetImageStore:
+    def extract_capture(self, frame, detection):
+        return frame.copy()
+
+    def save_capture_image(self, crop):
+        return "pets/captures/test.jpg"
+
     def save_capture(self, frame, detection):
         return "pets/captures/test.jpg"
 
@@ -72,6 +78,9 @@ class FakePetIdentifier:
     def analyze(self, capture_path, species):
         match = PetMatch(self.pet_id, 0.91)
         return PetAnalysis(match, "MATCHED", ({"pet_id": self.pet_id, "confidence": 0.91, "reference_count": 1},), 0.72, 0.08)
+
+    def analyze_images(self, images, species):
+        return self.analyze(None, species)
 
     def record_analysis(self, event_id, capture_path, species, analysis):
         return None
@@ -115,6 +124,44 @@ class MonitoringTests(unittest.TestCase):
             self.assertEqual(len(events), 1)
             self.assertEqual(events[0]["zone_type"], "WATER")
             self.assertEqual(events[0]["activity"], "NEAR_ZONE")
+
+    def test_keeps_presence_state_isolated_between_cameras(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Database(Path(directory) / "monitoring.sqlite3")
+            database.migrate()
+            camera_repository = CameraRepository(database)
+            zone_repository = ZoneRepository(database)
+            event_repository = EventRepository(database)
+            first_camera = camera_repository.create({"name": "Sala", "ip": "192.168.1.10"})
+            second_camera = camera_repository.create({"name": "Cozinha", "ip": "192.168.1.11"})
+            for camera in (first_camera, second_camera):
+                zone_repository.create({
+                    "camera_id": camera["id"],
+                    "name": "Comida",
+                    "type": "FOOD",
+                    "polygon": ((0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)),
+                    "minimum_presence_seconds": 2,
+                    "absence_tolerance_seconds": 1,
+                    "cooldown_seconds": 5,
+                })
+            service = MonitoringService(
+                FakeCameraManager(),
+                zone_repository,
+                event_repository,
+                FakeSnapshotStore(),
+                FakeClipStore(),
+                FakeDetector(),
+            )
+
+            with patch("app.services.monitoring_service.time.monotonic", side_effect=[10, 10, 12, 12]):
+                service._process_camera(first_camera["id"])
+                service._process_camera(second_camera["id"])
+                service._process_camera(first_camera["id"])
+                service._process_camera(second_camera["id"])
+
+            self.assertEqual(len(event_repository.list(camera_id=first_camera["id"])), 1)
+            self.assertEqual(len(event_repository.list(camera_id=second_camera["id"])), 1)
+            self.assertEqual(set(service._runtimes), {first_camera["id"], second_camera["id"]})
 
     def test_assigns_automatically_identified_cat_to_new_event(self):
         with tempfile.TemporaryDirectory() as directory:

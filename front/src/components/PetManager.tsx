@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import * as api from '../api'
-import type { Pet, PetSpecies } from '../api'
+import type { Pet, PetReferenceImage, PetSpecies } from '../api'
 import { useToast } from './Toast'
 
 type Props = { pets: Pet[]; refresh: () => Promise<void> }
@@ -34,6 +34,24 @@ export default function PetManager({ pets, refresh }: Props) {
   const [photoSource,setPhotoSource] = useState<string | null>(null)
   const [cropPosition,setCropPosition] = useState({x:50,y:50})
   const photoReadId = useRef(0)
+  const [detailsId, setDetailsId] = useState<string | null>(null)
+  const [references, setReferences] = useState<PetReferenceImage[]>([])
+  const [loadingReferences, setLoadingReferences] = useState(false)
+  const [referenceError, setReferenceError] = useState('')
+  const [deletingReference, setDeletingReference] = useState<string | null>(null)
+
+  const detailedPet = pets.find(pet => pet.id === detailsId) ?? null
+
+  useEffect(() => {
+    if (!detailsId) return
+    let active = true
+    setLoadingReferences(true); setReferenceError('')
+    void api.getPetReferences(detailsId)
+      .then(images => { if (active) setReferences(images) })
+      .catch(reason => { if (active) setReferenceError(reason instanceof Error ? reason.message : 'Não foi possível carregar as referências.') })
+      .finally(() => { if (active) setLoadingReferences(false) })
+    return () => { active = false }
+  }, [detailsId])
 
   useEffect(() => {
     if (!open) return
@@ -89,11 +107,29 @@ export default function PetManager({ pets, refresh }: Props) {
   }
 
 
+  if (detailedPet) return <>
+    <div className="page-heading pet-details-heading"><div><button className="text-button pet-back" onClick={()=>setDetailsId(null)}>← Voltar para pets</button><p className="eyebrow">PERFIL DO PET</p><h1>{detailedPet.name}</h1><p>Confira e organize as imagens usadas para reconhecer este pet.</p></div><button className="secondary" onClick={()=>{setDetailsId(null);edit(detailedPet)}}>Editar perfil</button></div>
+    <section className="pet-profile-page">
+      <article className="panel pet-profile-summary">
+        {detailedPet.photo_path ? <img src={`/api/pets/${detailedPet.id}/photo`} alt={detailedPet.name}/> : <div className="pet-placeholder">{detailedPet.species === 'CAT' ? '🐈' : '🐕'}</div>}
+        <div><span className="eyebrow">{detailedPet.species === 'CAT' ? 'GATO' : 'CÃO'}</span><h2>{detailedPet.name}</h2><p>{detailedPet.description || 'Sem características cadastradas.'}</p><small>{detailedPet.event_count} evento(s) · {references.length} referência(s) ativa(s)</small></div>
+      </article>
+      <section className="panel pet-reference-panel"><div className="panel-head"><div><h2>Galeria de referências</h2><p>Capturas confirmadas nas revisões e usadas na identificação automática.</p></div><span className="reference-count">{references.length}</span></div>
+        {referenceError && <p className="form-error">{referenceError}</p>}
+        {loadingReferences ? <p className="loading">Carregando referências…</p> : references.length ? <div className="pet-reference-gallery">{references.map((image,index)=><figure key={image.id}>
+          <a href={image.url} target="_blank" rel="noreferrer" title="Abrir imagem em tamanho original"><img src={image.url} alt={`Referência ${index + 1} de ${detailedPet.name}`}/></a>
+          <figcaption><span>{new Date(image.created_at).toLocaleDateString('pt-BR')}</span><button className="tertiary danger" disabled={deletingReference===image.id} onClick={async()=>{if(!window.confirm('Excluir esta imagem da galeria de referência?'))return;setDeletingReference(image.id);setReferenceError('');try{await api.deletePetReference(detailedPet.id,image.id);setReferences(current=>current.filter(item=>item.id!==image.id));await refresh();showToast('Referência removida.')}catch(reason){setReferenceError(reason instanceof Error?reason.message:'Não foi possível remover a referência.')}finally{setDeletingReference(null)}}}>{deletingReference===image.id?'Excluindo…':'Excluir'}</button></figcaption>
+        </figure>)}</div> : <div className="empty"><h3>Nenhuma referência confirmada</h3><p>Novas imagens aparecerão aqui quando você identificar este pet durante uma revisão.</p></div>}
+      </section>
+    </section>
+  </>
+
   return <>
     <div className="page-heading"><div><p className="eyebrow">PERFIS LOCAIS</p><h1>Pets</h1></div><button className="primary" onClick={startCreate}>+ Cadastrar pet</button></div>
     <section className="pet-layout pet-list-layout">
 
       <section className="pet-grid">{pets.map(pet => <article className="panel pet-card" key={pet.id}>
+        <button className="secondary pet-details-link" onClick={() => setDetailsId(pet.id)}>Detalhes</button>
         {pet.photo_path ? <img src={`/api/pets/${pet.id}/photo`} alt={pet.name} /> : <div className="pet-placeholder">{pet.species === 'CAT' ? '🐈' : '🐕'}</div>}
         <div className="pet-card-info"><span className="eyebrow">{pet.species === 'CAT' ? 'GATO' : 'CÃO'}</span><h2>{pet.name}</h2><p>{pet.description || 'Sem características cadastradas.'}</p><small>{pet.event_count} evento(s) · {pet.reference_count} captura(s) confirmada(s)</small><div><button className="tertiary" onClick={() => edit(pet)}>Editar</button><button className="tertiary danger" onClick={async () => { if (window.confirm(`Remover o perfil de ${pet.name}?`)) { await api.deletePet(pet.id); await refresh(); showToast(`Perfil de ${pet.name} removido.`) } }}>Remover</button></div></div>
       </article>)}{!pets.length && <section className="panel pet-empty"><h2>Comece cadastrando um pet</h2><p>Adicione uma foto inicial. Depois, confirme o animal nas revisões para acumular capturas reais dele.</p></section>}</section>
