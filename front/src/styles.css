@@ -315,9 +315,9 @@ dialog.modal{max-height:none;height:max-content}
 .pet-card-actions{grid-area:actions;display:flex;gap:8px;padding-top:14px;border-top:1px solid var(--line)}
 .pet-card-actions button{flex:1;min-width:0;padding-inline:12px}
 .pet-details-tabs{display:flex;gap:4px;margin:0 0 20px;padding:0 4px;border-bottom:1px solid var(--line)}
-.pet-details-tabs button{display:flex;align-items:center;gap:7px;padding:12px 15px;border:0;border-bottom:3px solid transparent;background:transparent;color:var(--muted);font-size:14px;cursor:pointer}
-.pet-details-tabs button:hover{color:var(--primary);background:var(--green-soft)}
-.pet-details-tabs button.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:650}
+.pet-details-tabs button{display:flex;align-items:center;gap:7px;padding:12px 15px;border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;color:var(--muted);font-size:14px;cursor:pointer}
+.pet-details-tabs button:hover{color:var(--primary);background:transparent}
+.pet-details-tabs button.active,.pet-details-tabs button.active:hover{color:var(--primary);border-bottom-color:var(--primary);background:transparent;font-weight:650}
 .pet-details-tabs button span{display:grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:#edf2ef;font-size:11px}
 .pet-create-page{max-width:860px}
 .pet-profile-workspace{min-width:0}
