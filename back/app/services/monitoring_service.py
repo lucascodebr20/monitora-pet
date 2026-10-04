@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import numpy as np
+
 from app.domain.detection import Detection
 from app.domain.enums import PetSpecies
 from app.domain.geometry import point_in_polygon, polygon_rectangle_overlap_ratio
@@ -34,6 +36,7 @@ class ZoneRuntime:
     clip_path: str | None = None
     clip_started_at: float | None = None
     species: PetSpecies = PetSpecies.CAT
+    pet_observations: list[np.ndarray] = field(default_factory=list)
 
 
 class MonitoringService:
@@ -58,7 +61,7 @@ class MonitoringService:
         self.pet_identifier = pet_identifier
         self.detector = detector
         self.model_error = model_error
-        self._runtimes: dict[str, ZoneRuntime] = {}
+        self._runtimes: dict[str, dict[str, ZoneRuntime]] = {}
         self._feedback: dict[str, dict[str, Any]] = {}
         self._feedback_lock = threading.Lock()
         self._stop = threading.Event()
@@ -79,8 +82,9 @@ class MonitoringService:
             self._thread.join(timeout=3)
         self._thread = None
         stopped_at = datetime.now(timezone.utc)
-        for runtime in self._runtimes.values():
-            self._finalize_clip(runtime, stopped_at)
+        for camera_runtimes in self._runtimes.values():
+            for runtime in camera_runtimes.values():
+                self._finalize_clip(runtime, stopped_at)
         self.event_repository.finish_open_events(stopped_at.isoformat())
 
     def health(self) -> dict[str, Any]:
@@ -154,19 +158,20 @@ class MonitoringService:
         now_monotonic = time.monotonic()
         now_utc = datetime.now(timezone.utc)
         feedback: list[dict[str, Any]] = []
+        camera_runtimes = self._runtimes.setdefault(camera_id, {})
         active_zone_ids = {zone["id"] for zone in zones}
         polygons = {
             zone["id"]: [(float(point["x"]), float(point["y"])) for point in zone["polygon"]]
             for zone in zones
         }
         detections_by_zone = self._assign_detections(polygons, detections)
-        for zone_id in list(self._runtimes):
-            if zone_id not in active_zone_ids and self._runtimes[zone_id].event_id is None:
-                self._runtimes.pop(zone_id, None)
+        for zone_id in list(camera_runtimes):
+            if zone_id not in active_zone_ids and camera_runtimes[zone_id].event_id is None:
+                camera_runtimes.pop(zone_id, None)
         for zone in zones:
             inside_detections = detections_by_zone[zone["id"]]
             confidence = max((item.confidence for item in inside_detections), default=0.0)
-            runtime = self._runtimes.setdefault(zone["id"], ZoneRuntime())
+            runtime = camera_runtimes.setdefault(zone["id"], ZoneRuntime())
             if runtime.machine.state == PresenceState.OUTSIDE and inside_detections:
                 runtime.clip_frames.clear()
                 runtime.clip_path = None
@@ -176,6 +181,12 @@ class MonitoringService:
                 encoded_frame = self.clip_store.encode(frame)
                 if encoded_frame:
                     runtime.clip_frames.append(encoded_frame)
+            if inside_detections and self.pet_image_store:
+                primary = max(inside_detections, key=lambda item: item.confidence)
+                crop = self.pet_image_store.extract_capture(frame, primary)
+                if crop is not None:
+                    runtime.pet_observations.append(crop)
+                    runtime.pet_observations = runtime.pet_observations[-5:]
             transitions = runtime.machine.observe(
                 bool(inside_detections),
                 confidence,
@@ -191,8 +202,16 @@ class MonitoringService:
                     snapshot_path = self.snapshot_store.save(
                         self.camera_manager.snapshot(camera_id), now_utc
                     )
-                    pet_capture_path = self.pet_image_store.save_capture(frame, primary_detection) if self.pet_image_store else None
-                    pet_analysis = self.pet_identifier.analyze(pet_capture_path, runtime.species.value) if self.pet_identifier else None
+                    if self.pet_image_store and runtime.pet_observations:
+                        best_capture = max(runtime.pet_observations, key=PetIdentifier.image_quality)
+                        pet_capture_path = self.pet_image_store.save_capture_image(best_capture)
+                    else:
+                        pet_capture_path = self.pet_image_store.save_capture(frame, primary_detection) if self.pet_image_store else None
+                    pet_analysis = (
+                        self.pet_identifier.analyze_images(runtime.pet_observations, runtime.species.value)
+                        if self.pet_identifier and runtime.pet_observations
+                        else self.pet_identifier.analyze(pet_capture_path, runtime.species.value) if self.pet_identifier else None
+                    )
                     pet_match = pet_analysis.match if pet_analysis else None
                     started_at = now_utc - timedelta(seconds=transition.elapsed_seconds)
                     runtime.event_id = self.event_repository.create_detected_event(
@@ -225,12 +244,14 @@ class MonitoringService:
                     runtime.clip_frames.clear()
                     runtime.clip_path = None
                     runtime.clip_started_at = None
+                    runtime.pet_observations.clear()
             if runtime.event_id and (clip_elapsed >= MAX_CLIP_SECONDS or len(runtime.clip_frames) >= MAX_CLIP_FRAMES):
                 self._finalize_clip(runtime, now_utc)
             if runtime.machine.state == PresenceState.OUTSIDE and runtime.event_id is None:
                 runtime.clip_frames.clear()
                 runtime.clip_path = None
                 runtime.clip_started_at = None
+                runtime.pet_observations.clear()
             elapsed = runtime.machine.elapsed(now_monotonic)
             minimum = float(zone["minimum_presence_seconds"])
             feedback.append({

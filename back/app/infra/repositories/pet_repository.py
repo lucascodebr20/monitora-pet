@@ -72,3 +72,20 @@ class PetRepository:
                FROM pet_reference_images WHERE pet_id = ? ORDER BY created_at DESC""",
             (pet_id,),
         )
+
+    def get_reference_image(self, pet_id: str, image_id: str) -> dict[str, Any] | None:
+        return self.database.one(
+            """SELECT id, pet_id, event_id, image_path, created_at
+               FROM pet_reference_images WHERE id = ? AND pet_id = ?""",
+            (image_id, pet_id),
+        )
+
+    def delete_reference_image(self, pet_id: str, image_id: str) -> bool:
+        image = self.get_reference_image(pet_id, image_id)
+        if not image:
+            return False
+        self.database.execute(
+            "DELETE FROM pet_reference_images WHERE id = ? AND pet_id = ?",
+            (image_id, pet_id),
+        )
+        return True

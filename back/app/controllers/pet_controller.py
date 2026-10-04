@@ -43,3 +43,8 @@ def list_pet_references(pet_id: str) -> dict[str, Any]:
 @router.get("/{pet_id}/references/{image_id}")
 def pet_reference(pet_id: str, image_id: str) -> FileResponse:
     return FileResponse(pet_service.reference_image(pet_id, image_id), media_type="image/jpeg")
+
+
+@router.delete("/{pet_id}/references/{image_id}", status_code=204)
+def delete_pet_reference(pet_id: str, image_id: str) -> None:
+    pet_service.delete_reference_image(pet_id, image_id)
