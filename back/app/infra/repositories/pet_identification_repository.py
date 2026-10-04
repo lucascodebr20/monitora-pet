@@ -138,7 +138,11 @@ class PetIdentificationRepository:
             "coverage": round(accepted / reviewed, 4) if reviewed else None,
         }
 
-    def list_analyses(self, limit: int = 100) -> list[dict[str, Any]]:
+    def count_analyses(self) -> int:
+        row = self.database.one("SELECT COUNT(*) AS total FROM pet_identification_analyses")
+        return int(row["total"]) if row else 0
+
+    def list_analyses(self, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         analyses = self.database.all(
             """SELECT a.*, selected.name AS selected_pet_name, reviewed.name AS reviewed_pet_name,
                       c.name AS camera_name, z.name AS zone_name
@@ -148,8 +152,8 @@ class PetIdentificationRepository:
                JOIN zones z ON z.id = e.zone_id
                LEFT JOIN pets selected ON selected.id = a.selected_pet_id
                LEFT JOIN pets reviewed ON reviewed.id = a.reviewed_pet_id
-               ORDER BY a.created_at DESC LIMIT ?""",
-            (limit,),
+               ORDER BY a.created_at DESC LIMIT ? OFFSET ?""",
+            (limit, offset),
         )
         for analysis in analyses:
             analysis["scores"] = self.database.all(

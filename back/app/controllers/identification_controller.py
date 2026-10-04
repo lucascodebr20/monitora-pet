@@ -9,5 +9,8 @@ router = APIRouter(prefix="/api/identification", tags=["identification"])
 
 
 @router.get("/logs")
-def identification_logs(limit: int = Query(default=100, ge=1, le=500)) -> dict[str, Any]:
-    return pet_identifier.logs(limit)
+def identification_logs(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=100),
+) -> dict[str, Any]:
+    return pet_identifier.logs(page, page_size)
