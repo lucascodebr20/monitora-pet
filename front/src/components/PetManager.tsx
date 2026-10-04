@@ -4,7 +4,7 @@ import type { Pet, PetReferenceImage, PetSpecies } from '../api'
 import { useToast } from './Toast'
 
 type Props = { pets: Pet[]; refresh: () => Promise<void> }
-type PetTab = 'details' | 'edit' | 'references'
+type PetTab = 'edit' | 'references'
 type PetForm = { name: string; species: PetSpecies; description: string; photo_data: string | null }
 
 const emptyForm = (): PetForm => ({ name: '', species: 'CAT', description: '', photo_data: null })
@@ -39,7 +39,7 @@ export default function PetManager({ pets, refresh }: Props) {
   const [photoVersion, setPhotoVersion] = useState(0)
   const photoReadId = useRef(0)
   const [detailsId, setDetailsId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<PetTab>('details')
+  const [activeTab, setActiveTab] = useState<PetTab>('edit')
   const [references, setReferences] = useState<PetReferenceImage[]>([])
   const [loadingReferences, setLoadingReferences] = useState(false)
   const [referenceError, setReferenceError] = useState('')
@@ -88,7 +88,7 @@ export default function PetManager({ pets, refresh }: Props) {
   function returnToList() {
     setCreating(false)
     setDetailsId(null)
-    setActiveTab('details')
+    setActiveTab('edit')
     setForm(emptyForm())
     resetPhoto()
     setError('')
@@ -172,25 +172,26 @@ export default function PetManager({ pets, refresh }: Props) {
 
   if (detailedPet) return <>
     <div className="page-heading pet-details-heading"><div><button className="text-button pet-back" disabled={saving} onClick={returnToList}>← Voltar para pets</button><p className="eyebrow">PERFIL DO PET</p><h1>{detailedPet.name}</h1><p>Consulte os dados, edite o perfil e organize as referências.</p></div></div>
-    <nav className="pet-details-tabs" role="tablist" aria-label={`Perfil de ${detailedPet.name}`}>
-      <button type="button" role="tab" aria-selected={activeTab === 'details'} aria-controls="pet-details-panel" className={activeTab === 'details' ? 'active' : ''} onClick={() => setActiveTab('details')}>Detalhes</button>
-      <button type="button" role="tab" aria-selected={activeTab === 'edit'} aria-controls="pet-edit-panel" className={activeTab === 'edit' ? 'active' : ''} onClick={() => setActiveTab('edit')}>Editar</button>
-      <button type="button" role="tab" aria-selected={activeTab === 'references'} aria-controls="pet-references-panel" className={activeTab === 'references' ? 'active' : ''} onClick={() => setActiveTab('references')}>Referências <span>{references.length}</span></button>
-    </nav>
-    {activeTab === 'details' && <section id="pet-details-panel" role="tabpanel" className="pet-profile-details">
-      <article className="panel pet-profile-summary pet-profile-summary-wide">
+    <section className="pet-profile-page">
+      <article className="panel pet-profile-summary">
         {detailedPet.photo_path ? <img src={`/api/pets/${detailedPet.id}/photo?v=${photoVersion}`} alt={detailedPet.name} /> : <div className="pet-placeholder">{detailedPet.species === 'CAT' ? '🐈' : '🐕'}</div>}
-        <div><span className="eyebrow">{detailedPet.species === 'CAT' ? 'GATO' : 'CÃO'}</span><h2>{detailedPet.name}</h2><p>{detailedPet.description || 'Sem características cadastradas.'}</p><small>{detailedPet.event_count} evento(s) · {references.length} referência(s) ativa(s)</small><button className="secondary pet-inline-edit" onClick={() => setActiveTab('edit')}>Editar perfil</button></div>
+        <div><span className="eyebrow">{detailedPet.species === 'CAT' ? 'GATO' : 'CÃO'}</span><h2>{detailedPet.name}</h2><p>{detailedPet.description || 'Sem características cadastradas.'}</p><small>{detailedPet.event_count} evento(s) · {references.length} referência(s) ativa(s)</small></div>
       </article>
-    </section>}
-    {activeTab === 'edit' && <section id="pet-edit-panel" role="tabpanel" className="panel pet-profile-editor"><div className="panel-head"><div><h2>Editar perfil</h2><p>Atualize os dados e a foto principal deste pet.</p></div></div><form className="stack-form pet-form" onSubmit={submit}>{formFields('edit')}</form></section>}
-    {activeTab === 'references' && <section id="pet-references-panel" className="panel pet-reference-panel" role="tabpanel"><div className="panel-head"><div><h2>Galeria de referências</h2><p>Capturas confirmadas nas revisões e usadas na identificação automática.</p></div><span className="reference-count">{references.length}</span></div>
-      {referenceError && <p className="form-error">{referenceError}</p>}
-      {loadingReferences ? <p className="loading">Carregando referências…</p> : references.length ? <div className="pet-reference-gallery">{references.map((image, index) => <figure key={image.id}>
-        <a href={image.url} target="_blank" rel="noreferrer" title="Abrir imagem em tamanho original"><img src={image.url} alt={`Referência ${index + 1} de ${detailedPet.name}`} /></a>
-        <figcaption><span>{new Date(image.created_at).toLocaleDateString('pt-BR')}</span><button className="tertiary danger" disabled={deletingReference === image.id} onClick={async () => { if (!window.confirm('Excluir esta imagem da galeria de referência?')) return; setDeletingReference(image.id); setReferenceError(''); try { await api.deletePetReference(detailedPet.id, image.id); setReferences(current => current.filter(item => item.id !== image.id)); await refresh(); showToast('Referência removida.') } catch (reason) { setReferenceError(reason instanceof Error ? reason.message : 'Não foi possível remover a referência.') } finally { setDeletingReference(null) } }}>{deletingReference === image.id ? 'Excluindo…' : 'Excluir'}</button></figcaption>
-      </figure>)}</div> : <div className="empty"><h3>Nenhuma referência confirmada</h3><p>Novas imagens aparecerão aqui quando você identificar este pet durante uma revisão.</p></div>}
-    </section>}
+      <div className="pet-profile-workspace">
+        <nav className="pet-details-tabs" role="tablist" aria-label={`Perfil de ${detailedPet.name}`}>
+          <button type="button" role="tab" aria-selected={activeTab === 'edit'} aria-controls="pet-edit-panel" className={activeTab === 'edit' ? 'active' : ''} onClick={() => setActiveTab('edit')}>Editar</button>
+          <button type="button" role="tab" aria-selected={activeTab === 'references'} aria-controls="pet-references-panel" className={activeTab === 'references' ? 'active' : ''} onClick={() => setActiveTab('references')}>Referências <span>{references.length}</span></button>
+        </nav>
+        {activeTab === 'edit' && <section id="pet-edit-panel" role="tabpanel" className="panel pet-profile-editor"><div className="panel-head"><div><h2>Editar perfil</h2><p>Atualize os dados e a foto principal deste pet.</p></div></div><form className="stack-form pet-form" onSubmit={submit}>{formFields('edit')}</form></section>}
+        {activeTab === 'references' && <section id="pet-references-panel" className="panel pet-reference-panel" role="tabpanel"><div className="panel-head"><div><h2>Galeria de referências</h2><p>Capturas confirmadas nas revisões e usadas na identificação automática.</p></div><span className="reference-count">{references.length}</span></div>
+          {referenceError && <p className="form-error">{referenceError}</p>}
+          {loadingReferences ? <p className="loading">Carregando referências…</p> : references.length ? <div className="pet-reference-gallery">{references.map((image, index) => <figure key={image.id}>
+            <a href={image.url} target="_blank" rel="noreferrer" title="Abrir imagem em tamanho original"><img src={image.url} alt={`Referência ${index + 1} de ${detailedPet.name}`} /></a>
+            <figcaption><span>{new Date(image.created_at).toLocaleDateString('pt-BR')}</span><button className="tertiary danger" disabled={deletingReference === image.id} onClick={async () => { if (!window.confirm('Excluir esta imagem da galeria de referência?')) return; setDeletingReference(image.id); setReferenceError(''); try { await api.deletePetReference(detailedPet.id, image.id); setReferences(current => current.filter(item => item.id !== image.id)); await refresh(); showToast('Referência removida.') } catch (reason) { setReferenceError(reason instanceof Error ? reason.message : 'Não foi possível remover a referência.') } finally { setDeletingReference(null) } }}>{deletingReference === image.id ? 'Excluindo…' : 'Excluir'}</button></figcaption>
+          </figure>)}</div> : <div className="empty"><h3>Nenhuma referência confirmada</h3><p>Novas imagens aparecerão aqui quando você identificar este pet durante uma revisão.</p></div>}
+        </section>}
+      </div>
+    </section>
   </>
 
   return <>
