@@ -65,10 +65,16 @@ class PetService:
         return images
 
     def reference_image(self, pet_id: str, image_id: str) -> Path:
-        image = next((item for item in self.reference_images(pet_id) if item["id"] == image_id), None)
+        self.get(pet_id)
+        image = self.repository.get_reference_image(pet_id, image_id)
         if not image:
             raise EntityNotFoundError("Imagem de referência não encontrada.")
         path = self.image_store.resolve(image["image_path"])
         if not path.is_file():
             raise EntityNotFoundError("A imagem de referência não está mais disponível.")
         return path
+
+    def delete_reference_image(self, pet_id: str, image_id: str) -> None:
+        self.get(pet_id)
+        if not self.repository.delete_reference_image(pet_id, image_id):
+            raise EntityNotFoundError("Imagem de referência não encontrada.")

@@ -144,6 +144,9 @@ export type IdentificationAnalysis = {
 
 export type IdentificationLogs = {
   analyses: IdentificationAnalysis[]
+  total: number
+  page: number
+  page_size: number
   calibration: {
     minimum_similarity: number
     minimum_margin: number
@@ -204,7 +207,8 @@ export const createZone = (payload: Omit<Zone, 'id' | 'enabled'>) => request<Zon
 export const updateZone = (id: string, payload: Omit<Zone, 'id' | 'enabled'>) => request<Zone>(`/api/zones/${id}`, json('PUT', payload))
 export const deleteZone = (id: string) => request<void>(`/api/zones/${id}`, { method: 'DELETE' })
 export const getMonitoringFeedback = (cameraId: string) => request<MonitoringFeedback>(`/api/monitoring/${cameraId}`)
-export const getIdentificationLogs = () => request<IdentificationLogs>('/api/identification/logs')
+export const getIdentificationLogs = (page = 1, pageSize = 10) =>
+  request<IdentificationLogs>(`/api/identification/logs?page=${page}&page_size=${pageSize}`)
 
 export const getPets = async () => (await request<{ pets: Pet[] }>('/api/pets')).pets
 export const createPet = (payload: { name: string; species: PetSpecies; description: string; photo_data: string | null }) =>
@@ -214,6 +218,8 @@ export const updatePet = (id: string, payload: { name: string; species: PetSpeci
 export const deletePet = (id: string) => request<void>(`/api/pets/${id}`, { method: 'DELETE' })
 export const getPetReferences = async (id: string) =>
   (await request<{ images: PetReferenceImage[] }>(`/api/pets/${id}/references`)).images
+export const deletePetReference = (petId: string, imageId: string) =>
+  request<void>(`/api/pets/${petId}/references/${imageId}`, { method: 'DELETE' })
 
 export const getEvents = async (pendingReview = false, limit = 100, date?: string) => {
   const query = new URLSearchParams({ limit: String(limit) })

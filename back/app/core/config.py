@@ -22,6 +22,7 @@ DATA_DIR = _default_data_dir()
 DATABASE_PATH = DATA_DIR / "monitorapet.sqlite3"
 MODEL_DIR = DATA_DIR / "models"
 MODEL_PATH = MODEL_DIR / "yolox_tiny.onnx"
+PET_EMBEDDING_MODEL_PATH = MODEL_DIR / "mobilenetv2_embedding.onnx"
 SNAPSHOT_DIR = DATA_DIR / "snapshots"
 CLIP_DIR = DATA_DIR / "clips"
 PET_IMAGE_DIR = DATA_DIR / "pets"

@@ -29,6 +29,11 @@ class PetImageStore:
         return self.save_image(image, "profiles")
 
     def save_capture(self, frame: np.ndarray, detection: Detection) -> str | None:
+        crop = self.extract_capture(frame, detection)
+        return self.save_image(crop, "captures") if crop is not None else None
+
+    @staticmethod
+    def extract_capture(frame: np.ndarray, detection: Detection) -> np.ndarray | None:
         height, width = frame.shape[:2]
         padding_x = (detection.x2 - detection.x1) * 0.12
         padding_y = (detection.y2 - detection.y1) * 0.12
@@ -37,6 +42,9 @@ class PetImageStore:
         x2 = min(width, int((detection.x2 + padding_x) * width))
         y2 = min(height, int((detection.y2 + padding_y) * height))
         crop = frame[y1:y2, x1:x2]
+        return crop.copy() if crop.size else None
+
+    def save_capture_image(self, crop: np.ndarray) -> str | None:
         return self.save_image(crop, "captures") if crop.size else None
 
     def save_image(self, image: np.ndarray, category: str) -> str:
