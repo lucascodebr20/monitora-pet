@@ -38,6 +38,18 @@ class OnvifTests(unittest.TestCase):
         self.assertEqual(stream_urls("192.168.1.2", 8899), [])
         self.assertEqual(call.call_args_list[1].args[0], "http://192.168.1.2:80/onvif/media_service")
 
+    @patch("app.infra.camera.onvif._call")
+    def test_drops_stream_uri_that_points_to_another_host(self, call):
+        import xml.etree.ElementTree as ET
+
+        call.side_effect = [
+            ET.fromstring("<Envelope/>"),
+            ET.fromstring("<Envelope><Profiles token='a'/><Profiles token='b'/></Envelope>"),
+            ET.fromstring("<Envelope><Uri>rtsp://attacker.example/x</Uri></Envelope>"),
+            ET.fromstring("<Envelope><Uri>rtsp://192.168.1.2:554/live</Uri></Envelope>"),
+        ]
+        self.assertEqual(stream_urls("192.168.1.2", 8899), ["rtsp://192.168.1.2:554/live"])
+
     def test_same_device_url_rejects_other_hosts_and_schemes(self):
         default = "http://192.168.1.2:8899/onvif/Media"
         for candidate in (None, "", "file:///etc/passwd", "ftp://192.168.1.2/x", "http://10.0.0.9/onvif", "http://evil.example/"):

@@ -42,13 +42,16 @@ def split_url_credentials(raw_url: str) -> tuple[str, str, str]:
     Manuais de fabricantes costumam fornecer ``rtsp://admin:senha@ip/...``. A senha nunca
     deve ser persistida dentro da URL, então ela é extraída para os campos próprios.
     """
-    parts = urlsplit(raw_url.strip())
-    if not parts.hostname or not (parts.username or parts.password):
-        return raw_url.strip(), "", ""
-    port = f":{parts.port}" if parts.port else ""
-    host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname
-    clean = urlunsplit((parts.scheme, f"{host}{port}", parts.path, parts.query, parts.fragment))
-    return clean, unquote(parts.username or ""), unquote(parts.password or "")
+    url = raw_url.strip()
+    parts = urlsplit(url)
+    if "@" not in parts.netloc:
+        return url, "", ""
+    # host:porta é mantido literalmente: funciona com IPv6 entre colchetes, porta inválida
+    # ou host ausente, e a senha nunca sobrevive na URL.
+    userinfo, _, hostport = parts.netloc.rpartition("@")
+    username, _, password = userinfo.partition(":")
+    clean = urlunsplit((parts.scheme, hostport, parts.path, parts.query, parts.fragment))
+    return clean, unquote(username), unquote(password)
 
 
 def build_authenticated_url(raw_url: str, username: str, password: str) -> str:

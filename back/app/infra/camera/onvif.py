@@ -98,14 +98,16 @@ def device_information(
         return {}
 
 
-def _same_device_url(candidate: str | None, ip: str, default: str) -> str:
-    """Aceita o endereço anunciado pela câmera apenas se ele for http(s) e apontar para o
-    próprio IP cadastrado. Um dispositivo malicioso não consegue redirecionar o servidor
-    para outro host, esquema ou arquivo local."""
+def _same_device_url(
+    candidate: str | None, ip: str, default: str, schemes: tuple[str, ...] = ("http", "https")
+) -> str:
+    """Aceita o endereço anunciado pela câmera apenas se ele usar um dos esquemas esperados e
+    apontar para o próprio IP cadastrado. Um dispositivo malicioso não consegue redirecionar o
+    servidor (nem as credenciais do usuário) para outro host, esquema ou arquivo local."""
     if not candidate:
         return default
     parts = urlsplit(candidate.strip())
-    if parts.scheme.lower() not in ("http", "https") or not parts.hostname:
+    if parts.scheme.lower() not in schemes or not parts.hostname:
         return default
     try:
         if ipaddress.ip_address(parts.hostname) != ipaddress.ip_address(ip):
@@ -150,7 +152,7 @@ def stream_urls(
                 username=username,
                 password=password,
             )
-            uri = _text(response, "Uri")
+            uri = _same_device_url(_text(response, "Uri"), ip, "", ("rtsp", "rtsps"))
             if uri and uri not in urls:
                 urls.append(uri)
         return urls
