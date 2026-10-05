@@ -40,3 +40,11 @@ def configure_logging(log_dir: Path, level: int = logging.INFO) -> Path:
     for noisy in ("uvicorn.access", "httpx", "PIL"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     return log_file
+
+
+def reset_logging() -> None:
+    root = logging.getLogger()
+    for handler in list(root.handlers):
+        if getattr(handler, "_vigiapet_file", False) or getattr(handler, "_vigiapet_console", False):
+            root.removeHandler(handler)
+            handler.close()

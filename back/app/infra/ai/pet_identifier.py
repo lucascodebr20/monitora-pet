@@ -43,15 +43,16 @@ class PetIdentifier:
     MINIMUM_REFERENCE_QUALITY = 0.22
 
     def __init__(self, repository: PetRepository, image_store: PetImageStore,
-                 analysis_repository: PetIdentificationRepository | None = None) -> None:
+                 analysis_repository: PetIdentificationRepository | None = None,
+                 embedding_model_path: Path = PET_EMBEDDING_MODEL_PATH) -> None:
         self.repository = repository
         self.image_store = image_store
         self.analysis_repository = analysis_repository
         self.calibrator = IdentificationCalibrator(analysis_repository)
         self._descriptor_cache: dict[str, tuple[int, int, Descriptor, float]] = {}
         self._embedding_network = (
-            cv2.dnn.readNetFromONNX(str(PET_EMBEDDING_MODEL_PATH))
-            if PET_EMBEDDING_MODEL_PATH.is_file() else None
+            cv2.dnn.readNetFromONNX(str(embedding_model_path))
+            if embedding_model_path.is_file() else None
         )
 
     def analyze(self, capture_path: str | None, species: str) -> PetAnalysis:
