@@ -1,22 +1,6 @@
-"""Controle de acesso local da API.
-
-Dois mecanismos complementares, instalados por ``install_access_control``:
-
-* ``TrustedHostMiddleware`` rejeita requisições cujo cabeçalho ``Host`` não seja local. Isso
-  bloqueia DNS rebinding, em que uma página maliciosa aponta o próprio domínio para 127.0.0.1
-  e passa a conversar com a API.
-* Guarda de sessão por caminho (``VIGIAPET_API_TOKEN``). Quando definido, qualquer
-  requisição a ``/api/*`` (inclusive docs, OpenAPI e rotas criadas no futuro) exige o token via
-  ``Authorization: Bearer`` ou via cookie HttpOnly criado por ``POST /api/session``. O cookie é
-  necessário para que ``<img>`` e ``<video>`` consigam carregar vídeo e mídia.
-
-Quem inicia o backend (Tauri, ``start.bat``, lançador desktop) gera o token, exporta a variável
-de ambiente e o entrega ao frontend pela query ``?token=`` ou por ``window.__VIGIAPET_TOKEN__``.
-Sem a variável, a API fica aberta apenas para o host local, o que atende o desenvolvimento.
-"""
-
 from __future__ import annotations
 
+import math
 import os
 import secrets
 from typing import Awaitable, Callable
@@ -25,10 +9,15 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.core.rate_limit import FailedAttemptLimiter
+
 SESSION_COOKIE = "vigiapet_session"
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "testserver")
 PUBLIC_API_PATHS = frozenset({"/api/session"})
 UNAUTHENTICATED_DETAIL = "Sessão não autenticada. Abra o VigiaPet pelo aplicativo."
+LOCKED_DETAIL = "Muitas tentativas de autenticação. Aguarde {seconds} segundos."
+
+LIMITER = FailedAttemptLimiter()
 
 
 def _configured_token() -> str | None:
@@ -67,11 +56,22 @@ def is_protected_path(path: str) -> bool:
 
 
 def authorized(request: Request) -> bool:
-    """True quando a requisição pode seguir: sem token configurado, caminho público,
-    ou token válido por cabeçalho/cookie."""
     if API_TOKEN is None or not is_protected_path(request.url.path):
         return True
     return is_valid_token(token_from_request(request))
+
+
+def client_origin(request: Request) -> str:
+    return request.client.host if request.client and request.client.host else "local"
+
+
+def locked_response(seconds: float) -> JSONResponse:
+    wait = max(1, math.ceil(seconds))
+    return JSONResponse(
+        status_code=429,
+        content={"detail": LOCKED_DETAIL.format(seconds=wait)},
+        headers={"Retry-After": str(wait)},
+    )
 
 
 def install_access_control(app: FastAPI) -> None:
@@ -79,6 +79,15 @@ def install_access_control(app: FastAPI) -> None:
 
     @app.middleware("http")
     async def session_guard(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
-        if not authorized(request):
-            return JSONResponse(status_code=401, content={"detail": UNAUTHENTICATED_DETAIL})
+        path = request.url.path
+        if path.startswith("/api/"):
+            origin = client_origin(request)
+            locked = LIMITER.seconds_locked(origin)
+            if locked > 0:
+                return locked_response(locked)
+            if not authorized(request):
+                LIMITER.record_failure(origin)
+                return JSONResponse(status_code=401, content={"detail": UNAUTHENTICATED_DETAIL})
+            if API_TOKEN is not None and is_protected_path(path):
+                LIMITER.reset(origin)
         return await call_next(request)

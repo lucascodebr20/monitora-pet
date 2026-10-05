@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import ipaddress
+import logging
 import os
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -17,6 +18,8 @@ from urllib.request import (
 )
 from xml.sax.saxutils import escape
 
+
+logger = logging.getLogger(__name__)
 
 SOAP_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
@@ -94,16 +97,14 @@ def device_information(
             "manufacturer": _text(root, "Manufacturer") or "",
             "model": _text(root, "Model") or "",
         }
-    except (OSError, ET.ParseError):
+    except (OSError, ET.ParseError) as error:
+        logger.info("ONVIF sem informações do dispositivo em %s:%s: %s", ip, port, error)
         return {}
 
 
 def _same_device_url(
     candidate: str | None, ip: str, default: str, schemes: tuple[str, ...] = ("http", "https")
 ) -> str:
-    """Aceita o endereço anunciado pela câmera apenas se ele usar um dos esquemas esperados e
-    apontar para o próprio IP cadastrado. Um dispositivo malicioso não consegue redirecionar o
-    servidor (nem as credenciais do usuário) para outro host, esquema ou arquivo local."""
     if not candidate:
         return default
     parts = urlsplit(candidate.strip())
@@ -156,5 +157,6 @@ def stream_urls(
             if uri and uri not in urls:
                 urls.append(uri)
         return urls
-    except (OSError, ET.ParseError):
+    except (OSError, ET.ParseError) as error:
+        logger.info("ONVIF sem URLs de stream em %s:%s: %s", ip, port, error)
         return []
