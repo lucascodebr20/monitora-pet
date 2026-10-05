@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
 from app.controllers.schemas.camera_schema import CameraCreateRequest, CameraCredentialsRequest
-from app.core.container import camera_service
+from app.core.container import camera_discovery_service, camera_service
 
 
 router = APIRouter(prefix="/api/cameras", tags=["cameras"])
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/cameras", tags=["cameras"])
 
 @router.get("/discover")
 def discover_cameras(fallback: bool = False) -> dict[str, object]:
-    return {"cameras": camera_service.discover(fallback)}
+    return {"cameras": camera_discovery_service.discover(fallback)}
 
 
 @router.get("")

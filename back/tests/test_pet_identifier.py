@@ -5,6 +5,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from app.infra.ai.identification_calibration import IdentificationCalibrator
 from app.infra.ai.pet_identifier import PetIdentifier
 
 
@@ -112,7 +113,7 @@ class PetIdentifierTests(unittest.TestCase):
 
     def test_recalibrates_thresholds_after_each_ten_confirmed_interactions(self):
         learning = FakeLearningRepository()
-        identifier = PetIdentifier(FakePetRepository([]), FakeImageStore(Path(".")), learning)
+        identifier = IdentificationCalibrator(learning)
 
         for index in range(9):
             identifier.learn_from_review(f"event-{index}", "mingau")

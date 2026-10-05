@@ -4,7 +4,7 @@ from app.core.config import APP_VERSION
 from app.domain.clock import local_today
 from app.infra.repositories.event_repository import EventRepository
 from app.services.camera_service import CameraService
-from app.services.event_service import EventService
+from app.services.event_query_service import EventQueryService
 from app.services.monitoring import MonitoringService
 
 
@@ -12,7 +12,7 @@ class HealthService:
     def __init__(
         self,
         camera_service: CameraService,
-        event_service: EventService,
+        event_service: EventQueryService,
         event_repository: EventRepository,
         monitoring_service: MonitoringService,
     ) -> None:
