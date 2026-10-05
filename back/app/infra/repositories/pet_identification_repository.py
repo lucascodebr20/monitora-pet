@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
-from app.infra.database.database import Database, utc_now
+from app.domain.clock import utc_now
+from app.infra.database.database import Database
 
 
 class PetIdentificationRepository:

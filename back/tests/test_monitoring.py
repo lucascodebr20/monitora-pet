@@ -6,6 +6,7 @@ from unittest.mock import patch
 import numpy as np
 
 from app.domain.detection import Detection
+from app.domain.zone_matching import assign_detections, detection_in_zone
 from app.infra.database.database import Database
 from app.infra.ai.pet_identifier import PetAnalysis, PetMatch
 from app.infra.repositories.camera_repository import CameraRepository
@@ -234,7 +235,7 @@ class MonitoringTests(unittest.TestCase):
         zone = [(0.2, 0.2), (0.5, 0.2), (0.5, 0.5), (0.2, 0.5)]
         detection = Detection(0.49, 0.3, 0.8, 0.6, 0.9)
 
-        self.assertFalse(MonitoringService._detection_in_zone(detection, zone))
+        self.assertFalse(detection_in_zone(detection, zone))
 
     def test_assigns_detection_only_to_best_matching_zone(self):
         polygons = {
@@ -243,7 +244,7 @@ class MonitoringTests(unittest.TestCase):
         }
         detection = Detection(0.4, 0.2, 0.78, 0.6, 0.9)
 
-        assigned = MonitoringService._assign_detections(polygons, [detection])
+        assigned = assign_detections(polygons, [detection])
 
         self.assertEqual(assigned["food"], [])
         self.assertEqual(assigned["water"], [detection])

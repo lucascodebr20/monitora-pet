@@ -1,7 +1,7 @@
 from typing import Any
 
 from app.core.config import APP_VERSION
-from app.infra.database.database import local_today
+from app.domain.clock import local_today
 from app.infra.repositories.event_repository import EventRepository
 from app.services.camera_service import CameraService
 from app.services.event_service import EventService

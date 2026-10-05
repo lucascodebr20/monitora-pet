@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
-from app.infra.database.database import Database, utc_bounds_for_local_date, utc_now
+from app.domain.clock import utc_bounds_for_local_date, utc_now
+from app.infra.database.database import Database
 
 
 class EventRepository:
@@ -115,18 +116,9 @@ class EventRepository:
             (event_id,),
         )
 
-    def create_review(self, review: dict[str, Any]) -> None:
-        self.database.execute(
-            """INSERT INTO human_reviews
-               (id, event_id, decision, corrected_activity, cat_name, notes, created_at, pet_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            tuple(review.get(key) for key in ("id", "event_id", "decision", "corrected_activity", "cat_name", "notes", "created_at", "pet_id")),
-        )
-
-    def complete_review(self, review: dict[str, Any]) -> None:
-        decision = str(review["decision"])
-        pet_id = review.get("pet_id") if decision in {"CONFIRMED", "CORRECTED"} else None
-        zone_type = str(review["zone_type"]) if decision == "CORRECTED" and review.get("zone_type") else None
+    def complete_review(self, review: dict[str, Any], pet_id: str | None, corrected_zone_type: str | None) -> None:
+        """Grava a revisão humana e aplica ao evento o pet e o tipo de área já decididos pelo service."""
+        zone_type = corrected_zone_type
         with self.database.connect() as connection:
             connection.execute(
                 """INSERT INTO human_reviews
@@ -147,9 +139,6 @@ class EventRepository:
                        WHERE id = ? AND pet_capture_path IS NOT NULL""",
                     (str(uuid4()), pet_id, review["created_at"], review["event_id"]),
                 )
-
-    def assign_pet(self, event_id: str, pet_id: str | None) -> None:
-        self.database.execute("UPDATE events SET pet_id = ? WHERE id = ?", (pet_id, event_id))
 
     def create_detected_event(
         self,

@@ -1,7 +1,7 @@
 import unittest
 
 from app.controllers.schemas.camera_schema import CameraCreateRequest, CameraCredentialsRequest
-from app.infra.camera.stream import split_url_credentials
+from app.domain.urls import split_url_credentials
 
 
 class SplitUrlCredentialsTests(unittest.TestCase):
