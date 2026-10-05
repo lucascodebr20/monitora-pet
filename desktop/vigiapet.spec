@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# Build: desktop\build_exe.bat  (ou: pyinstaller desktop\monitorapet.spec)
+# Build: desktop\build_exe.bat  (ou: pyinstaller desktop\vigiapet.spec)
 import sys
 from pathlib import Path
 
@@ -49,8 +49,8 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="MonitoraPet",
-    icon=str(ROOT / "desktop" / "monitorapet.ico"),
+    name="VigiaPet",
+    icon=str(ROOT / "desktop" / "vigiapet.ico"),
     console=True,
     upx=False,
     bootloader_ignore_signals=False,

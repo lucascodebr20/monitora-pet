@@ -45,7 +45,7 @@ class DiscoveryClassificationTests(unittest.TestCase):
         self.assertEqual(devices[-1]["device_type"], "router")
         local_host = next(device for device in devices if device["ip"] == "192.168.15.12")
         self.assertEqual(local_host["device_type"], "host")
-        self.assertEqual(local_host["reason"], "Servidor do MonitoraPet · Não é uma câmera")
+        self.assertEqual(local_host["reason"], "Servidor do VigiaPet · Não é uma câmera")
 
     @patch("app.infra.camera.discovery.discover_ssdp", return_value={})
     @patch("app.infra.camera.discovery.default_gateway_ipv4", return_value="192.168.15.1")
