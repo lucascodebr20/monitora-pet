@@ -5,6 +5,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from app.infra.ai.identification_calibration import IdentificationCalibrator
 from app.infra.ai.pet_identifier import PetIdentifier
 
 
@@ -85,7 +86,7 @@ class PetIdentifierTests(unittest.TestCase):
                 {"id": "luna", "species": "CAT", "photo_path": "luna.jpg"},
             ])
 
-            match = PetIdentifier(repository, FakeImageStore(root)).identify("capture.jpg", "CAT")
+            match = PetIdentifier(repository, FakeImageStore(root)).analyze("capture.jpg", "CAT").match
 
             self.assertIsNotNone(match)
             self.assertEqual(match.pet_id, "mingau")
@@ -101,18 +102,18 @@ class PetIdentifierTests(unittest.TestCase):
                 {"id": "second", "species": "CAT", "photo_path": "second.jpg"},
             ])
 
-            match = PetIdentifier(repository, FakeImageStore(root)).identify("capture.jpg", "CAT")
+            match = PetIdentifier(repository, FakeImageStore(root)).analyze("capture.jpg", "CAT").match
 
             self.assertIsNone(match)
 
     def test_limits_automatic_identification_to_cats(self):
         repository = FakePetRepository([])
-        match = PetIdentifier(repository, FakeImageStore(Path("."))).identify("capture.jpg", "DOG")
+        match = PetIdentifier(repository, FakeImageStore(Path("."))).analyze("capture.jpg", "DOG").match
         self.assertIsNone(match)
 
     def test_recalibrates_thresholds_after_each_ten_confirmed_interactions(self):
         learning = FakeLearningRepository()
-        identifier = PetIdentifier(FakePetRepository([]), FakeImageStore(Path(".")), learning)
+        identifier = IdentificationCalibrator(learning)
 
         for index in range(9):
             identifier.learn_from_review(f"event-{index}", "mingau")

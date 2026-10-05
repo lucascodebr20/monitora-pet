@@ -79,6 +79,12 @@ O iniciador do app (`start.bat` ou o Tauri) gera um token novo a cada execução
 ao frontend por `?token=` na URL inicial ou por `window.__VIGIAPET_TOKEN__`.
 Sem a variável, a API responde sem token, mas continua restrita ao host local.
 
+## Diagnóstico
+
+O backend grava um log rotativo em `<pasta de dados>/logs/vigiapet.log` (no executável,
+`%LOCALAPPDATA%\VigiaPet\logs`). Falhas de modelo, de inferência e de conexão com câmeras
+aparecem ali.
+
 ## Privacidade
 
 Senhas de câmera são usadas somente para abrir a conexão e não são persistidas

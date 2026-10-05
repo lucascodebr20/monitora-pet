@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from app.core.config import BACK_DIR, FRONTEND_DIST, PROJECT_DIR
+from app.core.config import BACK_DIR, FRONTEND_DIST, PROJECT_DIR, Settings
 
 
 class PathConfigurationTests(unittest.TestCase):
@@ -12,25 +12,27 @@ class PathConfigurationTests(unittest.TestCase):
         self.assertEqual(BACK_DIR, project_dir / "back")
         self.assertEqual(FRONTEND_DIST, project_dir / "front" / "dist")
 
+    def test_settings_derive_paths_from_data_dir(self):
+        settings = Settings(data_dir=Path("C:/dados"), frontend_dist=Path("C:/front"))
+
+        self.assertEqual(settings.database_path, Path("C:/dados/vigiapet.sqlite3"))
+        self.assertEqual(settings.model_path, Path("C:/dados/models/yolox_tiny.onnx"))
+        self.assertEqual(settings.clip_dir, Path("C:/dados/clips"))
+        self.assertEqual(settings.log_dir, Path("C:/dados/logs"))
+
     def test_migrates_legacy_database_name_once(self):
         import tempfile
-        from unittest.mock import patch
-
-        from app.core import config
 
         with tempfile.TemporaryDirectory() as directory:
-            data_dir = Path(directory)
-            legacy = data_dir / "monitorapet.sqlite3"
-            current = data_dir / "vigiapet.sqlite3"
+            settings = Settings(data_dir=Path(directory), frontend_dist=Path(directory))
+            legacy = settings.data_dir / "monitorapet.sqlite3"
             legacy.write_bytes(b"dados antigos")
-            with patch.object(config, "DATABASE_PATH", current), patch.object(config, "LEGACY_DATABASE_PATHS", (legacy,)):
-                config._migrate_legacy_database()
-                self.assertFalse(legacy.exists())
-                self.assertEqual(current.read_bytes(), b"dados antigos")
-                # Com o banco novo presente, um arquivo antigo remanescente é deixado em paz.
-                legacy.write_bytes(b"outro")
-                config._migrate_legacy_database()
-                self.assertEqual(current.read_bytes(), b"dados antigos")
+            settings.ensure_directories()
+            self.assertFalse(legacy.exists())
+            self.assertEqual(settings.database_path.read_bytes(), b"dados antigos")
+            legacy.write_bytes(b"outro")
+            settings.ensure_directories()
+            self.assertEqual(settings.database_path.read_bytes(), b"dados antigos")
 
 
 if __name__ == "__main__":
