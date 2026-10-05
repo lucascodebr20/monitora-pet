@@ -15,7 +15,11 @@ from app.infra.repositories.pet_identification_repository import PetIdentificati
 from app.infra.repositories.zone_repository import ZoneRepository
 from app.infra.media.snapshot_store import SnapshotStore
 from app.services.camera_service import CameraService
-from app.services.event_service import EventService
+from app.infra.ai.identification_calibration import IdentificationCalibrator
+from app.services.camera_discovery_service import CameraDiscoveryService
+from app.services.event_media_service import EventMediaService
+from app.services.event_query_service import EventQueryService
+from app.services.event_review_service import EventReviewService
 from app.services.health_service import HealthService
 from app.services.identification_service import IdentificationService
 from app.services.notice_service import NoticeService
@@ -39,9 +43,13 @@ pet_identifier = PetIdentifier(pet_repository, pet_image_store, pet_identificati
 notice_repository = NoticeRepository(database)
 
 camera_service = CameraService(camera_repository, camera_manager)
+camera_discovery_service = CameraDiscoveryService(camera_repository)
 zone_service = ZoneService(zone_repository, camera_service)
 pet_service = PetService(pet_repository, pet_image_store)
-event_service = EventService(event_repository, snapshot_store, clip_store, pet_repository, pet_image_store, pet_identifier)
+identification_calibrator = IdentificationCalibrator(pet_identification_repository)
+event_query_service = EventQueryService(event_repository)
+event_review_service = EventReviewService(event_repository, pet_repository, identification_calibrator)
+event_media_service = EventMediaService(event_repository, snapshot_store, clip_store)
 logger = logging.getLogger(__name__)
 model_error = None
 detector = None
@@ -65,6 +73,6 @@ monitoring_service = MonitoringService(
     pet_image_store,
     pet_identifier,
 )
-health_service = HealthService(camera_service, event_service, event_repository, monitoring_service)
+health_service = HealthService(camera_service, event_query_service, event_repository, monitoring_service)
 notice_service = NoticeService(notice_repository)
-identification_service = IdentificationService(pet_identifier)
+identification_service = IdentificationService(pet_identification_repository, identification_calibrator)
