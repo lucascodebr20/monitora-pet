@@ -59,7 +59,7 @@ def device_web_title(ip: str, ports: set[int]) -> str:
         scheme = "https" if port == 443 else "http"
         default_port = (scheme == "http" and port == 80) or (scheme == "https" and port == 443)
         address = f"{scheme}://{ip}{'' if default_port else f':{port}'}/"
-        request = Request(address, headers={"User-Agent": "MonitoraPet/0.2 device discovery"})
+        request = Request(address, headers={"User-Agent": "VigiaPet/0.2 device discovery"})
         try:
             context = ssl._create_unverified_context() if scheme == "https" else None
             with urlopen(request, timeout=1.5, context=context) as response:
@@ -172,8 +172,8 @@ def fallback_scan() -> list[dict[str, object]]:
         is_media_device = "mediarenderer" in normalized_upnp_type or "mediaserver" in normalized_upnp_type
         web_title = device_web_title(ip, ports) if not is_local_host and not model and not friendly_name and (is_router or not hostname) else ""
         if is_local_host:
-            name = str(hostname or socket.gethostname() or "Servidor do MonitoraPet")
-            reason = "Servidor do MonitoraPet · Não é uma câmera"
+            name = str(hostname or socket.gethostname() or "Servidor do VigiaPet")
+            reason = "Servidor do VigiaPet · Não é uma câmera"
         elif is_router:
             name = str(model or friendly_name or hostname or "Roteador/modem da rede")
             reason = "Gateway padrão da rede · Não é uma câmera" if is_default_gateway else "Roteador anunciado na rede · Não é uma câmera"

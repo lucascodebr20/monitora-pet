@@ -12,7 +12,7 @@ back/tests
 front/node_modules
 front/dist
 deploy.local.py
-monitorapet-deploy.tar.gz
+vigiapet-deploy.tar.gz
 *.pyc
 *.log
 .env
