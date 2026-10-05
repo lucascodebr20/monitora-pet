@@ -20,7 +20,7 @@ from app.services.health_service import HealthService
 from app.services.identification_service import IdentificationService
 from app.services.notice_service import NoticeService
 from app.services.pet_service import PetService
-from app.services.monitoring_service import MonitoringService
+from app.services.monitoring import MonitoringService
 from app.services.zone_service import ZoneService
 
 

@@ -5,7 +5,7 @@ from app.domain.clock import local_today
 from app.infra.repositories.event_repository import EventRepository
 from app.services.camera_service import CameraService
 from app.services.event_service import EventService
-from app.services.monitoring_service import MonitoringService
+from app.services.monitoring import MonitoringService
 
 
 class HealthService:
