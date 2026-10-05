@@ -1,12 +1,13 @@
 /**
  * Abertura de sessão com o backend local.
  *
- * Quem inicia o app (Tauri ou start.bat) gera um token e o entrega de uma destas formas:
+ * Quem inicia o app (Tauri, lançador desktop ou start.bat) gera um token e o entrega de uma destas formas:
  *   - `window.__MONITORAPET_TOKEN__` (script de inicialização da WebView), ou
- *   - query `?token=` na URL inicial (removida da barra de endereço logo em seguida).
+ *   - query `?token=` na URL inicial.
  *
  * O token vira um cookie HttpOnly via `POST /api/session`, o que permite que `<img>` e
- * `<video>` carreguem vídeo e mídia sem cabeçalhos extras.
+ * `<video>` carreguem vídeo e mídia sem cabeçalhos extras. A query só é removida da barra de
+ * endereço depois que a sessão está confirmada, para que um F5 após falha transitória recupere.
  */
 
 declare global {
@@ -21,14 +22,15 @@ let launcherToken: string | null = null
 
 function readLauncherToken(): string | null {
   if (window.__MONITORAPET_TOKEN__) return window.__MONITORAPET_TOKEN__
+  return new URLSearchParams(window.location.search).get('token')
+}
+
+function forgetTokenInUrl(): void {
   const params = new URLSearchParams(window.location.search)
-  const token = params.get('token')
-  if (token) {
-    params.delete('token')
-    const query = params.toString()
-    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`)
-  }
-  return token
+  if (!params.has('token')) return
+  params.delete('token')
+  const query = params.toString()
+  window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`)
 }
 
 async function openSession(token: string): Promise<boolean> {
@@ -51,7 +53,11 @@ export async function bootstrapSession(): Promise<void> {
   const response = await fetch('/api/session')
   if (!response.ok) throw new Error('Não foi possível falar com o serviço do MonitoraPet.')
   const status = (await response.json()) as SessionStatus
-  if (!status.required || status.authenticated) return
+  if (!status.required || status.authenticated) {
+    forgetTokenInUrl()
+    return
+  }
   if (!launcherToken) throw new Error('Esta janela não recebeu a chave de sessão. Abra o MonitoraPet pelo aplicativo.')
   if (!(await openSession(launcherToken))) throw new Error('A chave de sessão foi recusada. Feche e abra o MonitoraPet novamente.')
+  forgetTokenInUrl()
 }

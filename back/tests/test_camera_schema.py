@@ -14,6 +14,10 @@ class SplitUrlCredentialsTests(unittest.TestCase):
     def test_leaves_plain_url_untouched(self):
         self.assertEqual(split_url_credentials(" rtsp://192.168.1.50/live "), ("rtsp://192.168.1.50/live", "", ""))
 
+    def test_strips_credentials_even_with_invalid_port_or_missing_host(self):
+        self.assertEqual(split_url_credentials("rtsp://admin:segredo@192.168.1.5:99999/live"), ("rtsp://192.168.1.5:99999/live", "admin", "segredo"))
+        self.assertEqual(split_url_credentials("rtsp://admin:segredo@/live"), ("rtsp:///live", "admin", "segredo"))
+
     def test_keeps_ipv6_brackets(self):
         clean, _, _ = split_url_credentials("rtsp://u:p@[fe80::1]:554/live")
         self.assertEqual(clean, "rtsp://[fe80::1]:554/live")

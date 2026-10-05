@@ -1,10 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 # Build: desktop\build_exe.bat  (ou: pyinstaller desktop\monitorapet.spec)
+import sys
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 ROOT = Path(SPECPATH).resolve().parent
+sys.path.insert(0, str(ROOT / "back"))  # torna o pacote "app" importável para collect_submodules
 
 datas = [(str(ROOT / "front" / "dist"), "front/dist")]
 binaries = []

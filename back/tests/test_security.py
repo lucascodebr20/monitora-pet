@@ -1,63 +1,60 @@
 import unittest
 from unittest.mock import patch
 
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from starlette.requests import Request
 
+from app.controllers.auth_controller import router as auth_router
 from app.core import security
 
 
-def _request(headers: dict[str, str] | None = None) -> Request:
+def _request(path: str = "/api/cameras", headers: dict[str, str] | None = None) -> Request:
     raw_headers = [(key.lower().encode(), value.encode()) for key, value in (headers or {}).items()]
-    return Request({"type": "http", "method": "GET", "path": "/api/cameras", "headers": raw_headers, "query_string": b""})
+    return Request({"type": "http", "method": "GET", "path": path, "headers": raw_headers, "query_string": b""})
 
 
 class SecurityTests(unittest.TestCase):
     def test_without_configured_token_everything_passes(self):
         with patch.object(security, "API_TOKEN", None):
             self.assertFalse(security.auth_required())
-            security.require_session(_request())
+            self.assertTrue(security.authorized(_request()))
 
     def test_rejects_missing_or_wrong_token(self):
         with patch.object(security, "API_TOKEN", "segredo"):
             for headers in ({}, {"Authorization": "Bearer errado"}, {"Cookie": f"{security.SESSION_COOKIE}=errado"}):
-                with self.assertRaises(Exception) as context:
-                    security.require_session(_request(headers))
-                self.assertEqual(context.exception.status_code, 401)
+                self.assertFalse(security.authorized(_request(headers=headers)))
 
     def test_accepts_bearer_header_and_session_cookie(self):
         with patch.object(security, "API_TOKEN", "segredo"):
-            security.require_session(_request({"Authorization": "Bearer segredo"}))
-            security.require_session(_request({"Cookie": f"{security.SESSION_COOKIE}=segredo"}))
+            self.assertTrue(security.authorized(_request(headers={"Authorization": "Bearer segredo"})))
+            self.assertTrue(security.authorized(_request(headers={"Cookie": f"{security.SESSION_COOKIE}=segredo"})))
+
+    def test_only_session_endpoint_and_non_api_paths_are_public(self):
+        with patch.object(security, "API_TOKEN", "segredo"):
+            for path in ("/", "/assets/app.js", "/api/session", "/api/session/"):
+                self.assertTrue(security.authorized(_request(path)), path)
+            for path in ("/api/cameras", "/api/docs", "/api/openapi.json", "/api/rota-futura"):
+                self.assertFalse(security.authorized(_request(path)), path)
 
     def test_local_hosts_are_always_allowed(self):
         for host in ("127.0.0.1", "localhost"):
             self.assertIn(host, security.ALLOWED_HOSTS)
 
 
-try:
-    import httpx  # noqa: F401
+class AccessControlEndToEndTests(unittest.TestCase):
+    def _client(self) -> TestClient:
+        app = FastAPI(docs_url="/api/docs", openapi_url="/api/openapi.json")
+        security.install_access_control(app)
+        app.include_router(auth_router)
 
-    HAS_HTTPX = True
-except ImportError:
-    HAS_HTTPX = False
-
-
-@unittest.skipUnless(HAS_HTTPX, "httpx é necessário para o TestClient")
-class SessionEndpointTests(unittest.TestCase):
-    def _client(self):
-        from fastapi import Depends, FastAPI
-        from fastapi.testclient import TestClient
-        from starlette.middleware.trustedhost import TrustedHostMiddleware
-
-        from app.controllers.auth_controller import router
-
-        app = FastAPI()
-        app.add_middleware(TrustedHostMiddleware, allowed_hosts=security.ALLOWED_HOSTS)
-        app.include_router(router)
-
-        @app.get("/api/protegido", dependencies=[Depends(security.require_session)])
+        @app.get("/api/protegido")
         def protegido() -> dict[str, bool]:
             return {"ok": True}
+
+        @app.get("/")
+        def raiz() -> dict[str, bool]:
+            return {"spa": True}
 
         return TestClient(app)
 
@@ -79,6 +76,16 @@ class SessionEndpointTests(unittest.TestCase):
 
             client.delete("/api/session")
             self.assertEqual(client.get("/api/protegido").status_code, 401)
+
+    def test_docs_schema_and_unknown_api_paths_require_session(self):
+        with patch.object(security, "API_TOKEN", "segredo"):
+            client = self._client()
+            for path in ("/api/docs", "/api/openapi.json", "/api/nao-existe"):
+                self.assertEqual(client.get(path).status_code, 401, path)
+            self.assertEqual(client.get("/").status_code, 200)
+            bearer = {"Authorization": "Bearer segredo"}
+            self.assertEqual(client.get("/api/openapi.json", headers=bearer).status_code, 200)
+            self.assertEqual(client.get("/api/nao-existe", headers=bearer).status_code, 404)
 
     def test_foreign_host_header_is_rejected(self):
         with patch.object(security, "API_TOKEN", None):

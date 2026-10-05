@@ -109,6 +109,7 @@ def main() -> int:
     if args.no_window:
         keep_serving(thread)
         server.should_exit = True
+        thread.join(timeout=15)
         return 0
 
     start_url = f"{base_url}/?token={token}"
@@ -118,11 +119,9 @@ def main() -> int:
             import webview
 
             webview.create_window("MonitoraPet", start_url, width=1280, height=820, min_size=(960, 640))
+            webview.start()  # bloqueia até a janela fechar
             opened_window = True
-            webview.start()
         except Exception as error:
-            if opened_window:
-                raise
             print(f"Janela nativa indisponível ({error}); abrindo no navegador padrão.")
     if not opened_window:
         webbrowser.open(start_url)
