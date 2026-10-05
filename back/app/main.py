@@ -5,20 +5,20 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.core.config import APP_NAME, APP_VERSION, DATA_DIR, FRONTEND_DIST, ensure_data_directories
-from app.core.logging_setup import configure_logging
-from app.core.container import camera_manager, database, monitoring_service
-from app.core.security import install_access_control
 from app.controllers.auth_controller import router as auth_router
 from app.controllers.camera_controller import router as camera_router
 from app.controllers.event_controller import router as event_router
 from app.controllers.health_controller import router as health_router
 from app.controllers.identification_controller import router as identification_router
+from app.controllers.monitoring_controller import router as monitoring_router
 from app.controllers.notice_controller import router as notice_router
 from app.controllers.pet_controller import router as pet_router
-from app.controllers.monitoring_controller import router as monitoring_router
 from app.controllers.web_controller import router as web_router
 from app.controllers.zone_controller import router as zone_router
+from app.core.config import APP_NAME, APP_VERSION, Settings
+from app.core.container import build_container
+from app.core.logging_setup import configure_logging
+from app.core.security import install_access_control
 from app.domain.errors import (
     EntityConflictError,
     EntityNotFoundError,
@@ -26,68 +26,72 @@ from app.domain.errors import (
     OperationFailedError,
 )
 
-
 logger = logging.getLogger(__name__)
 
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    ensure_data_directories()
-    log_file = configure_logging(DATA_DIR / "logs")
-    logger.info("%s %s iniciando; dados em %s; log em %s", APP_NAME, APP_VERSION, DATA_DIR, log_file)
-    database.migrate()
-    monitoring_service.start()
-    logger.info("Inferência: %s", monitoring_service.health())
-    yield
-    logger.info("Encerrando: parando inferência e desconectando câmeras")
-    monitoring_service.stop()
-    camera_manager.disconnect_all()
+ERROR_STATUS = {
+    EntityNotFoundError: 404,
+    EntityConflictError: 409,
+    InvalidDomainValueError: 422,
+    OperationFailedError: 422,
+}
 
 
-app = FastAPI(
-    title=APP_NAME,
-    version=APP_VERSION,
-    docs_url="/api/docs",
-    openapi_url="/api/openapi.json",
-    redoc_url=None,
-    lifespan=lifespan,
-)
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or Settings.from_env()
 
-# Host local obrigatório (bloqueia DNS rebinding) e sessão exigida em todo /api/* quando
-# VIGIAPET_API_TOKEN está definido. Só /api/session fica público, por ser a porta de entrada.
-install_access_control(app)
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        settings.ensure_directories()
+        log_file = configure_logging(settings.log_dir)
+        logger.info("%s %s iniciando; dados em %s; log em %s", APP_NAME, APP_VERSION, settings.data_dir, log_file)
+        container = build_container(settings)
+        container.database.migrate()
+        container.monitoring_service.start()
+        app.state.container = container
+        logger.info("Inferência: %s", container.monitoring_service.health())
+        yield
+        logger.info("Encerrando: parando inferência e desconectando câmeras")
+        container.monitoring_service.stop()
+        container.camera_manager.disconnect_all()
+
+    app = FastAPI(
+        title=APP_NAME,
+        version=APP_VERSION,
+        docs_url="/api/docs",
+        openapi_url="/api/openapi.json",
+        redoc_url=None,
+        lifespan=lifespan,
+    )
+    app.state.settings = settings
+    install_access_control(app)
+
+    for error_type, status_code in ERROR_STATUS.items():
+        app.add_exception_handler(error_type, _domain_error_handler(status_code))
+
+    if (settings.frontend_dist / "assets").exists():
+        app.mount("/assets", StaticFiles(directory=settings.frontend_dist / "assets"), name="assets")
+
+    for router in (
+        auth_router,
+        health_router,
+        identification_router,
+        camera_router,
+        zone_router,
+        event_router,
+        pet_router,
+        notice_router,
+        monitoring_router,
+        web_router,
+    ):
+        app.include_router(router)
+    return app
 
 
-@app.exception_handler(EntityNotFoundError)
-async def entity_not_found(_: Request, error: EntityNotFoundError) -> JSONResponse:
-    return JSONResponse(status_code=404, content={"detail": str(error)})
+def _domain_error_handler(status_code: int):
+    async def handler(_: Request, error: Exception) -> JSONResponse:
+        return JSONResponse(status_code=status_code, content={"detail": str(error)})
+
+    return handler
 
 
-@app.exception_handler(EntityConflictError)
-async def entity_conflict(_: Request, error: EntityConflictError) -> JSONResponse:
-    return JSONResponse(status_code=409, content={"detail": str(error)})
-
-
-@app.exception_handler(InvalidDomainValueError)
-async def invalid_domain_value(_: Request, error: InvalidDomainValueError) -> JSONResponse:
-    return JSONResponse(status_code=422, content={"detail": str(error)})
-
-
-@app.exception_handler(OperationFailedError)
-async def operation_failed(_: Request, error: OperationFailedError) -> JSONResponse:
-    return JSONResponse(status_code=422, content={"detail": str(error)})
-
-
-if (FRONTEND_DIST / "assets").exists():
-    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
-
-app.include_router(auth_router)
-app.include_router(health_router)
-app.include_router(identification_router)
-app.include_router(camera_router)
-app.include_router(zone_router)
-app.include_router(event_router)
-app.include_router(pet_router)
-app.include_router(notice_router)
-app.include_router(monitoring_router)
-app.include_router(web_router)
+app = create_app()
