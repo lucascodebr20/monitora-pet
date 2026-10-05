@@ -2925,7 +2925,6 @@ h1 {
     padding: 14px;
   }
 }
-/* Keep review evidence within its grid column at every screen width. */
 .review-flow .review-evidence,
 .review-flow .review-detail {
   min-width: 0;
@@ -3809,7 +3808,6 @@ dialog.modal {
   }
 }
 
-/* Pet management pages */
 .pet-list-layout .pet-card {
   grid-template-areas: 'photo info' 'actions actions';
 }

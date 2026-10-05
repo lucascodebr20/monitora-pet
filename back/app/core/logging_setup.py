@@ -1,9 +1,3 @@
-"""Configuração de logs do VigiaPet.
-
-Grava em ``<pasta de dados>/logs/vigiapet.log`` com rotação (3 arquivos de 2 MB) e espelha
-no console. É o que permite diagnosticar um problema na máquina do usuário sem depurador.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -36,7 +30,7 @@ def configure_logging(log_dir: Path, level: int = logging.INFO) -> Path:
         console._vigiapet_console = True  # type: ignore[attr-defined]
         root.addHandler(console)
 
-    # Bibliotecas tagarelas ficam em WARNING para o arquivo não encher de ruído.
+
     for noisy in ("uvicorn.access", "httpx", "PIL"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     return log_file

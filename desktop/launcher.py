@@ -1,16 +1,3 @@
-"""Ponto de entrada do executável desktop do VigiaPet.
-
-Fluxo ao clicar no ícone:
-  1. define a pasta de dados do usuário (LOCALAPPDATA/VigiaPet) e o frontend embutido;
-  2. gera uma chave de sessão aleatória, válida só para esta execução;
-  3. garante os modelos de IA (download no primeiro uso);
-  4. sobe o backend em uma porta livre, apenas em 127.0.0.1;
-  5. abre uma janela nativa (WebView2) já autenticada; sem pywebview, abre o navegador padrão.
-
-O mesmo binário serve de sidecar para o Tauri: basta ele passar VIGIAPET_API_TOKEN,
---port e --no-window, e abrir a própria janela em http://127.0.0.1:<porta>/?token=<chave>.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -37,7 +24,7 @@ def default_data_dir() -> Path:
     current = base / "VigiaPet"
     if current.exists():
         return current
-    # Instalações anteriores ao novo nome: a pasta antiga é movida uma única vez.
+
     for legacy_name in LEGACY_APP_NAMES:
         legacy = base / legacy_name
         if legacy.is_dir():
@@ -91,7 +78,7 @@ def main() -> int:
     args = parse_args()
     root = bundle_root()
 
-    # Variáveis precisam existir antes de importar o app, pois o config as lê na importação.
+
     os.environ.setdefault("VIGIAPET_DATA_DIR", str(default_data_dir()))
     os.environ.setdefault("VIGIAPET_FRONTEND_DIST", str(root / "front" / "dist"))
     token = os.environ.get("VIGIAPET_API_TOKEN") or secrets.token_urlsafe(32)
@@ -104,7 +91,7 @@ def main() -> int:
     try:
         print("Verificando os modelos de inteligência artificial (download só no primeiro uso)...")
         ensure_models()
-    except Exception as error:  # sem internet, o app abre e avisa que o modelo falta
+    except Exception as error:
         print(f"Aviso: não foi possível preparar os modelos de IA agora ({error}).")
 
     import uvicorn
@@ -136,7 +123,7 @@ def main() -> int:
             import webview
 
             webview.create_window("VigiaPet", start_url, width=1280, height=820, min_size=(960, 640))
-            webview.start()  # bloqueia até a janela fechar
+            webview.start()
             opened_window = True
         except Exception as error:
             print(f"Janela nativa indisponível ({error}); abrindo no navegador padrão.")
