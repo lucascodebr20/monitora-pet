@@ -8,6 +8,9 @@ services:
     network_mode: host
     environment:
       VIGIAPET_DATA_DIR: /data
+      # Com network_mode: host a API só aceita Host local. Liste aqui o IP/nome do servidor
+      # na rede para que outros dispositivos consigam abrir a interface.
+      VIGIAPET_ALLOWED_HOSTS: ""
       # Mantém o conceito de "hoje" alinhado ao horário da casa, não ao UTC do container.
       TZ: America/Sao_Paulo
     volumes:
