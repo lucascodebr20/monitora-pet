@@ -8,7 +8,16 @@ APP_NAME = "MonitoraPet"
 APP_VERSION = "0.2.0"
 BACK_DIR = Path(__file__).resolve().parents[2]
 PROJECT_DIR = BACK_DIR.parent
-FRONTEND_DIST = PROJECT_DIR / "front" / "dist"
+
+
+def _frontend_dist() -> Path:
+    configured = os.getenv("MONITORAPET_FRONTEND_DIST")
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return PROJECT_DIR / "front" / "dist"
+
+
+FRONTEND_DIST = _frontend_dist()
 
 
 def _default_data_dir() -> Path:
