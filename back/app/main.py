@@ -45,7 +45,7 @@ app = FastAPI(
 )
 
 # Host local obrigatório (bloqueia DNS rebinding) e sessão exigida em todo /api/* quando
-# MONITORAPET_API_TOKEN está definido. Só /api/session fica público, por ser a porta de entrada.
+# VIGIAPET_API_TOKEN está definido. Só /api/session fica público, por ser a porta de entrada.
 install_access_control(app)
 
 
