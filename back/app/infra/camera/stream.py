@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from typing import Iterator
 from urllib.parse import quote, urlsplit, urlunsplit
 
-os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
+# Prefere TCP, mas permite que o FFmpeg volte para UDP quando a câmera não
+# oferece transporte RTSP intercalado (resposta 461 Unsupported Transport).
+RTSP_CAPTURE_OPTIONS = "rtsp_flags;prefer_tcp"
+os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", RTSP_CAPTURE_OPTIONS)
 
 import cv2
 import numpy as np

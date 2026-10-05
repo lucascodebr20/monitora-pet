@@ -4,11 +4,19 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from app.infra.camera.stream import CameraStream, build_authenticated_url, candidate_urls
+from app.infra.camera.stream import (
+    RTSP_CAPTURE_OPTIONS,
+    CameraStream,
+    build_authenticated_url,
+    candidate_urls,
+)
 from app.services.camera_service import CameraService
 
 
 class CameraUrlTests(unittest.TestCase):
+    def test_rtsp_transport_prefers_tcp_but_allows_udp_fallback(self):
+        self.assertEqual(RTSP_CAPTURE_OPTIONS, "rtsp_flags;prefer_tcp")
+
     def test_credentials_are_escaped(self):
         url = build_authenticated_url("rtsp://192.168.1.2:554/live", "meu user", "p@ss:word")
         self.assertEqual(url, "rtsp://meu%20user:p%40ss%3Aword@192.168.1.2:554/live")
