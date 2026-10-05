@@ -74,8 +74,8 @@ class EventService:
         pet = self.pet_repository.get(request.pet_id) if request.pet_id else None
         if request.pet_id and not pet:
             raise EntityNotFoundError("Pet não encontrado.")
-        if pet and pet["species"] != event["detected_species"]:
-            raise InvalidDomainValueError("A espécie do pet não corresponde ao animal detectado.")
+        # A revisão humana é a fonte de verdade. A espécie sugerida pela IA pode
+        # estar errada e não deve impedir a atribuição do animal correto.
         confirmed_pet = pet if request.decision.value in {"CONFIRMED", "CORRECTED"} else None
         review = {
             "id": str(uuid4()),

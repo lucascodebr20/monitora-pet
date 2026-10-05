@@ -185,7 +185,8 @@ function ReviewsView({ events, pets, refresh }: { events: Event[]; pets: Pet[]; 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => { setDecision('');setStage('validate');setCorrectedType('');setPetId(current?.pet_id ?? '');setError('') }, [current?.id])
-  const compatiblePets = pets.filter(pet => pet.species === current?.detected_species)
+  // A revisão humana pode corrigir uma classificação de espécie feita pela IA.
+  const compatiblePets = pets
   useEffect(()=>{stageHeading.current?.focus()},[stage])
   const validPet = petId==='unknown'||compatiblePets.some(p=>p.id===petId)
   const canSave = decision==='reject' || (stage==='pet'&&validPet&&(decision!=='correct'||(!!correctedType&&correctedType!==current?.zone_type)))

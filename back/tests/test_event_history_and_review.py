@@ -1,11 +1,10 @@
 import tempfile
 import unittest
-from datetime import datetime, timezone
 from pathlib import Path
 
 from app.domain.enums import ReviewDecision, ZoneType
 from app.domain.errors import InvalidDomainValueError
-from app.infra.database.database import Database, utc_now
+from app.infra.database.database import Database, local_today, utc_now
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.pet_repository import PetRepository
 from app.infra.repositories.pet_identification_repository import PetIdentificationRepository
@@ -22,7 +21,7 @@ class EventHistoryAndReviewTests(unittest.TestCase):
         self.database = Database(Path(self.temp_dir.name) / "test.sqlite3")
         self.database.migrate()
         now = utc_now()
-        self.today = datetime.now(timezone.utc).date().isoformat()
+        self.today = local_today().isoformat()
         self.database.execute(
             "INSERT INTO cameras (id, name, ip, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
             ("camera-1", "Sala", "192.168.1.20", now, now),
@@ -106,6 +105,18 @@ class EventHistoryAndReviewTests(unittest.TestCase):
 
         self.assertIsNone(self.events.get("unknown-pet")["pet_id"])
         self.assertEqual(self.events.count_on_date(self.today), 1)
+
+    def test_human_review_can_override_incorrect_detected_species(self):
+        self.database.execute(
+            """INSERT INTO events
+               (id, camera_id, zone_id, started_at, detected_species, created_at)
+               VALUES (?, ?, ?, ?, 'DOG', ?)""",
+            ("wrong-species", "camera-1", "water-zone", f"{self.today}T12:00:00+00:00", utc_now()),
+        )
+
+        self.review("wrong-species", ReviewDecision.CONFIRMED, self.pet["id"])
+
+        self.assertEqual(self.events.get("wrong-species")["pet_id"], self.pet["id"])
 
     def test_review_can_replace_automatically_identified_cat(self):
         other_pet = self.pets.create("Luna", "CAT", "", "pets/profiles/luna.jpg")
