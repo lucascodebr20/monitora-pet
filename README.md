@@ -62,9 +62,22 @@ O Vite encaminha as chamadas `/api` para o backend local.
 ## Testes
 
 ```powershell
+..\.venv\Scripts\python.exe -m pip install -r back\requirements-dev.txt
 Set-Location back
 ..\.venv\Scripts\python.exe -m unittest discover -s tests
 ```
+
+## Acesso à API
+
+O backend só aceita requisições com cabeçalho `Host` local (`127.0.0.1`, `localhost`),
+o que bloqueia ataques de DNS rebinding a partir de páginas maliciosas. Outros hosts
+podem ser liberados com `MONITORAPET_ALLOWED_HOSTS=meu-pc.local,192.168.1.10`.
+
+Quando `MONITORAPET_API_TOKEN` está definido, toda rota `/api/*` exige o token, enviado
+por `Authorization: Bearer <token>` ou pelo cookie HttpOnly criado em `POST /api/session`.
+O iniciador do app (`start.bat` ou o Tauri) gera um token novo a cada execução e o entrega
+ao frontend por `?token=` na URL inicial ou por `window.__MONITORAPET_TOKEN__`.
+Sem a variável, a API responde sem token, mas continua restrita ao host local.
 
 ## Privacidade
 
