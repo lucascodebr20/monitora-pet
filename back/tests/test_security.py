@@ -7,6 +7,7 @@ from starlette.requests import Request
 
 from app.controllers.auth_controller import router as auth_router
 from app.core import security
+from app.core.rate_limit import FailedAttemptLimiter
 
 
 def _request(path: str = "/api/cameras", headers: dict[str, str] | None = None) -> Request:
@@ -92,6 +93,52 @@ class AccessControlEndToEndTests(unittest.TestCase):
             client = self._client()
             self.assertEqual(client.get("/api/session").status_code, 200)
             self.assertEqual(client.get("/api/session", headers={"Host": "evil.example"}).status_code, 400)
+
+
+class BruteForceProtectionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.now = 1000.0
+        self.limiter = FailedAttemptLimiter(max_failures=3, window_seconds=60, lock_seconds=30, clock=lambda: self.now)
+
+    def _client(self) -> TestClient:
+        app = FastAPI()
+        security.install_access_control(app)
+        app.include_router(auth_router)
+
+        @app.get("/api/protegido")
+        def protegido() -> dict[str, bool]:
+            return {"ok": True}
+
+        return TestClient(app)
+
+    def test_wrong_bearer_tokens_lock_the_origin_even_for_the_right_token(self):
+        with patch.object(security, "API_TOKEN", "segredo"), patch.object(security, "LIMITER", self.limiter):
+            client = self._client()
+            for _ in range(3):
+                self.assertEqual(client.get("/api/protegido", headers={"Authorization": "Bearer errado"}).status_code, 401)
+            blocked = client.get("/api/protegido", headers={"Authorization": "Bearer segredo"})
+            self.assertEqual(blocked.status_code, 429)
+            self.assertEqual(blocked.headers["retry-after"], "30")
+            self.assertEqual(client.post("/api/session", json={"token": "segredo"}).status_code, 429)
+            self.now += 31
+            self.assertEqual(client.get("/api/protegido", headers={"Authorization": "Bearer segredo"}).status_code, 200)
+
+    def test_wrong_session_tokens_count_and_success_resets(self):
+        with patch.object(security, "API_TOKEN", "segredo"), patch.object(security, "LIMITER", self.limiter):
+            client = self._client()
+            for _ in range(2):
+                self.assertEqual(client.post("/api/session", json={"token": "errado"}).status_code, 401)
+            self.assertEqual(client.post("/api/session", json={"token": "segredo"}).status_code, 200)
+            for _ in range(2):
+                self.assertEqual(client.post("/api/session", json={"token": "errado"}).status_code, 401)
+            self.assertEqual(client.get("/api/protegido").status_code, 200)
+
+    def test_public_paths_are_never_counted_or_blocked_without_token(self):
+        with patch.object(security, "API_TOKEN", None), patch.object(security, "LIMITER", self.limiter):
+            client = self._client()
+            for _ in range(5):
+                self.assertEqual(client.get("/api/protegido").status_code, 200)
+            self.assertEqual(self.limiter.seconds_locked("testclient"), 0.0)
 
 
 if __name__ == "__main__":
