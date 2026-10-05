@@ -8,7 +8,7 @@ from app.domain.errors import EntityConflictError, EntityNotFoundError, Operatio
 from app.infra.camera.discovery import discover_all, fallback_scan
 from app.infra.camera.manager import CameraManager
 from app.infra.camera.onvif import device_information, stream_urls
-from app.infra.camera.stream import CameraConnectionError, authenticate_urls, candidate_urls
+from app.infra.camera.stream import CameraConnectionError, authenticate_urls, candidate_urls, split_url_credentials
 from app.infra.repositories.camera_repository import CameraRepository
 from app.services.commands import CameraCredentialsCommand, CreateCameraCommand
 
@@ -85,6 +85,8 @@ class CameraService:
         result = dict(camera)
         result["enabled"] = bool(result["enabled"])
         result.pop("credential_ref", None)
+        if result.get("rtsp_url"):
+            result["rtsp_url"] = split_url_credentials(result["rtsp_url"])[0]
         result["status"] = self.manager.status(str(result["id"]))
         return result
 
