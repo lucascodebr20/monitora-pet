@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 from app.infra.camera.onvif import device_information
 from app.infra.camera.ssdp import discover as discover_ssdp
 from app.infra.camera.ws_discovery import discover, scan_subnet
+from app.core.config import APP_VERSION
 
 
 CAMERA_PORT_WEIGHTS = {
@@ -59,7 +60,7 @@ def device_web_title(ip: str, ports: set[int]) -> str:
         scheme = "https" if port == 443 else "http"
         default_port = (scheme == "http" and port == 80) or (scheme == "https" and port == 443)
         address = f"{scheme}://{ip}{'' if default_port else f':{port}'}/"
-        request = Request(address, headers={"User-Agent": "VigiaPet/0.2 device discovery"})
+        request = Request(address, headers={"User-Agent": f"VigiaPet/{APP_VERSION} device discovery"})
         try:
             context = ssl._create_unverified_context() if scheme == "https" else None
             with urlopen(request, timeout=1.5, context=context) as response:

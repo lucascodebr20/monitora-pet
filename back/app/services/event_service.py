@@ -8,7 +8,7 @@ from uuid import uuid4
 from app.domain.errors import EntityNotFoundError
 from app.domain.errors import InvalidDomainValueError
 from app.domain.enums import ReviewDecision, ZoneType
-from app.infra.database.database import utc_now
+from app.domain.clock import utc_now
 from app.infra.media.clip_store import ClipStore
 from app.infra.media.pet_image_store import PetImageStore
 from app.infra.repositories.event_repository import EventRepository
@@ -76,7 +76,10 @@ class EventService:
             raise EntityNotFoundError("Pet não encontrado.")
         # A revisão humana é a fonte de verdade. A espécie sugerida pela IA pode
         # estar errada e não deve impedir a atribuição do animal correto.
-        confirmed_pet = pet if request.decision.value in {"CONFIRMED", "CORRECTED"} else None
+        confirmed_pet = pet if request.decision in {ReviewDecision.CONFIRMED, ReviewDecision.CORRECTED} else None
+        corrected_zone_type = (
+            request.zone_type.value if request.decision == ReviewDecision.CORRECTED and request.zone_type else None
+        )
         review = {
             "id": str(uuid4()),
             "event_id": event_id,
@@ -84,7 +87,7 @@ class EventService:
             "pet_id": confirmed_pet["id"] if confirmed_pet else None,
             "created_at": utc_now(),
         }
-        self.repository.complete_review(review)
+        self.repository.complete_review(review, review["pet_id"], corrected_zone_type)
         if confirmed_pet and self.pet_identifier:
             self.pet_identifier.learn_from_review(event_id, confirmed_pet["id"])
         return review

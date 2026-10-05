@@ -1,10 +1,12 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.core.config import APP_NAME, APP_VERSION, FRONTEND_DIST, ensure_data_directories
+from app.core.config import APP_NAME, APP_VERSION, DATA_DIR, FRONTEND_DIST, ensure_data_directories
+from app.core.logging_setup import configure_logging
 from app.core.container import camera_manager, database, monitoring_service
 from app.core.security import install_access_control
 from app.controllers.auth_controller import router as auth_router
@@ -25,12 +27,19 @@ from app.domain.errors import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     ensure_data_directories()
+    log_file = configure_logging(DATA_DIR / "logs")
+    logger.info("%s %s iniciando; dados em %s; log em %s", APP_NAME, APP_VERSION, DATA_DIR, log_file)
     database.migrate()
     monitoring_service.start()
+    logger.info("Inferência: %s", monitoring_service.health())
     yield
+    logger.info("Encerrando: parando inferência e desconectando câmeras")
     monitoring_service.stop()
     camera_manager.disconnect_all()
 
