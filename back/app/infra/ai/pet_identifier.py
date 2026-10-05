@@ -34,8 +34,6 @@ class PetAnalysis:
 
 
 class PetIdentifier:
-    """Identifies cats from a quality-controlled, diverse gallery of confirmed images."""
-
     METHOD = METHOD
     MINIMUM_SIMILARITY = MINIMUM_SIMILARITY
     MINIMUM_MARGIN = MINIMUM_MARGIN

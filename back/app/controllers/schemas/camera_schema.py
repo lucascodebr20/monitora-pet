@@ -9,8 +9,6 @@ from app.services.commands import CameraCredentialsCommand, CreateCameraCommand
 
 
 def _move_url_credentials_to_fields(model: _WithRtspCredentials) -> None:
-    """Se a URL veio como ``rtsp://usuario:senha@host/...``, a senha sai da URL e vai para
-    os campos próprios, que nunca são persistidos. Campos já preenchidos têm prioridade."""
     if not model.rtsp_url or not model.rtsp_url.strip():
         model.rtsp_url = None
         return

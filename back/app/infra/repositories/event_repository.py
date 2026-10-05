@@ -110,7 +110,6 @@ class EventRepository:
         )
 
     def complete_review(self, review: dict[str, Any], pet_id: str | None, corrected_zone_type: str | None) -> None:
-        """Grava a revisão humana e aplica ao evento o pet e o tipo de área já decididos pelo service."""
         zone_type = corrected_zone_type
         with self.database.connect() as connection:
             connection.execute(

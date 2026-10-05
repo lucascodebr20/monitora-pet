@@ -105,9 +105,6 @@ def device_information(
 def _same_device_url(
     candidate: str | None, ip: str, default: str, schemes: tuple[str, ...] = ("http", "https")
 ) -> str:
-    """Aceita o endereço anunciado pela câmera apenas se ele usar um dos esquemas esperados e
-    apontar para o próprio IP cadastrado. Um dispositivo malicioso não consegue redirecionar o
-    servidor (nem as credenciais do usuário) para outro host, esquema ou arquivo local."""
     if not candidate:
         return default
     parts = urlsplit(candidate.strip())

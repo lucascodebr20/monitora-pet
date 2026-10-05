@@ -1,15 +1,3 @@
-/**
- * Abertura de sessão com o backend local.
- *
- * Quem inicia o app (Tauri, lançador desktop ou start.bat) gera um token e o entrega de uma destas formas:
- *   - `window.__VIGIAPET_TOKEN__` (script de inicialização da WebView), ou
- *   - query `?token=` na URL inicial.
- *
- * O token vira um cookie HttpOnly via `POST /api/session`, o que permite que `<img>` e
- * `<video>` carreguem vídeo e mídia sem cabeçalhos extras. A query só é removida da barra de
- * endereço depois que a sessão está confirmada, para que um F5 após falha transitória recupere.
- */
-
 declare global {
   interface Window {
     __VIGIAPET_TOKEN__?: string
@@ -42,7 +30,6 @@ async function openSession(token: string): Promise<boolean> {
   return response.ok
 }
 
-/** Tenta reabrir a sessão com o token recebido do iniciador. Retorna false se não houver token ou ele for recusado. */
 export async function reauthenticate(): Promise<boolean> {
   if (!launcherToken) return false
   return openSession(launcherToken)

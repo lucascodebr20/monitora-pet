@@ -1,11 +1,3 @@
-"""Limitador de tentativas de autenticação.
-
-Conta falhas por origem (IP) numa janela deslizante. Ao atingir o limite, a origem fica
-bloqueada por um período que dobra a cada novo bloqueio, até um teto. Sucesso zera o contador.
-Protege o token de sessão contra força bruta tanto em ``POST /api/session`` quanto em qualquer
-rota ``/api/*`` chamada com ``Authorization: Bearer`` errado.
-"""
-
 from __future__ import annotations
 
 import threading
@@ -45,7 +37,6 @@ class FailedAttemptLimiter:
         self._lock = threading.Lock()
 
     def seconds_locked(self, origin: str) -> float:
-        """Segundos restantes de bloqueio para a origem (0 quando liberada)."""
         with self._lock:
             entry = self._origins.get(origin)
             if entry is None:
@@ -53,7 +44,6 @@ class FailedAttemptLimiter:
             return max(0.0, entry.locked_until - self.clock())
 
     def record_failure(self, origin: str) -> float:
-        """Registra uma falha e devolve os segundos de bloqueio aplicados (0 se ainda liberada)."""
         now = self.clock()
         with self._lock:
             self._prune(now)
