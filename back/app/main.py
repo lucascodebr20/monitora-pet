@@ -1,13 +1,12 @@
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.core.config import APP_NAME, APP_VERSION, FRONTEND_DIST, ensure_data_directories
 from app.core.container import camera_manager, database, monitoring_service
-from app.core.security import ALLOWED_HOSTS, require_session
+from app.core.security import install_access_control
 from app.controllers.auth_controller import router as auth_router
 from app.controllers.camera_controller import router as camera_router
 from app.controllers.event_controller import router as event_router
@@ -40,12 +39,14 @@ app = FastAPI(
     title=APP_NAME,
     version=APP_VERSION,
     docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
     redoc_url=None,
     lifespan=lifespan,
 )
 
-# Rejeita cabeçalhos Host que não sejam locais (bloqueia DNS rebinding).
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
+# Host local obrigatório (bloqueia DNS rebinding) e sessão exigida em todo /api/* quando
+# MONITORAPET_API_TOKEN está definido. Só /api/session fica público, por ser a porta de entrada.
+install_access_control(app)
 
 
 @app.exception_handler(EntityNotFoundError)
@@ -71,17 +72,13 @@ async def operation_failed(_: Request, error: OperationFailedError) -> JSONRespo
 if (FRONTEND_DIST / "assets").exists():
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
 
-# Toda rota /api/* exige sessão quando MONITORAPET_API_TOKEN está definido.
-# /api/session fica fora porque é o próprio ponto de entrada da sessão.
-protected = [Depends(require_session)]
-
 app.include_router(auth_router)
-app.include_router(health_router, dependencies=protected)
-app.include_router(identification_router, dependencies=protected)
-app.include_router(camera_router, dependencies=protected)
-app.include_router(zone_router, dependencies=protected)
-app.include_router(event_router, dependencies=protected)
-app.include_router(pet_router, dependencies=protected)
-app.include_router(notice_router, dependencies=protected)
-app.include_router(monitoring_router, dependencies=protected)
+app.include_router(health_router)
+app.include_router(identification_router)
+app.include_router(camera_router)
+app.include_router(zone_router)
+app.include_router(event_router)
+app.include_router(pet_router)
+app.include_router(notice_router)
+app.include_router(monitoring_router)
 app.include_router(web_router)

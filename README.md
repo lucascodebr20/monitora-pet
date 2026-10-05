@@ -62,6 +62,7 @@ O Vite encaminha as chamadas `/api` para o backend local.
 ## Testes
 
 ```powershell
+..\.venv\Scripts\python.exe -m pip install -r back\requirements-dev.txt
 Set-Location back
 ..\.venv\Scripts\python.exe -m unittest discover -s tests
 ```
