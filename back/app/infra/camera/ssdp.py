@@ -6,6 +6,7 @@ import time
 import xml.etree.ElementTree as ET
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+from app.core.config import APP_VERSION
 
 
 SSDP_ADDRESS = ("239.255.255.250", 1900)
@@ -45,7 +46,7 @@ def describe(source_ip: str, location: str) -> dict[str, str]:
     if parsed.scheme not in {"http", "https"} or location_ip != source_ip:
         return {}
     try:
-        request = Request(location, headers={"User-Agent": "VigiaPet/0.2 device discovery"})
+        request = Request(location, headers={"User-Agent": f"VigiaPet/{APP_VERSION} device discovery"})
         with urlopen(request, timeout=1.5) as response:
             root = ET.fromstring(response.read(262_144))
     except (OSError, ValueError, ET.ParseError):

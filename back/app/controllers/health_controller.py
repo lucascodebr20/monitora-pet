@@ -1,18 +1,18 @@
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.core.container import health_service
+from app.core.container import Container, get_container
 
 
 router = APIRouter(prefix="/api", tags=["health"])
 
 
 @router.get("/health")
-def health() -> dict[str, Any]:
-    return health_service.health()
+def health(container: Container = Depends(get_container)) -> dict[str, Any]:
+    return container.health_service.health()
 
 
 @router.get("/dashboard")
-def dashboard() -> dict[str, Any]:
-    return health_service.dashboard()
+def dashboard(container: Container = Depends(get_container)) -> dict[str, Any]:
+    return container.health_service.dashboard()

@@ -27,8 +27,6 @@ echo Construindo a interface...
 pushd front
 call npm.cmd run build || exit /b 1
 popd
-
-rem Chave de sessao unica por execucao: a API so responde a quem a apresentar.
 for /f "usebackq delims=" %%t in (`powershell -NoProfile -Command "[guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')"`) do set "VIGIAPET_API_TOKEN=%%t"
 if not defined VIGIAPET_API_TOKEN (
     echo Nao foi possivel gerar a chave de sessao.

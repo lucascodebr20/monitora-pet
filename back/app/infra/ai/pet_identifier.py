@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 
 from app.core.config import PET_EMBEDDING_MODEL_PATH
+from app.infra.ai.identification_calibration import METHOD, MINIMUM_MARGIN, MINIMUM_SIMILARITY, IdentificationCalibrator
 from app.infra.media.pet_image_store import PetImageStore
 from app.infra.repositories.pet_identification_repository import PetIdentificationRepository
 from app.infra.repositories.pet_repository import PetRepository
@@ -19,7 +20,7 @@ Descriptor = np.ndarray | tuple[np.ndarray, np.ndarray, np.ndarray]
 class PetMatch:
     pet_id: str
     confidence: float
-    method: str = "mobilenet-embedding-v2"
+    method: str = METHOD
 
 
 @dataclass(frozen=True)
@@ -29,32 +30,28 @@ class PetAnalysis:
     scores: tuple[dict, ...]
     minimum_similarity: float
     minimum_margin: float
-    method: str = "mobilenet-embedding-v2"
+    method: str = METHOD
 
 
 class PetIdentifier:
-    """Identifies cats from a quality-controlled, diverse gallery of confirmed images."""
-
-    METHOD = "mobilenet-embedding-v2"
-    MINIMUM_SIMILARITY = 0.731
-    MINIMUM_MARGIN = 0.064
+    METHOD = METHOD
+    MINIMUM_SIMILARITY = MINIMUM_SIMILARITY
+    MINIMUM_MARGIN = MINIMUM_MARGIN
     MAX_REFERENCES_PER_PET = 32
-    CALIBRATION_INTERVAL = 10
     MINIMUM_REFERENCE_QUALITY = 0.22
 
     def __init__(self, repository: PetRepository, image_store: PetImageStore,
-                 analysis_repository: PetIdentificationRepository | None = None) -> None:
+                 analysis_repository: PetIdentificationRepository | None = None,
+                 embedding_model_path: Path = PET_EMBEDDING_MODEL_PATH) -> None:
         self.repository = repository
         self.image_store = image_store
         self.analysis_repository = analysis_repository
+        self.calibrator = IdentificationCalibrator(analysis_repository)
         self._descriptor_cache: dict[str, tuple[int, int, Descriptor, float]] = {}
         self._embedding_network = (
-            cv2.dnn.readNetFromONNX(str(PET_EMBEDDING_MODEL_PATH))
-            if PET_EMBEDDING_MODEL_PATH.is_file() else None
+            cv2.dnn.readNetFromONNX(str(embedding_model_path))
+            if embedding_model_path.is_file() else None
         )
-
-    def identify(self, capture_path: str | None, species: str) -> PetMatch | None:
-        return self.analyze(capture_path, species).match
 
     def analyze(self, capture_path: str | None, species: str) -> PetAnalysis:
         if not capture_path:
@@ -118,84 +115,13 @@ class PetIdentifier:
             analysis.minimum_similarity, analysis.minimum_margin, list(analysis.scores), analysis.method,
         )
 
-    def learn_from_review(self, event_id: str, pet_id: str) -> None:
-        if not self.analysis_repository or not self.analysis_repository.mark_review(event_id, pet_id):
-            return
-        reviewed_count = self.analysis_repository.reviewed_count(self.METHOD)
-        current = self.analysis_repository.current_calibration(self.METHOD)
-        if reviewed_count - int(current["interaction_count"]) < self.CALIBRATION_INTERVAL:
-            return
-        samples = self.analysis_repository.reviewed_samples(self.METHOD)
-        usable: list[tuple[float, float, bool]] = []
-        top1_correct = 0
-        for sample in samples:
-            scores = sorted(
-                ((score["pet_id"], float(score["confidence"])) for score in sample["scores"]),
-                key=lambda item: item[1], reverse=True,
-            )
-            if not scores:
-                continue
-            is_correct = scores[0][0] == sample["reviewed_pet_id"]
-            top1_correct += int(is_correct)
-            usable.append((scores[0][1], scores[0][1] - (scores[1][1] if len(scores) > 1 else 0.0), is_correct))
-        if not usable:
-            return
-        minimum_similarity, minimum_margin = self._choose_thresholds(usable)
-        self.analysis_repository.create_calibration(
-            minimum_similarity, minimum_margin, reviewed_count,
-            round(top1_correct / len(usable), 4), self.METHOD,
-        )
-
-    def logs(self, page: int = 1, page_size: int = 10) -> dict:
-        if not self.analysis_repository:
-            return {"analyses": [], "total": 0, "page": page, "page_size": page_size,
-                    "calibration": None,
-                    "interactions_until_calibration": self.CALIBRATION_INTERVAL, "metrics": {}}
-        calibration = self.analysis_repository.current_calibration(self.METHOD)
-        reviewed_count = self.analysis_repository.reviewed_count(self.METHOD)
-        progress = reviewed_count - int(calibration["interaction_count"])
-        return {
-            "analyses": self.analysis_repository.list_analyses(page_size, (page - 1) * page_size),
-            "total": self.analysis_repository.count_analyses(),
-            "page": page,
-            "page_size": page_size,
-            "calibration": calibration,
-            "interactions_until_calibration": max(0, self.CALIBRATION_INTERVAL - progress),
-            "metrics": self.analysis_repository.performance_metrics(self.METHOD),
-            "method": self.METHOD,
-        }
-
     def _empty_analysis(self, decision: str, species: str) -> PetAnalysis:
         minimum_similarity, minimum_margin = self._thresholds()
         return PetAnalysis(None, "UNSUPPORTED" if species != "CAT" else decision, (),
                            minimum_similarity, minimum_margin, self.METHOD)
 
     def _thresholds(self) -> tuple[float, float]:
-        if not self.analysis_repository:
-            return self.MINIMUM_SIMILARITY, self.MINIMUM_MARGIN
-        calibration = self.analysis_repository.current_calibration(self.METHOD)
-        if not calibration.get("created_at"):
-            return self.MINIMUM_SIMILARITY, self.MINIMUM_MARGIN
-        return float(calibration["minimum_similarity"]), float(calibration["minimum_margin"])
-
-    @classmethod
-    def _choose_thresholds(cls, samples: list[tuple[float, float, bool]]) -> tuple[float, float]:
-        similarities = sorted({cls.MINIMUM_SIMILARITY, *(round(item[0], 3) for item in samples)})
-        margins = sorted({cls.MINIMUM_MARGIN, *(round(max(0.0, item[1]), 3) for item in samples)})
-        best: tuple[float, float, float, float] | None = None
-        for similarity in similarities:
-            for margin in margins:
-                accepted = [item for item in samples if item[0] >= similarity and item[1] >= margin]
-                if not accepted:
-                    continue
-                precision = sum(item[2] for item in accepted) / len(accepted)
-                coverage = len(accepted) / len(samples)
-                candidate = (coverage, precision, -similarity, -margin)
-                if precision >= 0.80 and (best is None or candidate > best):
-                    best = candidate
-        if best is None:
-            return cls.MINIMUM_SIMILARITY, cls.MINIMUM_MARGIN
-        return round(-best[2], 4), round(-best[3], 4)
+        return self.calibrator.thresholds()
 
     def _reference_descriptors(self, pet: dict) -> list[Descriptor]:
         candidates = [item for path in self._reference_paths(pet)
