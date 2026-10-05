@@ -5,7 +5,7 @@ import threading
 import time
 from dataclasses import dataclass
 from typing import Iterator
-from urllib.parse import quote, urlsplit, urlunsplit
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 # Prefere TCP, mas permite que o FFmpeg volte para UDP quando a câmera não
 # oferece transporte RTSP intercalado (resposta 461 Unsupported Transport).
@@ -34,6 +34,21 @@ RECONNECT_DELAY_SECONDS = 1.5
 
 class CameraConnectionError(RuntimeError):
     pass
+
+
+def split_url_credentials(raw_url: str) -> tuple[str, str, str]:
+    """Separa ``usuario:senha@`` de uma URL, devolvendo (url_limpa, usuario, senha).
+
+    Manuais de fabricantes costumam fornecer ``rtsp://admin:senha@ip/...``. A senha nunca
+    deve ser persistida dentro da URL, então ela é extraída para os campos próprios.
+    """
+    parts = urlsplit(raw_url.strip())
+    if not parts.hostname or not (parts.username or parts.password):
+        return raw_url.strip(), "", ""
+    port = f":{parts.port}" if parts.port else ""
+    host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname
+    clean = urlunsplit((parts.scheme, f"{host}{port}", parts.path, parts.query, parts.fragment))
+    return clean, unquote(parts.username or ""), unquote(parts.password or "")
 
 
 def build_authenticated_url(raw_url: str, username: str, password: str) -> str:
