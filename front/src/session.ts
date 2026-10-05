@@ -58,6 +58,7 @@ export async function bootstrapSession(): Promise<void> {
     return
   }
   if (!launcherToken) throw new Error('Esta janela não recebeu a chave de sessão. Abra o VigiaPet pelo aplicativo.')
-  if (!(await openSession(launcherToken))) throw new Error('A chave de sessão foi recusada. Feche e abra o VigiaPet novamente.')
+  if (!(await openSession(launcherToken)))
+    throw new Error('A chave de sessão foi recusada. Feche e abra o VigiaPet novamente.')
   forgetTokenInUrl()
 }
