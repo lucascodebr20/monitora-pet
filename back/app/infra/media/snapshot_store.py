@@ -6,17 +6,21 @@ from app.core.config import DATA_DIR, SNAPSHOT_DIR
 
 
 class SnapshotStore:
+    def __init__(self, data_dir: Path = DATA_DIR, snapshot_dir: Path = SNAPSHOT_DIR) -> None:
+        self.data_dir = data_dir
+        self.snapshot_dir = snapshot_dir
+
     def save(self, content: bytes | None, captured_at: datetime) -> str | None:
         if not content:
             return None
-        directory = SNAPSHOT_DIR / captured_at.strftime("%Y/%m/%d")
+        directory = self.snapshot_dir / captured_at.strftime("%Y/%m/%d")
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / f"{uuid4()}.jpg"
         path.write_bytes(content)
-        return path.relative_to(DATA_DIR).as_posix()
+        return path.relative_to(self.data_dir).as_posix()
 
     def resolve(self, relative_path: str) -> Path:
-        path = (DATA_DIR / relative_path).resolve()
-        if DATA_DIR.resolve() not in path.parents:
+        path = (self.data_dir / relative_path).resolve()
+        if self.data_dir.resolve() not in path.parents:
             raise ValueError("Caminho de snapshot inválido.")
         return path
