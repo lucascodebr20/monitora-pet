@@ -3,7 +3,23 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
-from app.infra.database.database import Database, utc_bounds_for_local_date, utc_now
+from app.domain.clock import utc_bounds_for_local_date, utc_now
+from app.infra.database.database import Database
+
+
+EVENT_PROJECTION = """
+    SELECT e.*, c.name AS camera_name, z.name AS zone_name,
+           COALESCE(e.corrected_zone_type, z.type) AS zone_type,
+           (SELECT decision FROM human_reviews r WHERE r.event_id = e.id
+            ORDER BY created_at DESC LIMIT 1) AS review_decision,
+           p.name AS pet_name
+    FROM events e JOIN cameras c ON c.id = e.camera_id JOIN zones z ON z.id = e.zone_id
+    LEFT JOIN pets p ON p.id = e.pet_id
+"""
+PENDING_REVIEW_FILTERS = (
+    "NOT EXISTS (SELECT 1 FROM human_reviews hr WHERE hr.event_id = e.id)",
+    "e.ended_at IS NOT NULL",
+)
 
 
 class EventRepository:
@@ -18,33 +34,9 @@ class EventRepository:
         pending_review: bool = False,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
-        filters: list[str] = []
-        parameters: list[Any] = []
-        if camera_id:
-            filters.append("e.camera_id = ?")
-            parameters.append(camera_id)
-        if zone_id:
-            filters.append("e.zone_id = ?")
-            parameters.append(zone_id)
-        if date:
-            start, end = utc_bounds_for_local_date(date)
-            filters.append("e.started_at >= ? AND e.started_at < ?")
-            parameters.extend((start, end))
-        if pending_review:
-            filters.append("NOT EXISTS (SELECT 1 FROM human_reviews hr WHERE hr.event_id = e.id)")
-            filters.append("e.ended_at IS NOT NULL")
-        where = f"WHERE {' AND '.join(filters)}" if filters else ""
-        parameters.append(limit)
+        where, parameters = self._filters(camera_id=camera_id, zone_id=zone_id, date=date, pending_review=pending_review)
         return self.database.all(
-            f"""SELECT e.*, c.name AS camera_name, z.name AS zone_name,
-                       COALESCE(e.corrected_zone_type, z.type) AS zone_type,
-                       (SELECT decision FROM human_reviews r WHERE r.event_id = e.id
-                        ORDER BY created_at DESC LIMIT 1) AS review_decision,
-                       p.name AS pet_name
-                FROM events e JOIN cameras c ON c.id = e.camera_id JOIN zones z ON z.id = e.zone_id
-                LEFT JOIN pets p ON p.id = e.pet_id
-                {where} ORDER BY e.started_at DESC LIMIT ?""",
-            tuple(parameters),
+            f"{EVENT_PROJECTION} {where} ORDER BY e.started_at DESC LIMIT ?", (*parameters, limit)
         )
 
     def search(
@@ -58,6 +50,29 @@ class EventRepository:
         zone_id: str | None = None,
         date: str | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
+        where, parameters = self._filters(
+            camera_id=camera_id, zone_id=zone_id, date=date, pending_review=pending_review,
+            pet_id=pet_id, zone_type=zone_type,
+        )
+        total_row = self.database.one(
+            f"SELECT COUNT(*) AS total FROM events e JOIN zones z ON z.id = e.zone_id {where}", tuple(parameters)
+        )
+        total = int(total_row["total"]) if total_row else 0
+        rows = self.database.all(
+            f"{EVENT_PROJECTION} {where} ORDER BY e.started_at DESC LIMIT ? OFFSET ?",
+            (*parameters, page_size, (page - 1) * page_size),
+        )
+        return rows, total
+
+    @staticmethod
+    def _filters(
+        camera_id: str | None = None,
+        zone_id: str | None = None,
+        date: str | None = None,
+        pending_review: bool = False,
+        pet_id: str | None = None,
+        zone_type: str | None = None,
+    ) -> tuple[str, list[Any]]:
         filters: list[str] = []
         parameters: list[Any] = []
         if pet_id:
@@ -77,30 +92,9 @@ class EventRepository:
             filters.append("e.started_at >= ? AND e.started_at < ?")
             parameters.extend((start, end))
         if pending_review:
-            filters.extend((
-                "NOT EXISTS (SELECT 1 FROM human_reviews hr WHERE hr.event_id = e.id)",
-                "e.ended_at IS NOT NULL",
-            ))
+            filters.extend(PENDING_REVIEW_FILTERS)
         where = f"WHERE {' AND '.join(filters)}" if filters else ""
-        total_row = self.database.one(
-            f"SELECT COUNT(*) AS total FROM events e JOIN zones z ON z.id = e.zone_id {where}",
-            tuple(parameters),
-        )
-        total = int(total_row["total"]) if total_row else 0
-        offset = (page - 1) * page_size
-        parameters.extend((page_size, offset))
-        rows = self.database.all(
-            f"""SELECT e.*, c.name AS camera_name, z.name AS zone_name,
-                       COALESCE(e.corrected_zone_type, z.type) AS zone_type,
-                       (SELECT decision FROM human_reviews r WHERE r.event_id = e.id
-                        ORDER BY created_at DESC LIMIT 1) AS review_decision,
-                       p.name AS pet_name
-                FROM events e JOIN cameras c ON c.id = e.camera_id JOIN zones z ON z.id = e.zone_id
-                LEFT JOIN pets p ON p.id = e.pet_id
-                {where} ORDER BY e.started_at DESC LIMIT ? OFFSET ?""",
-            tuple(parameters),
-        )
-        return rows, total
+        return where, parameters
 
     def exists(self, event_id: str) -> bool:
         return self.database.one("SELECT id FROM events WHERE id = ?", (event_id,)) is not None
@@ -115,18 +109,8 @@ class EventRepository:
             (event_id,),
         )
 
-    def create_review(self, review: dict[str, Any]) -> None:
-        self.database.execute(
-            """INSERT INTO human_reviews
-               (id, event_id, decision, corrected_activity, cat_name, notes, created_at, pet_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            tuple(review.get(key) for key in ("id", "event_id", "decision", "corrected_activity", "cat_name", "notes", "created_at", "pet_id")),
-        )
-
-    def complete_review(self, review: dict[str, Any]) -> None:
-        decision = str(review["decision"])
-        pet_id = review.get("pet_id") if decision in {"CONFIRMED", "CORRECTED"} else None
-        zone_type = str(review["zone_type"]) if decision == "CORRECTED" and review.get("zone_type") else None
+    def complete_review(self, review: dict[str, Any], pet_id: str | None, corrected_zone_type: str | None) -> None:
+        zone_type = corrected_zone_type
         with self.database.connect() as connection:
             connection.execute(
                 """INSERT INTO human_reviews
@@ -147,9 +131,6 @@ class EventRepository:
                        WHERE id = ? AND pet_capture_path IS NOT NULL""",
                     (str(uuid4()), pet_id, review["created_at"], review["event_id"]),
                 )
-
-    def assign_pet(self, event_id: str, pet_id: str | None) -> None:
-        self.database.execute("UPDATE events SET pet_id = ? WHERE id = ?", (pet_id, event_id))
 
     def create_detected_event(
         self,

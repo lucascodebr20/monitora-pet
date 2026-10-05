@@ -181,11 +181,13 @@ type CameraPayload = {
   rtsp_url: string | null
 }
 
+type ErrorBody = { detail?: string }
+
 async function request<T>(url: string, options?: RequestInit, retried = false): Promise<T> {
   const response = await fetch(url, options)
   if (response.status === 401 && !retried && (await reauthenticate())) return request<T>(url, options, true)
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(data.detail ?? 'Não foi possível concluir a operação.')
+  const data: unknown = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error((data as ErrorBody).detail ?? 'Não foi possível concluir a operação.')
   return data as T
 }
 
@@ -202,22 +204,22 @@ export const discoverCameras = async (fallback = false) =>
 export const createCamera = (payload: CameraPayload) => request<Camera>('/api/cameras', json('POST', payload))
 export const connectCamera = (id: string, payload: Pick<CameraPayload, 'username' | 'password' | 'rtsp_url'>) =>
   request<ConnectionStatus>(`/api/cameras/${id}/connect`, json('POST', payload))
-export const disconnectCamera = (id: string) => request<ConnectionStatus>(`/api/cameras/${id}/disconnect`, json('POST'))
 export const deleteCamera = (id: string) => request<void>(`/api/cameras/${id}`, { method: 'DELETE' })
 
 export const getZones = async () => (await request<{ zones: Zone[] }>('/api/zones')).zones
 export const createZone = (payload: Omit<Zone, 'id' | 'enabled'>) => request<Zone>('/api/zones', json('POST', payload))
-export const updateZone = (id: string, payload: Omit<Zone, 'id' | 'enabled'>) => request<Zone>(`/api/zones/${id}`, json('PUT', payload))
+export const updateZone = (id: string, payload: Omit<Zone, 'id' | 'enabled'>) =>
+  request<Zone>(`/api/zones/${id}`, json('PUT', payload))
 export const deleteZone = (id: string) => request<void>(`/api/zones/${id}`, { method: 'DELETE' })
 export const getMonitoringFeedback = (cameraId: string) => request<MonitoringFeedback>(`/api/monitoring/${cameraId}`)
 export const getIdentificationLogs = (page = 1, pageSize = 10) =>
   request<IdentificationLogs>(`/api/identification/logs?page=${page}&page_size=${pageSize}`)
 
 export const getPets = async () => (await request<{ pets: Pet[] }>('/api/pets')).pets
-export const createPet = (payload: { name: string; species: PetSpecies; description: string; photo_data: string | null }) =>
-  request<Pet>('/api/pets', json('POST', payload))
-export const updatePet = (id: string, payload: { name: string; species: PetSpecies; description: string; photo_data: string | null }) =>
-  request<Pet>(`/api/pets/${id}`, json('PUT', payload))
+export type PetPayload = { name: string; species: PetSpecies; description: string; photo_data: string | null }
+
+export const createPet = (payload: PetPayload) => request<Pet>('/api/pets', json('POST', payload))
+export const updatePet = (id: string, payload: PetPayload) => request<Pet>(`/api/pets/${id}`, json('PUT', payload))
 export const deletePet = (id: string) => request<void>(`/api/pets/${id}`, { method: 'DELETE' })
 export const getPetReferences = async (id: string) =>
   (await request<{ images: PetReferenceImage[] }>(`/api/pets/${id}/references`)).images
@@ -237,4 +239,4 @@ export const getEventPage = (page: number, petId: string, zoneType: Zone['type']
   return request<EventPage>(`/api/events?${query.toString()}`)
 }
 export const reviewEvent = (id: string, decision: string, pet_id: string | null, zone_type?: Zone['type']) =>
-  request(`/api/events/${id}/reviews`, json('POST', { decision, pet_id, ...(zone_type ? { zone_type } : {}) }))
+  request<unknown>(`/api/events/${id}/reviews`, json('POST', { decision, pet_id, ...(zone_type ? { zone_type } : {}) }))
