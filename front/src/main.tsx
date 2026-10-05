@@ -8,7 +8,15 @@ import './styles.css'
 const root = createRoot(document.getElementById('root')!)
 
 bootstrapSession()
-  .then(() => root.render(<StrictMode><ToastProvider><App /></ToastProvider></StrictMode>))
+  .then(() =>
+    root.render(
+      <StrictMode>
+        <ToastProvider>
+          <App />
+        </ToastProvider>
+      </StrictMode>,
+    ),
+  )
   .catch((error: Error) =>
     root.render(
       <div className="empty" role="alert">

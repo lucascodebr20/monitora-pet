@@ -4,7 +4,7 @@ import hashlib
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-from app.core.config import MODEL_PATH, PET_EMBEDDING_MODEL_PATH, ensure_data_directories
+from app.core.config import APP_VERSION, MODEL_PATH, PET_EMBEDDING_MODEL_PATH, ensure_data_directories
 
 
 MODEL_URL = "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_tiny.onnx"
@@ -28,7 +28,7 @@ def ensure_download(path: Path, url: str, sha256: str) -> Path:
     if path.exists() and file_hash(path) == sha256:
         return path
     temporary = path.with_suffix(".download")
-    request = Request(url, headers={"User-Agent": "VigiaPet"})
+    request = Request(url, headers={"User-Agent": f"VigiaPet/{APP_VERSION}"})
     try:
         with urlopen(request, timeout=60) as response, temporary.open("wb") as target:
             while chunk := response.read(1024 * 1024):
@@ -49,11 +49,6 @@ def ensure_models() -> tuple[Path, Path]:
         PET_EMBEDDING_MODEL_PATH, PET_EMBEDDING_MODEL_URL, PET_EMBEDDING_MODEL_SHA256
     )
     return detector, embedding
-
-
-def ensure_model() -> Path:
-    """Backward-compatible entry point used by detector setup and tests."""
-    return ensure_models()[0]
 
 
 if __name__ == "__main__":

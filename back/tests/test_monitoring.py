@@ -6,12 +6,14 @@ from unittest.mock import patch
 import numpy as np
 
 from app.domain.detection import Detection
+from app.domain.zone_matching import assign_detections, detection_in_zone
 from app.infra.database.database import Database
 from app.infra.ai.pet_identifier import PetAnalysis, PetMatch
 from app.infra.repositories.camera_repository import CameraRepository
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.zone_repository import ZoneRepository
-from app.services.monitoring_service import MAX_CLIP_FRAMES, MAX_CLIP_SECONDS, MonitoringService
+from app.services.monitoring import MAX_CLIP_FRAMES, MAX_CLIP_SECONDS, MonitoringService
+from app.services.monitoring import clips as clips_module
 
 
 class FakeCameraManager:
@@ -23,6 +25,29 @@ class FakeCameraManager:
 
     def connected_ids(self):
         return ["camera"]
+
+
+class TogglingCameraManager(FakeCameraManager):
+    def __init__(self):
+        self.online = True
+
+    def latest_frame(self, camera_id):
+        return super().latest_frame(camera_id) if self.online else None
+
+    def connected_ids(self):
+        return ["camera"] if self.online else []
+
+
+class HeavyClipStore:
+    def __init__(self):
+        self.saved = []
+
+    def encode(self, frame):
+        return b"x" * 1000
+
+    def save(self, frames, captured_at, fps):
+        self.saved.append((list(frames), captured_at, fps))
+        return "clips/heavy.webm"
 
 
 class FakeDetector:
@@ -153,7 +178,7 @@ class MonitoringTests(unittest.TestCase):
                 FakeDetector(),
             )
 
-            with patch("app.services.monitoring_service.time.monotonic", side_effect=[10, 10, 12, 12]):
+            with patch("app.services.monitoring.tracking.time.monotonic", side_effect=[10, 10, 12, 12]):
                 service._process_camera(first_camera["id"])
                 service._process_camera(second_camera["id"])
                 service._process_camera(first_camera["id"])
@@ -161,7 +186,7 @@ class MonitoringTests(unittest.TestCase):
 
             self.assertEqual(len(event_repository.list(camera_id=first_camera["id"])), 1)
             self.assertEqual(len(event_repository.list(camera_id=second_camera["id"])), 1)
-            self.assertEqual(set(service._runtimes), {first_camera["id"], second_camera["id"]})
+            self.assertEqual(set(service.tracker.runtimes), {first_camera["id"], second_camera["id"]})
 
     def test_assigns_automatically_identified_cat_to_new_event(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -234,7 +259,7 @@ class MonitoringTests(unittest.TestCase):
         zone = [(0.2, 0.2), (0.5, 0.2), (0.5, 0.5), (0.2, 0.5)]
         detection = Detection(0.49, 0.3, 0.8, 0.6, 0.9)
 
-        self.assertFalse(MonitoringService._detection_in_zone(detection, zone))
+        self.assertFalse(detection_in_zone(detection, zone))
 
     def test_assigns_detection_only_to_best_matching_zone(self):
         polygons = {
@@ -243,7 +268,7 @@ class MonitoringTests(unittest.TestCase):
         }
         detection = Detection(0.4, 0.2, 0.78, 0.6, 0.9)
 
-        assigned = MonitoringService._assign_detections(polygons, [detection])
+        assigned = assign_detections(polygons, [detection])
 
         self.assertEqual(assigned["food"], [])
         self.assertEqual(assigned["water"], [detection])
@@ -285,7 +310,7 @@ class MonitoringTests(unittest.TestCase):
                 detector,
             )
 
-            with patch("app.services.monitoring_service.time.monotonic", side_effect=[10, 16, 17, 20, 22, 26]):
+            with patch("app.services.monitoring.tracking.time.monotonic", side_effect=[10, 16, 17, 20, 22, 26]):
                 service._process_camera(camera["id"])
                 service._process_camera(camera["id"])
                 detector.detection = Detection(0.4, 0.2, 0.78, 0.6, 0.9)
@@ -328,7 +353,7 @@ class MonitoringTests(unittest.TestCase):
             )
 
             with patch(
-                "app.services.monitoring_service.time.monotonic",
+                "app.services.monitoring.tracking.time.monotonic",
                 side_effect=[10, 11, 13, 18],
             ):
                 service._process_camera(camera["id"])
@@ -342,6 +367,61 @@ class MonitoringTests(unittest.TestCase):
             self.assertEqual(event["clip_path"], "clips/test.webm")
             self.assertEqual(len(clip_store.saved[0][0]), 2)
             self.assertEqual(len(event_repository.list(pending_review=True)), 1)
+
+
+class OfflineCameraAndMemoryTests(unittest.TestCase):
+    def _setup(self, directory, clip_store, manager):
+        database = Database(Path(directory) / "monitoring.sqlite3")
+        database.migrate()
+        camera_repository = CameraRepository(database)
+        zone_repository = ZoneRepository(database)
+        event_repository = EventRepository(database)
+        camera = camera_repository.create({"name": "Sala", "ip": "192.168.1.10"})
+        zone_repository.create({
+            "camera_id": camera["id"],
+            "name": "Comida",
+            "type": "FOOD",
+            "polygon": ((0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)),
+            "minimum_presence_seconds": 0,
+            "absence_tolerance_seconds": 1,
+            "cooldown_seconds": 5,
+        })
+        service = MonitoringService(manager, zone_repository, event_repository, FakeSnapshotStore(), clip_store, FakeDetector())
+        return camera, event_repository, service
+
+    def test_open_event_finishes_when_camera_goes_offline(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manager = TogglingCameraManager()
+            camera, event_repository, service = self._setup(directory, FakeClipStore(), manager)
+            with patch("app.services.monitoring.tracking.time.monotonic", side_effect=[10, 11, 13, 18]):
+                service._process_camera(camera["id"])
+                service._process_camera(camera["id"])
+                self.assertIsNone(event_repository.list(camera_id=camera["id"])[0]["ended_at"])
+                manager.online = False
+                service._process_camera(camera["id"])
+                service._process_camera(camera["id"])
+
+            event = event_repository.list(camera_id=camera["id"])[0]
+            self.assertIsNotNone(event["ended_at"])
+            self.assertEqual(event["end_reason"], "CAT_LEFT_ZONE")
+            self.assertEqual(service.feedback(camera["id"])["status"], "stopped")
+            self.assertNotIn(camera["id"], service.tracker.runtimes)
+
+    def test_clip_buffer_is_capped_by_closing_the_heaviest_clip_early(self):
+        with tempfile.TemporaryDirectory() as directory:
+            clip_store = HeavyClipStore()
+            camera, event_repository, service = self._setup(directory, clip_store, FakeCameraManager())
+            with patch.object(clips_module, "MAX_CLIP_BUFFER_BYTES", 2500), patch(
+                "app.services.monitoring.tracking.time.monotonic", side_effect=[10, 11, 12, 13]
+            ):
+                for _ in range(4):
+                    service._process_camera(camera["id"])
+
+            event = event_repository.list(camera_id=camera["id"])[0]
+            self.assertEqual(event["clip_path"], "clips/heavy.webm")
+            self.assertEqual(len(clip_store.saved), 1)
+            self.assertEqual(len(clip_store.saved[0][0]), 2)
+            self.assertLessEqual(service.tracker.clip_bytes(), 2500)
 
 
 if __name__ == "__main__":

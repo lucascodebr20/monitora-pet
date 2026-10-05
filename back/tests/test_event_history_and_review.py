@@ -4,15 +4,16 @@ from pathlib import Path
 
 from app.domain.enums import ReviewDecision, ZoneType
 from app.domain.errors import InvalidDomainValueError
-from app.infra.database.database import Database, local_today, utc_now
+from app.domain.clock import local_today, utc_now
+from app.infra.database.database import Database
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.pet_repository import PetRepository
 from app.infra.repositories.pet_identification_repository import PetIdentificationRepository
 from app.infra.ai.pet_identifier import PetIdentifier
 from app.services.commands import ReviewEventCommand
-from app.services.event_service import EventService
-from app.infra.media.clip_store import ClipStore
-from app.infra.media.snapshot_store import SnapshotStore
+from app.infra.ai.identification_calibration import IdentificationCalibrator
+from app.services.event_query_service import EventQueryService
+from app.services.event_review_service import EventReviewService
 
 
 class EventHistoryAndReviewTests(unittest.TestCase):
@@ -39,7 +40,8 @@ class EventHistoryAndReviewTests(unittest.TestCase):
         self.events = EventRepository(self.database)
         self.pets = PetRepository(self.database)
         self.pet = self.pets.create("Mingau", "CAT", "", "pets/profiles/mingau.jpg")
-        self.service = EventService(self.events, SnapshotStore(), ClipStore(), self.pets, None)
+        self.service = EventReviewService(self.events, self.pets, None)
+        self.queries = EventQueryService(self.events)
 
     def tearDown(self):
         self.temp_dir.cleanup()
@@ -70,9 +72,9 @@ class EventHistoryAndReviewTests(unittest.TestCase):
         for index in range(3):
             self.create_event(f"food-{index}", "food-zone")
 
-        first = self.service.search(1, 10, zone_type=ZoneType.WATER)
-        second = self.service.search(2, 10, zone_type=ZoneType.WATER)
-        third = self.service.search(3, 10, zone_type=ZoneType.WATER)
+        first = self.queries.search(1, 10, zone_type=ZoneType.WATER)
+        second = self.queries.search(2, 10, zone_type=ZoneType.WATER)
+        third = self.queries.search(3, 10, zone_type=ZoneType.WATER)
 
         self.assertEqual(first["total"], 23)
         self.assertEqual([len(first["events"]), len(second["events"]), len(third["events"])], [10, 10, 3])
@@ -145,8 +147,7 @@ class EventHistoryAndReviewTests(unittest.TestCase):
 
     def test_tenth_review_persists_new_identification_calibration(self):
         identifications = PetIdentificationRepository(self.database)
-        identifier = PetIdentifier(self.pets, None, identifications)
-        service = EventService(self.events, SnapshotStore(), ClipStore(), self.pets, None, identifier)
+        service = EventReviewService(self.events, self.pets, IdentificationCalibrator(identifications))
         for index in range(10):
             event_id = f"learning-{index}"
             self.create_event(event_id)

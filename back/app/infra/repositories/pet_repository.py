@@ -3,7 +3,10 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
-from app.infra.database.database import Database, utc_now
+from app.domain.clock import utc_now
+from app.infra.database.database import Database
+
+PET_COLUMNS = "id, name, species, description, photo_path, created_at, updated_at"
 
 
 class PetRepository:
@@ -12,7 +15,7 @@ class PetRepository:
 
     def list(self) -> list[dict[str, Any]]:
         return self.database.all(
-            """SELECT p.*, COUNT(DISTINCT e.id) AS event_count,
+            f"""SELECT p.{", p.".join(PET_COLUMNS.split(", "))}, COUNT(DISTINCT e.id) AS event_count,
                       COUNT(DISTINCT r.id) AS reference_count
                FROM pets p
                LEFT JOIN events e ON e.pet_id = p.id
@@ -21,11 +24,11 @@ class PetRepository:
         )
 
     def get(self, pet_id: str) -> dict[str, Any] | None:
-        return self.database.one("SELECT * FROM pets WHERE id = ?", (pet_id,))
+        return self.database.one(f"SELECT {PET_COLUMNS} FROM pets WHERE id = ?", (pet_id,))
 
     def list_by_species(self, species: str) -> list[dict[str, Any]]:
         return self.database.all(
-            "SELECT * FROM pets WHERE species = ? ORDER BY name COLLATE NOCASE",
+            f"SELECT {PET_COLUMNS} FROM pets WHERE species = ? ORDER BY name COLLATE NOCASE",
             (species,),
         )
 
