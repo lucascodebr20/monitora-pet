@@ -28,6 +28,8 @@ logger = logging.getLogger(__name__)
 CLIP_FPS = 3.0
 MAX_CLIP_SECONDS = 300
 MAX_CLIP_FRAMES = round(CLIP_FPS * MAX_CLIP_SECONDS)
+# Teto global de memória para quadros de clipe em andamento, somando todas as áreas.
+MAX_CLIP_BUFFER_BYTES = 150 * 1024 * 1024
 
 
 @dataclass
@@ -114,14 +116,20 @@ class MonitoringService:
 
     def _run(self) -> None:
         while not self._stop.wait(0.35):
-            for camera_id in self.camera_manager.connected_ids():
+            # Câmeras com estado de presença em memória continuam sendo avaliadas mesmo
+            # desconectadas, para que eventos abertos terminem pela tolerância de ausência.
+            camera_ids = list(dict.fromkeys([*self.camera_manager.connected_ids(), *self._runtimes]))
+            for camera_id in camera_ids:
                 if self._stop.is_set():
                     return
                 self._process_camera(camera_id)
 
     def _process_camera(self, camera_id: str) -> None:
+        if self.detector is None:
+            return
         frame = self.camera_manager.latest_frame(camera_id)
-        if frame is None or self.detector is None:
+        if frame is None:
+            self._process_offline_camera(camera_id)
             return
         try:
             detections = self.detector.detect(frame)
@@ -151,6 +159,31 @@ class MonitoringService:
                     "zones": [],
                     "error": str(error),
                 }
+
+    def _process_offline_camera(self, camera_id: str) -> None:
+        """Câmera sem imagem: as áreas recebem "ausente" para que um evento aberto termine pela
+        tolerância de ausência em vez de ficar preso até o app reiniciar."""
+        camera_runtimes = self._runtimes.get(camera_id)
+        if not camera_runtimes:
+            return
+        try:
+            zones = self.zone_repository.list(camera_id)
+            feedback_zones = self._process_zones(camera_id, None, zones, [])
+        except Exception:
+            logger.exception("Falha ao encerrar áreas da câmera desconectada %s", camera_id)
+            return
+        with self._feedback_lock:
+            self._feedback[camera_id] = {
+                "camera_id": camera_id,
+                "status": "stopped",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "detections": [],
+                "zones": feedback_zones,
+                "error": None,
+            }
+        if all(runtime.machine.state == PresenceState.OUTSIDE and runtime.event_id is None
+               for runtime in camera_runtimes.values()):
+            self._runtimes.pop(camera_id, None)
 
     def _process_zones(
         self,
@@ -184,7 +217,7 @@ class MonitoringService:
             if inside_detections and runtime.clip_path is None and clip_elapsed <= MAX_CLIP_SECONDS and len(runtime.clip_frames) < MAX_CLIP_FRAMES:
                 encoded_frame = self.clip_store.encode(frame)
                 if encoded_frame:
-                    runtime.clip_frames.append(encoded_frame)
+                    self._buffer_clip_frame(runtime, encoded_frame, now_utc)
             if inside_detections and self.pet_image_store:
                 primary = max(inside_detections, key=lambda item: item.confidence)
                 crop = self.pet_image_store.extract_capture(frame, primary)
@@ -268,6 +301,37 @@ class MonitoringService:
                 "event_id": runtime.event_id,
             })
         return feedback
+
+    def _buffer_clip_frame(self, runtime: ZoneRuntime, encoded_frame: bytes, now_utc: datetime) -> None:
+        if self._clip_buffer_bytes() + len(encoded_frame) > MAX_CLIP_BUFFER_BYTES:
+            self._relieve_clip_buffer(now_utc)
+            if self._clip_buffer_bytes() + len(encoded_frame) > MAX_CLIP_BUFFER_BYTES:
+                return  # sem espaço: o quadro é descartado e o evento segue sem ele
+        runtime.clip_frames.append(encoded_frame)
+
+    def _clip_buffer_bytes(self) -> int:
+        return sum(
+            len(frame)
+            for camera_runtimes in self._runtimes.values()
+            for runtime in camera_runtimes.values()
+            for frame in runtime.clip_frames
+        )
+
+    def _relieve_clip_buffer(self, now_utc: datetime) -> None:
+        """Libera memória fechando mais cedo o clipe mais pesado em andamento, ou descartando o
+        buffer mais pesado de uma área ainda sem evento confirmado."""
+        heaviest = max(
+            (runtime for camera_runtimes in self._runtimes.values() for runtime in camera_runtimes.values()
+             if runtime.clip_frames),
+            key=lambda runtime: sum(len(frame) for frame in runtime.clip_frames),
+            default=None,
+        )
+        if heaviest is None:
+            return
+        if heaviest.event_id and not heaviest.clip_path:
+            logger.warning("Limite de memória de clipes atingido; vídeo do evento %s encerrado mais cedo", heaviest.event_id)
+            self._finalize_clip(heaviest, now_utc)
+        heaviest.clip_frames.clear()
 
     def _finalize_clip(self, runtime: ZoneRuntime, captured_at: datetime) -> None:
         if not runtime.event_id or runtime.clip_path or len(runtime.clip_frames) < 2:
