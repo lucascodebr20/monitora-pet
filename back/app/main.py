@@ -6,6 +6,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import APP_NAME, APP_VERSION, FRONTEND_DIST, ensure_data_directories
 from app.core.container import camera_manager, database, monitoring_service
+from app.core.security import install_access_control
+from app.controllers.auth_controller import router as auth_router
 from app.controllers.camera_controller import router as camera_router
 from app.controllers.event_controller import router as event_router
 from app.controllers.health_controller import router as health_router
@@ -37,9 +39,14 @@ app = FastAPI(
     title=APP_NAME,
     version=APP_VERSION,
     docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
     redoc_url=None,
     lifespan=lifespan,
 )
+
+# Host local obrigatório (bloqueia DNS rebinding) e sessão exigida em todo /api/* quando
+# MONITORAPET_API_TOKEN está definido. Só /api/session fica público, por ser a porta de entrada.
+install_access_control(app)
 
 
 @app.exception_handler(EntityNotFoundError)
@@ -65,6 +72,7 @@ async def operation_failed(_: Request, error: OperationFailedError) -> JSONRespo
 if (FRONTEND_DIST / "assets").exists():
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
 
+app.include_router(auth_router)
 app.include_router(health_router)
 app.include_router(identification_router)
 app.include_router(camera_router)

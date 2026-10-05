@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import ipaddress
 import os
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+from urllib.error import URLError
+from urllib.parse import urlsplit
 from urllib.request import (
     HTTPBasicAuthHandler,
     HTTPDigestAuthHandler,
@@ -57,6 +60,8 @@ def _call(
     content_type = "application/soap+xml; charset=utf-8"
     if action:
         content_type += f'; action="{action}"'
+    if urlsplit(url).scheme.lower() not in ("http", "https"):
+        raise URLError(f"Endereço ONVIF não suportado: {url!r}")
     request = Request(url, data=payload, headers={"Content-Type": content_type}, method="POST")
     password_manager = HTTPPasswordMgrWithDefaultRealm()
     password_manager.add_password(None, url, username, password)
@@ -93,6 +98,25 @@ def device_information(
         return {}
 
 
+def _same_device_url(
+    candidate: str | None, ip: str, default: str, schemes: tuple[str, ...] = ("http", "https")
+) -> str:
+    """Aceita o endereço anunciado pela câmera apenas se ele usar um dos esquemas esperados e
+    apontar para o próprio IP cadastrado. Um dispositivo malicioso não consegue redirecionar o
+    servidor (nem as credenciais do usuário) para outro host, esquema ou arquivo local."""
+    if not candidate:
+        return default
+    parts = urlsplit(candidate.strip())
+    if parts.scheme.lower() not in schemes or not parts.hostname:
+        return default
+    try:
+        if ipaddress.ip_address(parts.hostname) != ipaddress.ip_address(ip):
+            return default
+    except ValueError:
+        return default
+    return candidate.strip()
+
+
 def stream_urls(
     ip: str, port: int = 8899, username: str = "", password: str = ""
 ) -> list[str]:
@@ -104,7 +128,7 @@ def stream_urls(
             username=username,
             password=password,
         )
-        media_url = _text(capabilities, "XAddr") or f"http://{ip}:{port}/onvif/Media"
+        media_url = _same_device_url(_text(capabilities, "XAddr"), ip, f"http://{ip}:{port}/onvif/Media")
         profiles = _call(
             media_url,
             '<trt:GetProfiles xmlns:trt="http://www.onvif.org/ver10/media/wsdl"/>',
@@ -128,7 +152,7 @@ def stream_urls(
                 username=username,
                 password=password,
             )
-            uri = _text(response, "Uri")
+            uri = _same_device_url(_text(response, "Uri"), ip, "", ("rtsp", "rtsps"))
             if uri and uri not in urls:
                 urls.append(uri)
         return urls
