@@ -4,7 +4,13 @@ import json
 from typing import Any
 from uuid import uuid4
 
-from app.infra.database.database import Database, utc_now
+from app.domain.clock import utc_now
+from app.infra.database.database import Database
+
+ZONE_COLUMNS = (
+    "id, camera_id, name, type, polygon, minimum_presence_seconds, absence_tolerance_seconds, "
+    "cooldown_seconds, enabled, created_at, updated_at"
+)
 
 
 class ZoneRepository:
@@ -29,13 +35,13 @@ class ZoneRepository:
         return self.get(zone_id) or {}
 
     def get(self, zone_id: str) -> dict[str, Any] | None:
-        zone = self.database.one("SELECT * FROM zones WHERE id = ?", (zone_id,))
+        zone = self.database.one(f"SELECT {ZONE_COLUMNS} FROM zones WHERE id = ?", (zone_id,))
         if zone:
             zone["polygon"] = self._deserialize_polygon(zone["polygon"])
         return zone
 
     def list(self, camera_id: str | None = None) -> list[dict[str, Any]]:
-        sql = "SELECT * FROM zones"
+        sql = f"SELECT {ZONE_COLUMNS} FROM zones"
         parameters: tuple[Any, ...] = ()
         if camera_id:
             sql += " WHERE camera_id = ?"
