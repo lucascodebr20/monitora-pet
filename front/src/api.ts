@@ -1,3 +1,5 @@
+import { reauthenticate } from './session'
+
 export type ConnectionStatus = {
   connected: boolean
   message: string
@@ -179,8 +181,9 @@ type CameraPayload = {
   rtsp_url: string | null
 }
 
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
+async function request<T>(url: string, options?: RequestInit, retried = false): Promise<T> {
   const response = await fetch(url, options)
+  if (response.status === 401 && !retried && (await reauthenticate())) return request<T>(url, options, true)
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(data.detail ?? 'Não foi possível concluir a operação.')
   return data as T
