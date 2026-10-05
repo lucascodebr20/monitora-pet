@@ -4,7 +4,8 @@ from pathlib import Path
 
 from app.domain.enums import ReviewDecision, ZoneType
 from app.domain.errors import InvalidDomainValueError
-from app.infra.database.database import Database, local_today, utc_now
+from app.domain.clock import local_today, utc_now
+from app.infra.database.database import Database
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.pet_repository import PetRepository
 from app.infra.repositories.pet_identification_repository import PetIdentificationRepository

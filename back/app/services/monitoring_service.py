@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from dataclasses import dataclass, field
@@ -10,7 +11,7 @@ import numpy as np
 
 from app.domain.detection import Detection
 from app.domain.enums import PetSpecies
-from app.domain.geometry import point_in_polygon, polygon_rectangle_overlap_ratio
+from app.domain.zone_matching import assign_detections
 from app.domain.zone_presence import PresenceState, TransitionType, ZonePresenceMachine
 from app.infra.ai.yolox_detector import YoloXDetector
 from app.infra.ai.pet_identifier import PetIdentifier
@@ -22,7 +23,8 @@ from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.zone_repository import ZoneRepository
 
 
-MINIMUM_ZONE_OVERLAP = 0.2
+logger = logging.getLogger(__name__)
+
 CLIP_FPS = 3.0
 MAX_CLIP_SECONDS = 300
 MAX_CLIP_FRAMES = round(CLIP_FPS * MAX_CLIP_SECONDS)
@@ -137,6 +139,8 @@ class MonitoringService:
             with self._feedback_lock:
                 self._feedback[camera_id] = feedback
         except Exception as error:
+            if str(error) != self._last_error:
+                logger.exception("Falha no ciclo de inferência da câmera %s", camera_id)
             self._last_error = str(error)
             with self._feedback_lock:
                 self._feedback[camera_id] = {
@@ -164,7 +168,7 @@ class MonitoringService:
             zone["id"]: [(float(point["x"]), float(point["y"])) for point in zone["polygon"]]
             for zone in zones
         }
-        detections_by_zone = self._assign_detections(polygons, detections)
+        detections_by_zone = assign_detections(polygons, detections)
         for zone_id in list(camera_runtimes):
             if zone_id not in active_zone_ids and camera_runtimes[zone_id].event_id is None:
                 camera_runtimes.pop(zone_id, None)
@@ -273,35 +277,3 @@ class MonitoringService:
             self.event_repository.attach_clip(runtime.event_id, clip_path)
             runtime.clip_path = clip_path
             runtime.clip_frames.clear()
-
-    @staticmethod
-    def _detection_in_zone(detection: Detection, polygon: list[tuple[float, float]]) -> bool:
-        return MonitoringService._detection_zone_score(detection, polygon) >= MINIMUM_ZONE_OVERLAP
-
-    @staticmethod
-    def _detection_zone_score(detection: Detection, polygon: list[tuple[float, float]]) -> float:
-        rectangle = detection.x1, detection.y1, detection.x2, detection.y2
-        overlap = polygon_rectangle_overlap_ratio(polygon, rectangle)
-        if point_in_polygon(detection.centroid, polygon):
-            return max(1.0, overlap)
-        return overlap
-
-    @staticmethod
-    def _assign_detections(
-        polygons: dict[str, list[tuple[float, float]]],
-        detections: list[Detection],
-    ) -> dict[str, list[Detection]]:
-        assigned = {zone_id: [] for zone_id in polygons}
-        for detection in detections:
-            candidates: list[tuple[float, float, str]] = []
-            for zone_id, polygon in polygons.items():
-                score = MonitoringService._detection_zone_score(detection, polygon)
-                if score < MINIMUM_ZONE_OVERLAP:
-                    continue
-                center_x = sum(point[0] for point in polygon) / len(polygon)
-                center_y = sum(point[1] for point in polygon) / len(polygon)
-                distance = (detection.centroid[0] - center_x) ** 2 + (detection.centroid[1] - center_y) ** 2
-                candidates.append((score, -distance, zone_id))
-            if candidates:
-                assigned[max(candidates)[2]].append(detection)
-        return assigned

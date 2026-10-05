@@ -53,9 +53,6 @@ class PetIdentifier:
             if PET_EMBEDDING_MODEL_PATH.is_file() else None
         )
 
-    def identify(self, capture_path: str | None, species: str) -> PetMatch | None:
-        return self.analyze(capture_path, species).match
-
     def analyze(self, capture_path: str | None, species: str) -> PetAnalysis:
         if not capture_path:
             return self._empty_analysis("UNSUPPORTED", species)

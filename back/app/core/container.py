@@ -1,3 +1,5 @@
+import logging
+
 from app.core.config import DATABASE_PATH, MODEL_PATH
 from app.infra.ai.yolox_detector import YoloXDetector
 from app.infra.ai.pet_identifier import PetIdentifier
@@ -15,6 +17,7 @@ from app.infra.media.snapshot_store import SnapshotStore
 from app.services.camera_service import CameraService
 from app.services.event_service import EventService
 from app.services.health_service import HealthService
+from app.services.identification_service import IdentificationService
 from app.services.notice_service import NoticeService
 from app.services.pet_service import PetService
 from app.services.monitoring_service import MonitoringService
@@ -39,6 +42,7 @@ camera_service = CameraService(camera_repository, camera_manager)
 zone_service = ZoneService(zone_repository, camera_service)
 pet_service = PetService(pet_repository, pet_image_store)
 event_service = EventService(event_repository, snapshot_store, clip_store, pet_repository, pet_image_store, pet_identifier)
+logger = logging.getLogger(__name__)
 model_error = None
 detector = None
 if MODEL_PATH.exists():
@@ -46,8 +50,10 @@ if MODEL_PATH.exists():
         detector = YoloXDetector(MODEL_PATH)
     except Exception as error:
         model_error = str(error)
+        logger.exception("Falha ao carregar o modelo YOLOX em %s", MODEL_PATH)
 else:
     model_error = "Modelo YOLOX-Tiny não encontrado."
+    logger.warning("Modelo YOLOX-Tiny não encontrado em %s; a inferência ficará desativada", MODEL_PATH)
 monitoring_service = MonitoringService(
     camera_manager,
     zone_repository,
@@ -61,3 +67,4 @@ monitoring_service = MonitoringService(
 )
 health_service = HealthService(camera_service, event_service, event_repository, monitoring_service)
 notice_service = NoticeService(notice_repository)
+identification_service = IdentificationService(pet_identifier)

@@ -4,7 +4,7 @@ import ipaddress
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.infra.camera.stream import split_url_credentials
+from app.domain.urls import split_url_credentials
 from app.services.commands import CameraCredentialsCommand, CreateCameraCommand
 
 

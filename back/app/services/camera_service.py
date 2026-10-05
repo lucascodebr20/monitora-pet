@@ -1,16 +1,19 @@
 from __future__ import annotations
 
-import sqlite3
+import logging
 from dataclasses import asdict
 from typing import Any, Iterator
 
-from app.domain.errors import EntityConflictError, EntityNotFoundError, OperationFailedError
+from app.domain.errors import EntityNotFoundError, InvalidDomainValueError, OperationFailedError
 from app.infra.camera.discovery import discover_all, fallback_scan
 from app.infra.camera.manager import CameraManager
 from app.infra.camera.onvif import device_information, stream_urls
-from app.infra.camera.stream import CameraConnectionError, authenticate_urls, candidate_urls, split_url_credentials
+from app.domain.urls import split_url_credentials
+from app.infra.camera.stream import CameraConnectionError, authenticate_urls, candidate_urls
 from app.infra.repositories.camera_repository import CameraRepository
 from app.services.commands import CameraCredentialsCommand, CreateCameraCommand
+
+logger = logging.getLogger(__name__)
 
 
 class CameraService:
@@ -27,22 +30,26 @@ class CameraService:
         return [self._view(camera) for camera in self.repository.list()]
 
     def create(self, request: CreateCameraCommand) -> dict[str, Any]:
+        credentials = CameraCredentialsCommand(
+            username=request.username, password=request.password, rtsp_url=request.rtsp_url
+        )
+        draft = {"ip": request.ip, "onvif_port": request.onvif_port, "rtsp_url": request.rtsp_url}
+        try:
+            urls = self._connection_urls(draft, credentials)  # valida a URL antes de gravar qualquer coisa
+        except ValueError as exc:
+            raise InvalidDomainValueError(str(exc)) from exc
         identity = device_information(request.ip, request.onvif_port, request.username, request.password)
         values = asdict(request)
         values.pop("username")
         values.pop("password")
         values.update(identity)
+        camera = self.repository.create(values)
         try:
-            camera = self.repository.create(values)
-        except sqlite3.IntegrityError as exc:
-            raise EntityConflictError("Já existe uma câmera cadastrada com esse IP.") from exc
-        credentials = CameraCredentialsCommand(
-            username=request.username, password=request.password, rtsp_url=request.rtsp_url
-        )
-        try:
-            self.manager.connect(camera["id"], self._connection_urls(camera, credentials))
-        except (CameraConnectionError, ValueError):
-            pass
+            self.manager.connect(camera["id"], urls)
+            logger.info("Câmera %s (%s) cadastrada e conectada", camera["id"], request.ip)
+        except CameraConnectionError as exc:
+            # A câmera fica cadastrada; o motivo aparece em status.message para o usuário agir.
+            logger.warning("Câmera %s (%s) cadastrada sem conexão: %s", camera["id"], request.ip, exc)
         return self._view(camera)
 
     def connect(self, camera_id: str, credentials: CameraCredentialsCommand) -> dict[str, Any]:
