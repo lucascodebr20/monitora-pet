@@ -1,0 +1,57 @@
+/**
+ * Abertura de sessão com o backend local.
+ *
+ * Quem inicia o app (Tauri ou start.bat) gera um token e o entrega de uma destas formas:
+ *   - `window.__MONITORAPET_TOKEN__` (script de inicialização da WebView), ou
+ *   - query `?token=` na URL inicial (removida da barra de endereço logo em seguida).
+ *
+ * O token vira um cookie HttpOnly via `POST /api/session`, o que permite que `<img>` e
+ * `<video>` carreguem vídeo e mídia sem cabeçalhos extras.
+ */
+
+declare global {
+  interface Window {
+    __MONITORAPET_TOKEN__?: string
+  }
+}
+
+type SessionStatus = { required: boolean; authenticated: boolean }
+
+let launcherToken: string | null = null
+
+function readLauncherToken(): string | null {
+  if (window.__MONITORAPET_TOKEN__) return window.__MONITORAPET_TOKEN__
+  const params = new URLSearchParams(window.location.search)
+  const token = params.get('token')
+  if (token) {
+    params.delete('token')
+    const query = params.toString()
+    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`)
+  }
+  return token
+}
+
+async function openSession(token: string): Promise<boolean> {
+  const response = await fetch('/api/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  })
+  return response.ok
+}
+
+/** Tenta reabrir a sessão com o token recebido do iniciador. Retorna false se não houver token ou ele for recusado. */
+export async function reauthenticate(): Promise<boolean> {
+  if (!launcherToken) return false
+  return openSession(launcherToken)
+}
+
+export async function bootstrapSession(): Promise<void> {
+  launcherToken = readLauncherToken()
+  const response = await fetch('/api/session')
+  if (!response.ok) throw new Error('Não foi possível falar com o serviço do MonitoraPet.')
+  const status = (await response.json()) as SessionStatus
+  if (!status.required || status.authenticated) return
+  if (!launcherToken) throw new Error('Esta janela não recebeu a chave de sessão. Abra o MonitoraPet pelo aplicativo.')
+  if (!(await openSession(launcherToken))) throw new Error('A chave de sessão foi recusada. Feche e abra o MonitoraPet novamente.')
+}
