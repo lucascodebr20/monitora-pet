@@ -1,10 +1,3 @@
-"""Atribuição de detecções às áreas monitoradas.
-
-Uma detecção pertence a uma área quando o retângulo cobre ao menos ``MINIMUM_ZONE_OVERLAP``
-do polígono ou quando o centro da detecção cai dentro dele. Se várias áreas disputam a mesma
-detecção, vence a de maior cobertura e, em empate, a mais próxima do centro.
-"""
-
 from __future__ import annotations
 
 from app.domain.detection import Detection

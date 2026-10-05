@@ -1,24 +1,3 @@
-"""Controle de acesso local da API.
-
-Dois mecanismos complementares, instalados por ``install_access_control``:
-
-* ``TrustedHostMiddleware`` rejeita requisições cujo cabeçalho ``Host`` não seja local. Isso
-  bloqueia DNS rebinding, em que uma página maliciosa aponta o próprio domínio para 127.0.0.1
-  e passa a conversar com a API.
-* Guarda de sessão por caminho (``VIGIAPET_API_TOKEN``). Quando definido, qualquer
-  requisição a ``/api/*`` (inclusive docs, OpenAPI e rotas criadas no futuro) exige o token via
-  ``Authorization: Bearer`` ou via cookie HttpOnly criado por ``POST /api/session``. O cookie é
-  necessário para que ``<img>`` e ``<video>`` consigam carregar vídeo e mídia.
-
-Quem inicia o backend (Tauri, ``start.bat``, lançador desktop) gera o token, exporta a variável
-de ambiente e o entrega ao frontend pela query ``?token=`` ou por ``window.__VIGIAPET_TOKEN__``.
-Sem a variável, a API fica aberta apenas para o host local, o que atende o desenvolvimento.
-
-Força bruta: falhas de autenticação são contadas por origem (IP) em ``LIMITER``. Ao passar do
-limite, toda chamada a ``/api/*`` daquela origem recebe 429 com ``Retry-After`` até o bloqueio
-expirar, e cada novo bloqueio dura o dobro do anterior.
-"""
-
 from __future__ import annotations
 
 import math
@@ -77,8 +56,6 @@ def is_protected_path(path: str) -> bool:
 
 
 def authorized(request: Request) -> bool:
-    """True quando a requisição pode seguir: sem token configurado, caminho público,
-    ou token válido por cabeçalho/cookie."""
     if API_TOKEN is None or not is_protected_path(request.url.path):
         return True
     return is_valid_token(token_from_request(request))
