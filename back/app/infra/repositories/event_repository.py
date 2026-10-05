@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
-from app.infra.database.database import Database, utc_now
+from app.infra.database.database import Database, utc_bounds_for_local_date, utc_now
 
 
 class EventRepository:
@@ -27,8 +27,9 @@ class EventRepository:
             filters.append("e.zone_id = ?")
             parameters.append(zone_id)
         if date:
-            filters.append("substr(e.started_at, 1, 10) = ?")
-            parameters.append(date)
+            start, end = utc_bounds_for_local_date(date)
+            filters.append("e.started_at >= ? AND e.started_at < ?")
+            parameters.extend((start, end))
         if pending_review:
             filters.append("NOT EXISTS (SELECT 1 FROM human_reviews hr WHERE hr.event_id = e.id)")
             filters.append("e.ended_at IS NOT NULL")
@@ -72,8 +73,9 @@ class EventRepository:
             filters.append("e.zone_id = ?")
             parameters.append(zone_id)
         if date:
-            filters.append("substr(e.started_at, 1, 10) = ?")
-            parameters.append(date)
+            start, end = utc_bounds_for_local_date(date)
+            filters.append("e.started_at >= ? AND e.started_at < ?")
+            parameters.extend((start, end))
         if pending_review:
             filters.extend((
                 "NOT EXISTS (SELECT 1 FROM human_reviews hr WHERE hr.event_id = e.id)",
@@ -201,12 +203,13 @@ class EventRepository:
         )
 
     def count_on_date(self, date: str) -> int:
+        start, end = utc_bounds_for_local_date(date)
         row = self.database.one(
             """SELECT COUNT(*) AS total FROM events e
-               WHERE substr(e.started_at, 1, 10) = ?
+               WHERE e.started_at >= ? AND e.started_at < ?
                AND NOT EXISTS (SELECT 1 FROM human_reviews r
                                WHERE r.event_id = e.id AND r.decision = 'FALSE_POSITIVE')""",
-            (date,),
+            (start, end),
         )
         return int(row["total"]) if row else 0
 
@@ -219,13 +222,14 @@ class EventRepository:
         return int(row["total"]) if row else 0
 
     def count_by_zone_type_on_date(self, date: str) -> dict[str, int]:
+        start, end = utc_bounds_for_local_date(date)
         rows = self.database.all(
             """SELECT COALESCE(e.corrected_zone_type, z.type) AS type, COUNT(e.id) AS total
                FROM zones z LEFT JOIN events e ON e.zone_id = z.id
-                   AND substr(e.started_at, 1, 10) = ?
+                   AND e.started_at >= ? AND e.started_at < ?
                    AND NOT EXISTS (SELECT 1 FROM human_reviews r
                                    WHERE r.event_id = e.id AND r.decision = 'FALSE_POSITIVE')
                GROUP BY COALESCE(e.corrected_zone_type, z.type)""",
-            (date,),
+            (start, end),
         )
         return {row["type"]: int(row["total"]) for row in rows}
