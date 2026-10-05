@@ -5,13 +5,13 @@ Dois mecanismos complementares, instalados por ``install_access_control``:
 * ``TrustedHostMiddleware`` rejeita requisições cujo cabeçalho ``Host`` não seja local. Isso
   bloqueia DNS rebinding, em que uma página maliciosa aponta o próprio domínio para 127.0.0.1
   e passa a conversar com a API.
-* Guarda de sessão por caminho (``MONITORAPET_API_TOKEN``). Quando definido, qualquer
+* Guarda de sessão por caminho (``VIGIAPET_API_TOKEN``). Quando definido, qualquer
   requisição a ``/api/*`` (inclusive docs, OpenAPI e rotas criadas no futuro) exige o token via
   ``Authorization: Bearer`` ou via cookie HttpOnly criado por ``POST /api/session``. O cookie é
   necessário para que ``<img>`` e ``<video>`` consigam carregar vídeo e mídia.
 
 Quem inicia o backend (Tauri, ``start.bat``, lançador desktop) gera o token, exporta a variável
-de ambiente e o entrega ao frontend pela query ``?token=`` ou por ``window.__MONITORAPET_TOKEN__``.
+de ambiente e o entrega ao frontend pela query ``?token=`` ou por ``window.__VIGIAPET_TOKEN__``.
 Sem a variável, a API fica aberta apenas para o host local, o que atende o desenvolvimento.
 """
 
@@ -25,19 +25,19 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-SESSION_COOKIE = "monitorapet_session"
+SESSION_COOKIE = "vigiapet_session"
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "testserver")
 PUBLIC_API_PATHS = frozenset({"/api/session"})
-UNAUTHENTICATED_DETAIL = "Sessão não autenticada. Abra o MonitoraPet pelo aplicativo."
+UNAUTHENTICATED_DETAIL = "Sessão não autenticada. Abra o VigiaPet pelo aplicativo."
 
 
 def _configured_token() -> str | None:
-    value = os.getenv("MONITORAPET_API_TOKEN", "").strip()
+    value = os.getenv("VIGIAPET_API_TOKEN", "").strip()
     return value or None
 
 
 def _configured_hosts() -> list[str]:
-    extra = [host.strip() for host in os.getenv("MONITORAPET_ALLOWED_HOSTS", "").split(",")]
+    extra = [host.strip() for host in os.getenv("VIGIAPET_ALLOWED_HOSTS", "").split(",")]
     return [*LOCAL_HOSTS, *(host for host in extra if host)]
 
 
