@@ -28,8 +28,15 @@ pushd front
 call npm.cmd run build || exit /b 1
 popd
 
+rem Chave de sessao unica por execucao: a API so responde a quem a apresentar.
+for /f "usebackq delims=" %%t in (`powershell -NoProfile -Command "[guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')"`) do set "MONITORAPET_API_TOKEN=%%t"
+if not defined MONITORAPET_API_TOKEN (
+    echo Nao foi possivel gerar a chave de sessao.
+    exit /b 1
+)
+
 echo MonitoraPet disponivel em http://127.0.0.1:8000
-start "" "http://127.0.0.1:8000"
+start "" "http://127.0.0.1:8000/?token=%MONITORAPET_API_TOKEN%"
 "%MONITORAPET_PYTHON%" -m uvicorn app.main:app --app-dir back --host 127.0.0.1 --port 8000
 
 endlocal
