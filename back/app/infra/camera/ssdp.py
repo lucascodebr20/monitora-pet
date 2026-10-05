@@ -45,7 +45,7 @@ def describe(source_ip: str, location: str) -> dict[str, str]:
     if parsed.scheme not in {"http", "https"} or location_ip != source_ip:
         return {}
     try:
-        request = Request(location, headers={"User-Agent": "MonitoraPet/0.2 device discovery"})
+        request = Request(location, headers={"User-Agent": "VigiaPet/0.2 device discovery"})
         with urlopen(request, timeout=1.5) as response:
             root = ET.fromstring(response.read(262_144))
     except (OSError, ValueError, ET.ParseError):

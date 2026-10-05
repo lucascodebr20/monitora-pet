@@ -1,13 +1,13 @@
-"""Ponto de entrada do executável desktop do MonitoraPet.
+"""Ponto de entrada do executável desktop do VigiaPet.
 
 Fluxo ao clicar no ícone:
-  1. define a pasta de dados do usuário (LOCALAPPDATA/MonitoraPet) e o frontend embutido;
+  1. define a pasta de dados do usuário (LOCALAPPDATA/VigiaPet) e o frontend embutido;
   2. gera uma chave de sessão aleatória, válida só para esta execução;
   3. garante os modelos de IA (download no primeiro uso);
   4. sobe o backend em uma porta livre, apenas em 127.0.0.1;
   5. abre uma janela nativa (WebView2) já autenticada; sem pywebview, abre o navegador padrão.
 
-O mesmo binário serve de sidecar para o Tauri: basta ele passar MONITORAPET_API_TOKEN,
+O mesmo binário serve de sidecar para o Tauri: basta ele passar VIGIAPET_API_TOKEN,
 --port e --no-window, e abrir a própria janela em http://127.0.0.1:<porta>/?token=<chave>.
 """
 
@@ -29,9 +29,26 @@ def bundle_root() -> Path:
     return Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
 
 
+LEGACY_APP_NAMES = ("MonitoraPet",)
+
+
 def default_data_dir() -> Path:
-    base = os.getenv("LOCALAPPDATA") or os.getenv("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
-    return Path(base) / "MonitoraPet"
+    base = Path(os.getenv("LOCALAPPDATA") or os.getenv("XDG_DATA_HOME") or str(Path.home() / ".local" / "share"))
+    current = base / "VigiaPet"
+    if current.exists():
+        return current
+    # Instalações anteriores ao novo nome: a pasta antiga é movida uma única vez.
+    for legacy_name in LEGACY_APP_NAMES:
+        legacy = base / legacy_name
+        if legacy.is_dir():
+            try:
+                legacy.rename(current)
+                print(f"Dados migrados de {legacy} para {current}")
+                return current
+            except OSError as error:
+                print(f"Aviso: não foi possível mover {legacy} para {current} ({error}); usando a pasta antiga.")
+                return legacy
+    return current
 
 
 def free_port() -> int:
@@ -55,7 +72,7 @@ def wait_until_ready(url: str, token: str, timeout: float = 60.0) -> bool:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="MonitoraPet")
+    parser = argparse.ArgumentParser(description="VigiaPet")
     parser.add_argument("--port", type=int, default=0, help="porta local (0 = escolher uma livre)")
     parser.add_argument("--no-window", action="store_true", help="não abrir janela nem navegador (modo sidecar)")
     parser.add_argument("--browser", action="store_true", help="abrir no navegador padrão em vez da janela nativa")
@@ -75,12 +92,12 @@ def main() -> int:
     root = bundle_root()
 
     # Variáveis precisam existir antes de importar o app, pois o config as lê na importação.
-    os.environ.setdefault("MONITORAPET_DATA_DIR", str(default_data_dir()))
-    os.environ.setdefault("MONITORAPET_FRONTEND_DIST", str(root / "front" / "dist"))
-    token = os.environ.get("MONITORAPET_API_TOKEN") or secrets.token_urlsafe(32)
-    os.environ["MONITORAPET_API_TOKEN"] = token
+    os.environ.setdefault("VIGIAPET_DATA_DIR", str(default_data_dir()))
+    os.environ.setdefault("VIGIAPET_FRONTEND_DIST", str(root / "front" / "dist"))
+    token = os.environ.get("VIGIAPET_API_TOKEN") or secrets.token_urlsafe(32)
+    os.environ["VIGIAPET_API_TOKEN"] = token
 
-    print(f"MonitoraPet · dados em {os.environ['MONITORAPET_DATA_DIR']}")
+    print(f"VigiaPet · dados em {os.environ['VIGIAPET_DATA_DIR']}")
 
     from app.infra.ai.model_setup import ensure_models
 
@@ -97,15 +114,15 @@ def main() -> int:
     port = args.port or free_port()
     base_url = f"http://127.0.0.1:{port}"
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
-    thread = threading.Thread(target=server.run, name="monitorapet-server", daemon=True)
+    thread = threading.Thread(target=server.run, name="vigiapet-server", daemon=True)
     thread.start()
 
     if not wait_until_ready(f"{base_url}/api/session", token):
-        print("O serviço do MonitoraPet não respondeu a tempo.")
+        print("O serviço do VigiaPet não respondeu a tempo.")
         server.should_exit = True
         return 1
 
-    print(f"MonitoraPet pronto em {base_url}")
+    print(f"VigiaPet pronto em {base_url}")
     if args.no_window:
         keep_serving(thread)
         server.should_exit = True
@@ -118,14 +135,14 @@ def main() -> int:
         try:
             import webview
 
-            webview.create_window("MonitoraPet", start_url, width=1280, height=820, min_size=(960, 640))
+            webview.create_window("VigiaPet", start_url, width=1280, height=820, min_size=(960, 640))
             webview.start()  # bloqueia até a janela fechar
             opened_window = True
         except Exception as error:
             print(f"Janela nativa indisponível ({error}); abrindo no navegador padrão.")
     if not opened_window:
         webbrowser.open(start_url)
-        print("Feche esta janela para encerrar o MonitoraPet.")
+        print("Feche esta janela para encerrar o VigiaPet.")
         keep_serving(thread)
 
     server.should_exit = True

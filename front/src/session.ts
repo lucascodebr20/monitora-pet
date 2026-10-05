@@ -2,7 +2,7 @@
  * Abertura de sessão com o backend local.
  *
  * Quem inicia o app (Tauri, lançador desktop ou start.bat) gera um token e o entrega de uma destas formas:
- *   - `window.__MONITORAPET_TOKEN__` (script de inicialização da WebView), ou
+ *   - `window.__VIGIAPET_TOKEN__` (script de inicialização da WebView), ou
  *   - query `?token=` na URL inicial.
  *
  * O token vira um cookie HttpOnly via `POST /api/session`, o que permite que `<img>` e
@@ -12,7 +12,7 @@
 
 declare global {
   interface Window {
-    __MONITORAPET_TOKEN__?: string
+    __VIGIAPET_TOKEN__?: string
   }
 }
 
@@ -21,7 +21,7 @@ type SessionStatus = { required: boolean; authenticated: boolean }
 let launcherToken: string | null = null
 
 function readLauncherToken(): string | null {
-  if (window.__MONITORAPET_TOKEN__) return window.__MONITORAPET_TOKEN__
+  if (window.__VIGIAPET_TOKEN__) return window.__VIGIAPET_TOKEN__
   return new URLSearchParams(window.location.search).get('token')
 }
 
@@ -51,13 +51,13 @@ export async function reauthenticate(): Promise<boolean> {
 export async function bootstrapSession(): Promise<void> {
   launcherToken = readLauncherToken()
   const response = await fetch('/api/session')
-  if (!response.ok) throw new Error('Não foi possível falar com o serviço do MonitoraPet.')
+  if (!response.ok) throw new Error('Não foi possível falar com o serviço do VigiaPet.')
   const status = (await response.json()) as SessionStatus
   if (!status.required || status.authenticated) {
     forgetTokenInUrl()
     return
   }
-  if (!launcherToken) throw new Error('Esta janela não recebeu a chave de sessão. Abra o MonitoraPet pelo aplicativo.')
-  if (!(await openSession(launcherToken))) throw new Error('A chave de sessão foi recusada. Feche e abra o MonitoraPet novamente.')
+  if (!launcherToken) throw new Error('Esta janela não recebeu a chave de sessão. Abra o VigiaPet pelo aplicativo.')
+  if (!(await openSession(launcherToken))) throw new Error('A chave de sessão foi recusada. Feche e abra o VigiaPet novamente.')
   forgetTokenInUrl()
 }
