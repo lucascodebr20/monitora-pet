@@ -8,7 +8,10 @@ from app.domain.clock import utc_now
 from app.domain.errors import EntityConflictError, OperationFailedError
 from app.infra.database.database import Database
 
-CAMERA_COLUMNS = "id, name, ip, manufacturer, model, onvif_port, rtsp_url, enabled, created_at, updated_at"
+CAMERA_COLUMNS = (
+    "id, name, ip, manufacturer, model, onvif_port, rtsp_url, enabled, created_at, updated_at, "
+    "source_kind, recording_support, clock_offset_seconds, last_synced_at"
+)
 
 
 class CameraRepository:
@@ -20,12 +23,13 @@ class CameraRepository:
         now = utc_now()
         try:
             self.database.execute(
-                f"""INSERT INTO cameras ({CAMERA_COLUMNS})
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO cameras
+                   (id, name, ip, manufacturer, model, onvif_port, rtsp_url, enabled, created_at, updated_at, source_kind)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     camera_id, values["name"], values["ip"], values.get("manufacturer", ""),
                     values.get("model", ""), values.get("onvif_port", 8899), values.get("rtsp_url"),
-                    int(values.get("enabled", True)), now, now,
+                    int(values.get("enabled", True)), now, now, values.get("source_kind", "NETWORK"),
                 ),
             )
         except sqlite3.IntegrityError as exc:
@@ -40,6 +44,26 @@ class CameraRepository:
 
     def list(self) -> list[dict[str, Any]]:
         return self.database.all(f"SELECT {CAMERA_COLUMNS} FROM cameras ORDER BY created_at")
+
+    def update_recording_profile(self, camera_id: str, recording_support: str, clock_offset_seconds: float | None) -> None:
+        self.database.execute(
+            """UPDATE cameras SET recording_support = ?,
+               clock_offset_seconds = COALESCE(?, clock_offset_seconds), updated_at = ? WHERE id = ?""",
+            (recording_support, clock_offset_seconds, utc_now(), camera_id),
+        )
+
+    def mark_synced(self, camera_id: str, synced_at: str) -> None:
+        self.database.execute("UPDATE cameras SET last_synced_at = ? WHERE id = ?", (synced_at, camera_id))
+
+    def convert_to_network(self, camera_id: str, ip: str, onvif_port: int, rtsp_url: str | None) -> None:
+        try:
+            self.database.execute(
+                """UPDATE cameras SET ip = ?, onvif_port = ?, rtsp_url = ?, source_kind = 'NETWORK',
+                   recording_support = 'UNKNOWN', updated_at = ? WHERE id = ?""",
+                (ip, onvif_port, rtsp_url, utc_now(), camera_id),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise EntityConflictError("Já existe uma câmera cadastrada com esse IP.") from exc
 
     def delete(self, camera_id: str) -> None:
         self.database.execute("DELETE FROM cameras WHERE id = ?", (camera_id,))

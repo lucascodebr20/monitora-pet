@@ -6,6 +6,7 @@ import ipaddress
 import logging
 import os
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from urllib.error import URLError
 from urllib.parse import urlsplit
@@ -160,3 +161,152 @@ def stream_urls(
     except (OSError, ET.ParseError) as error:
         logger.info("ONVIF sem URLs de stream em %s:%s: %s", ip, port, error)
         return []
+
+
+SEARCH_NAMESPACE = "http://www.onvif.org/ver10/search/wsdl"
+REPLAY_NAMESPACE = "http://www.onvif.org/ver10/replay/wsdl"
+
+
+@dataclass(frozen=True)
+class RecordingSpan:
+    token: str
+    start: datetime
+    end: datetime
+
+
+def _children(root: ET.Element, local_name: str) -> list[ET.Element]:
+    return [element for element in root.iter() if element.tag.rsplit("}", 1)[-1] == local_name]
+
+
+def _child_text(element: ET.Element, local_name: str) -> str | None:
+    for child in element.iter():
+        if child is not element and child.tag.rsplit("}", 1)[-1] == local_name and child.text:
+            return child.text.strip()
+    return None
+
+
+def _parse_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    text = value.strip().replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def device_clock_offset(ip: str, port: int = 8899, username: str = "", password: str = "") -> float | None:
+    try:
+        before = datetime.now(timezone.utc)
+        root = _call(
+            f"http://{ip}:{port}/onvif/device_service",
+            '<tds:GetSystemDateAndTime xmlns:tds="http://www.onvif.org/ver10/device/wsdl"/>',
+            username=username,
+            password=password,
+        )
+        after = datetime.now(timezone.utc)
+    except (OSError, ET.ParseError) as error:
+        logger.info("ONVIF sem data e hora em %s:%s: %s", ip, port, error)
+        return None
+    utc_blocks = _children(root, "UTCDateTime")
+    if not utc_blocks:
+        return None
+    block = utc_blocks[0]
+    try:
+        camera_time = datetime(
+            int(_child_text(block, "Year") or 0),
+            int(_child_text(block, "Month") or 0),
+            int(_child_text(block, "Day") or 0),
+            int(_child_text(block, "Hour") or 0),
+            int(_child_text(block, "Minute") or 0),
+            int(_child_text(block, "Second") or 0),
+            tzinfo=timezone.utc,
+        )
+    except ValueError:
+        return None
+    midpoint = before + (after - before) / 2
+    return (camera_time - midpoint).total_seconds()
+
+
+def recording_services(ip: str, port: int = 8899, username: str = "", password: str = "") -> dict[str, str]:
+    try:
+        root = _call(
+            f"http://{ip}:{port}/onvif/device_service",
+            '<tds:GetServices xmlns:tds="http://www.onvif.org/ver10/device/wsdl">'
+            "<tds:IncludeCapability>false</tds:IncludeCapability></tds:GetServices>",
+            username=username,
+            password=password,
+        )
+    except (OSError, ET.ParseError) as error:
+        logger.info("ONVIF sem lista de serviços em %s:%s: %s", ip, port, error)
+        return {}
+    services: dict[str, str] = {}
+    for service in _children(root, "Service"):
+        namespace = _child_text(service, "Namespace") or ""
+        address = _same_device_url(_child_text(service, "XAddr"), ip, "")
+        if not address:
+            continue
+        if namespace == SEARCH_NAMESPACE:
+            services["search"] = address
+        elif namespace == REPLAY_NAMESPACE:
+            services["replay"] = address
+    return services if "search" in services and "replay" in services else {}
+
+
+def find_recordings(
+    search_url: str, start: datetime, end: datetime, username: str = "", password: str = ""
+) -> list[RecordingSpan]:
+    try:
+        started = _call(
+            search_url,
+            f'<tse:FindRecordings xmlns:tse="{SEARCH_NAMESPACE}"><tse:Scope/>'
+            "<tse:KeepAliveTime>PT30S</tse:KeepAliveTime></tse:FindRecordings>",
+            username=username,
+            password=password,
+            timeout=10.0,
+        )
+        token = _text(started, "SearchToken")
+        if not token:
+            return []
+        results = _call(
+            search_url,
+            f'<tse:GetRecordingSearchResults xmlns:tse="{SEARCH_NAMESPACE}">'
+            f"<tse:SearchToken>{escape(token)}</tse:SearchToken><tse:MinResults>1</tse:MinResults>"
+            "<tse:MaxResults>100</tse:MaxResults><tse:WaitTime>PT10S</tse:WaitTime>"
+            "</tse:GetRecordingSearchResults>",
+            username=username,
+            password=password,
+            timeout=15.0,
+        )
+    except (OSError, ET.ParseError) as error:
+        logger.info("ONVIF sem resultados de gravação em %s: %s", search_url, error)
+        return []
+    spans: list[RecordingSpan] = []
+    for info in _children(results, "RecordingInformation"):
+        recording_token = _child_text(info, "RecordingToken")
+        earliest = _parse_datetime(_child_text(info, "EarliestRecording"))
+        latest = _parse_datetime(_child_text(info, "LatestRecording"))
+        if not recording_token or earliest is None or latest is None:
+            continue
+        span_start, span_end = max(earliest, start), min(latest, end)
+        if span_start < span_end:
+            spans.append(RecordingSpan(recording_token, span_start, span_end))
+    return spans
+
+
+def replay_uri(replay_url: str, recording_token: str, ip: str, username: str = "", password: str = "") -> str | None:
+    try:
+        root = _call(
+            replay_url,
+            f'<trp:GetReplayUri xmlns:trp="{REPLAY_NAMESPACE}">'
+            '<trp:StreamSetup><tt:Stream xmlns:tt="http://www.onvif.org/ver10/schema">RTP-Unicast</tt:Stream>'
+            '<tt:Transport xmlns:tt="http://www.onvif.org/ver10/schema"><tt:Protocol>RTSP</tt:Protocol></tt:Transport>'
+            f"</trp:StreamSetup><trp:RecordingToken>{escape(recording_token)}</trp:RecordingToken></trp:GetReplayUri>",
+            username=username,
+            password=password,
+        )
+    except (OSError, ET.ParseError) as error:
+        logger.info("ONVIF sem URI de replay em %s: %s", replay_url, error)
+        return None
+    return _same_device_url(_text(root, "Uri"), ip, "", ("rtsp", "rtsps")) or None

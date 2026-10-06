@@ -1,4 +1,5 @@
 import logging
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -48,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         container.database.migrate()
         container.monitoring_service.start()
         app.state.container = container
+        threading.Thread(target=container.camera_service.reconnect_all, name="camera-reconnect", daemon=True).start()
         logger.info("Inferência: %s", container.monitoring_service.health())
         yield
         logger.info("Encerrando: parando inferência e desconectando câmeras")
