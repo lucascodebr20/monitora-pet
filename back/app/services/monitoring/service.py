@@ -12,9 +12,11 @@ from app.infra.media.clip_store import ClipStore
 from app.infra.media.pet_image_store import PetImageStore
 from app.infra.media.snapshot_store import SnapshotStore
 from app.infra.repositories.event_repository import EventRepository
+from app.infra.repositories.monitoring_session_repository import MonitoringSessionRepository
 from app.infra.repositories.zone_repository import ZoneRepository
 from app.services.monitoring.analysis import Detector, FrameAnalyzer
 from app.services.monitoring.clips import ClipRecorder
+from app.services.monitoring.coverage import CoverageRecorder
 from app.services.monitoring.events import EventRecorder
 from app.services.monitoring.snapshots import StreamSnapshotSource
 from app.services.monitoring.tracking import ZoneTracker
@@ -38,8 +40,10 @@ class MonitoringService:
         pet_image_store: PetImageStore | None = None,
         pet_identifier: PetIdentifier | None = None,
         clock: Clock | None = None,
+        session_repository: MonitoringSessionRepository | None = None,
     ) -> None:
         self.camera_manager = camera_manager
+        self.coverage = CoverageRecorder(session_repository) if session_repository else None
         self.detector = detector
         self.model_error = model_error
         self.clock = clock or SystemClock()
@@ -70,6 +74,8 @@ class MonitoringService:
         stopped_at = self.clock.now().utc
         self.tracker.finalize_clips(stopped_at)
         self.events.close_all_open(stopped_at)
+        if self.coverage:
+            self.coverage.close_all()
 
     def health(self) -> dict[str, Any]:
         if self.analyzer is None:
@@ -101,8 +107,12 @@ class MonitoringService:
         moment = self.clock.now()
         frame = self.camera_manager.latest_frame(camera_id)
         if frame is None:
+            if self.coverage:
+                self.coverage.close(camera_id)
             self._process_offline_camera(camera_id, moment)
             return
+        if self.coverage:
+            self.coverage.observe(camera_id, moment.utc)
         try:
             analysis = self.analyzer.analyze(camera_id, frame, moment)
             self._last_error = None
