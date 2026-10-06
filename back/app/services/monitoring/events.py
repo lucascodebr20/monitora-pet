@@ -24,12 +24,15 @@ class EventRecorder:
         snapshot_source: SnapshotSource,
         pet_image_store: PetImageStore | None = None,
         pet_identifier: PetIdentifier | None = None,
+        source: str = "LIVE",
     ) -> None:
         self.event_repository = event_repository
         self.snapshot_store = snapshot_store
         self.snapshot_source = snapshot_source
         self.pet_image_store = pet_image_store
         self.pet_identifier = pet_identifier
+        self.source = source
+        self.recording_id: str | None = None
 
     def open(
         self,
@@ -59,6 +62,8 @@ class EventRecorder:
             match.pet_id if match else None,
             match.confidence if match else None,
             match.method if match else None,
+            source=self.source,
+            recording_id=self.recording_id,
         )
         if self.pet_identifier and analysis:
             self.pet_identifier.record_analysis(event_id, capture_path, species.value, analysis)
@@ -71,7 +76,7 @@ class EventRecorder:
         )
 
     def close_all_open(self, ended_at: datetime) -> None:
-        self.event_repository.finish_open_events(ended_at.isoformat())
+        self.event_repository.finish_open_events(ended_at.isoformat(), self.source)
 
     def _capture(
         self, observations: list[np.ndarray], frame: np.ndarray, primary: Detection, captured_at: datetime

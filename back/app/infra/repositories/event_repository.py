@@ -145,6 +145,8 @@ class EventRepository:
         pet_id: str | None = None,
         identification_confidence: float | None = None,
         identification_method: str | None = None,
+        source: str = "LIVE",
+        recording_id: str | None = None,
     ) -> str:
         event_id = str(uuid4())
         self.database.execute(
@@ -152,12 +154,12 @@ class EventRepository:
                (id, camera_id, zone_id, started_at, confirmed_at, confidence,
                 activity, snapshot_path, engine_version, created_at, detected_species, pet_capture_path,
                 pet_id, automatically_identified_pet_id, pet_identification_confidence,
-                pet_identification_method)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                pet_identification_method, source, recording_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 event_id, camera_id, zone_id, started_at, confirmed_at, confidence,
                 "NEAR_ZONE", snapshot_path, "3", utc_now(), species, pet_capture_path,
-                pet_id, pet_id, identification_confidence, identification_method,
+                pet_id, pet_id, identification_confidence, identification_method, source, recording_id,
             ),
         )
         return event_id
@@ -175,13 +177,45 @@ class EventRepository:
             (clip_path, event_id),
         )
 
-    def finish_open_events(self, ended_at: str) -> None:
+    def finish_open_events(self, ended_at: str, source: str = "LIVE", reason: str = "APPLICATION_RESTART") -> None:
         self.database.execute(
-            """UPDATE events SET ended_at = ?, end_reason = 'APPLICATION_RESTART',
+            """UPDATE events SET ended_at = ?, end_reason = ?,
                duration_seconds = MAX(0, (julianday(?) - julianday(started_at)) * 86400)
-               WHERE ended_at IS NULL""",
-            (ended_at, ended_at),
+               WHERE ended_at IS NULL AND source = ?""",
+            (ended_at, reason, ended_at, source),
         )
+
+    def finish_open_recording_events(self, recording_id: str, ended_at: str, reason: str) -> None:
+        self.database.execute(
+            """UPDATE events SET ended_at = ?, end_reason = ?,
+               duration_seconds = MAX(0, (julianday(?) - julianday(started_at)) * 86400)
+               WHERE ended_at IS NULL AND recording_id = ?""",
+            (ended_at, reason, ended_at, recording_id),
+        )
+
+    def media_paths(self, where: str, parameters: tuple[Any, ...]) -> list[str]:
+        rows = self.database.all(
+            f"""SELECT e.snapshot_path, e.clip_path,
+                       CASE WHEN EXISTS (SELECT 1 FROM pet_reference_images r WHERE r.image_path = e.pet_capture_path)
+                            THEN NULL ELSE e.pet_capture_path END AS pet_capture_path
+                FROM events e {where}""",
+            parameters,
+        )
+        return [path for row in rows for path in row.values() if path]
+
+    def delete_by_recording(self, recording_id: str) -> list[str]:
+        return self._delete_where("WHERE e.recording_id = ?", (recording_id,))
+
+    def delete_by_zone(self, zone_id: str) -> list[str]:
+        return self._delete_where("WHERE e.zone_id = ?", (zone_id,))
+
+    def delete_by_camera(self, camera_id: str) -> list[str]:
+        return self._delete_where("WHERE e.camera_id = ?", (camera_id,))
+
+    def _delete_where(self, where: str, parameters: tuple[Any, ...]) -> list[str]:
+        paths = self.media_paths(where, parameters)
+        self.database.execute(f"DELETE FROM events WHERE id IN (SELECT e.id FROM events e {where})", parameters)
+        return paths
 
     def count_on_date(self, date: str) -> int:
         start, end = utc_bounds_for_local_date(date)

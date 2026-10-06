@@ -12,14 +12,18 @@ from app.infra.camera.onvif import device_information
 from app.infra.camera.stream import CameraConnectionError
 from app.infra.repositories.camera_repository import CameraRepository
 from app.services.camera.commands import CameraCredentialsCommand, CreateCameraCommand
+from app.services.event.purge import EventPurgeService
 
 logger = logging.getLogger(__name__)
 
 
 class CameraService:
-    def __init__(self, repository: CameraRepository, manager: CameraManager) -> None:
+    def __init__(
+        self, repository: CameraRepository, manager: CameraManager, purge: EventPurgeService | None = None
+    ) -> None:
         self.repository = repository
         self.manager = manager
+        self.purge = purge
 
     def list(self) -> list[dict[str, Any]]:
         return [self._view(camera) for camera in self.repository.list()]
@@ -73,6 +77,8 @@ class CameraService:
     def delete(self, camera_id: str) -> None:
         self.get(camera_id)
         self.manager.disconnect(camera_id)
+        if self.purge:
+            self.purge.purge_camera(camera_id)
         self.repository.delete(camera_id)
 
     def frames(self, camera_id: str) -> Iterator[bytes]:

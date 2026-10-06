@@ -6,13 +6,17 @@ from app.domain.errors import EntityNotFoundError
 from app.domain.geometry import validate_polygon
 from app.infra.repositories.zone_repository import ZoneRepository
 from app.services.camera import CameraService
+from app.services.event.purge import EventPurgeService
 from app.services.zone.commands import CreateZoneCommand
 
 
 class ZoneService:
-    def __init__(self, repository: ZoneRepository, camera_service: CameraService) -> None:
+    def __init__(
+        self, repository: ZoneRepository, camera_service: CameraService, purge: EventPurgeService | None = None
+    ) -> None:
         self.repository = repository
         self.camera_service = camera_service
+        self.purge = purge
 
     def list(self, camera_id: str | None = None) -> list[dict[str, Any]]:
         return self.repository.list(camera_id)
@@ -33,6 +37,8 @@ class ZoneService:
     def delete(self, zone_id: str) -> None:
         if not self.repository.get(zone_id):
             raise EntityNotFoundError("Zona não encontrada.")
+        if self.purge:
+            self.purge.purge_zone(zone_id)
         self.repository.delete(zone_id)
 
     def update(self, zone_id: str, request: CreateZoneCommand) -> dict[str, Any]:

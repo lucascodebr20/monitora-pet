@@ -28,7 +28,9 @@ class FrameAnalyzer:
         self.tracker = tracker
 
     def analyze(self, camera_id: str, frame: np.ndarray, moment: Moment) -> FrameAnalysis:
-        detections = self.detector.detect(frame)
+        return self.track(camera_id, frame, self.detector.detect(frame), moment)
+
+    def track(self, camera_id: str, frame: np.ndarray, detections: list[Detection], moment: Moment) -> FrameAnalysis:
         zones = self.zone_repository.list(camera_id)
         return FrameAnalysis(detections, self.tracker.track(camera_id, frame, zones, detections, moment))
 
