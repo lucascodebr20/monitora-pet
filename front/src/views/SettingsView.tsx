@@ -69,7 +69,7 @@ export default function SettingsView({ version }: { version: string }) {
           <h2>Privacidade</h2>
           <p>Todos os dados são armazenados localmente.</p>
           <h2>Versão</h2>
-          <p>VigiaPet {version}</p>
+          <p>Monitora Pet {version}</p>
         </section>
       ) : (
         <>

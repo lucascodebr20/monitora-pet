@@ -28,7 +28,7 @@ def ensure_download(path: Path, url: str, sha256: str) -> Path:
     if path.exists() and file_hash(path) == sha256:
         return path
     temporary = path.with_suffix(".download")
-    request = Request(url, headers={"User-Agent": f"VigiaPet/{APP_VERSION}"})
+    request = Request(url, headers={"User-Agent": f"MonitoraPet/{APP_VERSION}"})
     try:
         with urlopen(request, timeout=60) as response, temporary.open("wb") as target:
             while chunk := response.read(1024 * 1024):
