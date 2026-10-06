@@ -1,5 +1,5 @@
 
-from app.services.camera import CameraDiscoveryService, CameraProfileService, CameraService
+from app.services.camera import CameraDiscoveryService, CameraPreviewService, CameraProfileService, CameraService
 from app.services.event import EventMediaService, EventPurgeService, EventQueryService, EventReviewService
 from app.services.health import HealthService
 from app.services.identification import IdentificationService
@@ -11,6 +11,7 @@ from app.services.zone import ZoneService
 
 __all__ = [
     "CameraDiscoveryService",
+    "CameraPreviewService",
     "CameraProfileService",
     "CameraRecordingSync",
     "CameraService",

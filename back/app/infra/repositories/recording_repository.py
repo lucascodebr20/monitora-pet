@@ -8,7 +8,7 @@ from app.infra.database.database import Database
 
 RECORDING_COLUMNS = (
     "id, camera_id, origin, path, fingerprint, size_bytes, started_at, ended_at, status, "
-    "processed_seconds, error, created_at, processed_at"
+    "processed_seconds, error, created_at, processed_at, time_source"
 )
 
 
@@ -20,10 +20,11 @@ class RecordingRepository:
         recording_id = str(uuid4())
         self.database.execute(
             f"""INSERT INTO recordings ({RECORDING_COLUMNS})
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 0, NULL, ?, NULL)""",
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 0, NULL, ?, NULL, ?)""",
             (
                 recording_id, values["camera_id"], values["origin"], values["path"], values["fingerprint"],
                 int(values.get("size_bytes", 0)), values["started_at"], values["ended_at"], utc_now(),
+                values.get("time_source", "PROTOCOL"),
             ),
         )
         return self.get(recording_id) or {}
@@ -74,6 +75,12 @@ class RecordingRepository:
     def update_progress(self, recording_id: str, processed_seconds: float) -> None:
         self.database.execute(
             "UPDATE recordings SET processed_seconds = ? WHERE id = ?", (processed_seconds, recording_id)
+        )
+
+    def shift_time(self, recording_id: str, started_at: str, ended_at: str, time_source: str) -> None:
+        self.database.execute(
+            "UPDATE recordings SET started_at = ?, ended_at = ?, time_source = ? WHERE id = ?",
+            (started_at, ended_at, time_source, recording_id),
         )
 
     def delete(self, recording_id: str) -> None:

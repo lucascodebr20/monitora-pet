@@ -3,15 +3,19 @@ import * as api from '../api'
 import type { Camera, CameraCandidate, Zone } from '../api'
 import Empty from '../components/Empty'
 import Icon from '../components/Icon'
+import RecordingsPanel from '../components/RecordingsPanel'
 import Status from '../components/Status'
 import { useToast } from '../components/useToast'
 import { errorMessage } from '../lib/errors'
 import { useEscape } from '../lib/hooks'
+import { recordingSupportLabels } from '../lib/labels'
 
-type Props = { cameras: Camera[]; zones: Zone[]; refresh: () => Promise<void> }
+type Props = { cameras: Camera[]; zones: Zone[]; refresh: () => Promise<void>; reloadToken: number }
+type Mode = 'network' | 'manual'
 
 const emptyCameraForm = { name: '', ip: '', username: '', password: '', rtsp_url: '' }
 const emptyCredentials = { username: '', password: '', rtsp_url: '' }
+const emptyConvert = { ip: '', username: '', password: '', rtsp_url: '' }
 
 function candidateDetails(item: CameraCandidate): string {
   const identity = [
@@ -33,22 +37,68 @@ function polygonCenter(polygon: Zone['polygon']) {
   )
 }
 
-export default function CamerasView({ cameras, zones, refresh }: Props) {
+function CredentialFields({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: { username: string; password: string; rtsp_url: string }
+  onChange: (next: { username: string; password: string; rtsp_url: string }) => void
+  placeholder: string
+}) {
+  return (
+    <>
+      <label>
+        Usuário
+        <input
+          value={value.username}
+          onChange={event => onChange({ ...value, username: event.target.value })}
+          autoComplete="username"
+        />
+      </label>
+      <label>
+        Senha
+        <input
+          type="password"
+          value={value.password}
+          onChange={event => onChange({ ...value, password: event.target.value })}
+          autoComplete="current-password"
+        />
+      </label>
+      <label className="wide">
+        URL RTSP opcional
+        <input
+          value={value.rtsp_url}
+          onChange={event => onChange({ ...value, rtsp_url: event.target.value })}
+          placeholder={placeholder}
+        />
+      </label>
+    </>
+  )
+}
+
+export default function CamerasView({ cameras, zones, refresh, reloadToken }: Props) {
   const showToast = useToast()
   const [open, setOpen] = useState(false)
+  const [mode, setMode] = useState<Mode>('network')
   const [discovering, setDiscovering] = useState(false)
   const [candidates, setCandidates] = useState<CameraCandidate[]>([])
   const [form, setForm] = useState(emptyCameraForm)
   const [reconnectCamera, setReconnectCamera] = useState<Camera | null>(null)
+  const [convertCamera, setConvertCamera] = useState<Camera | null>(null)
+  const [recordingsCamera, setRecordingsCamera] = useState<Camera | null>(null)
   const [credentials, setCredentials] = useState(emptyCredentials)
+  const [convert, setConvert] = useState(emptyConvert)
   const [error, setError] = useState('')
   const [zoneOverlays, setZoneOverlays] = useState<string[]>([])
+  const [previewFailures, setPreviewFailures] = useState<string[]>([])
 
   const closeModals = useCallback(() => {
     setOpen(false)
     setReconnectCamera(null)
+    setConvertCamera(null)
   }, [])
-  useEscape(closeModals, open || reconnectCamera !== null)
+  useEscape(closeModals, open || reconnectCamera !== null || convertCamera !== null)
 
   function toggleZoneOverlay(cameraId: string) {
     setZoneOverlays(current =>
@@ -74,6 +124,15 @@ export default function CamerasView({ cameras, zones, refresh }: Props) {
     event.preventDefault()
     setError('')
     try {
+      if (mode === 'manual') {
+        const camera = await api.createManualCamera(form.name)
+        setOpen(false)
+        setForm(emptyCameraForm)
+        await refresh()
+        showToast('Câmera cadastrada. Importe as gravações do cartão.')
+        setRecordingsCamera(camera)
+        return
+      }
       await api.createCamera({ ...form, rtsp_url: form.rtsp_url || null })
       setOpen(false)
       setCandidates([])
@@ -100,8 +159,23 @@ export default function CamerasView({ cameras, zones, refresh }: Props) {
     }
   }
 
+  async function convertToNetwork(event: FormEvent) {
+    event.preventDefault()
+    if (!convertCamera) return
+    setError('')
+    try {
+      await api.convertCamera(convertCamera.id, { ...convert, rtsp_url: convert.rtsp_url || null })
+      setConvertCamera(null)
+      setConvert(emptyConvert)
+      await refresh()
+      showToast(`${convertCamera.name} agora é uma câmera de rede.`)
+    } catch (reason) {
+      setError(errorMessage(reason, 'Não foi possível converter a câmera.'))
+    }
+  }
+
   async function remove(camera: Camera) {
-    if (!window.confirm(`Remover a câmera ${camera.name} e suas áreas?`)) return
+    if (!window.confirm(`Remover a câmera ${camera.name}, suas áreas e seus eventos?`)) return
     try {
       await api.deleteCamera(camera.id)
       await refresh()
@@ -109,6 +183,42 @@ export default function CamerasView({ cameras, zones, refresh }: Props) {
     } catch (reason) {
       showToast(errorMessage(reason, 'Não foi possível remover a câmera.'), 'error')
     }
+  }
+
+  function openAdd(initialMode: Mode) {
+    setCandidates([])
+    setError('')
+    setMode(initialMode)
+    setOpen(true)
+  }
+
+  function cameraPreview(camera: Camera) {
+    if (camera.status.connected) {
+      return <img src={`/api/cameras/${camera.id}/video`} alt={`Vídeo ao vivo de ${camera.name}`} />
+    }
+    if (!previewFailures.includes(camera.id)) {
+      return (
+        <>
+          <img
+            src={`/api/cameras/${camera.id}/preview?v=${reloadToken}`}
+            alt={`Última imagem de ${camera.name}`}
+            onError={() => setPreviewFailures(current => [...current, camera.id])}
+          />
+          <span className="still-caption">Última gravação</span>
+        </>
+      )
+    }
+    return (
+      <div className="offline-message">
+        <Icon name="camera" />
+        <strong>{camera.source_kind === 'MANUAL' ? 'Sem gravações importadas' : 'Câmera desconectada'}</strong>
+        <p>
+          {camera.source_kind === 'MANUAL'
+            ? 'Importe os vídeos do cartão para começar a análise.'
+            : camera.status.message || 'Reconecte para continuar acompanhando esta área.'}
+        </p>
+      </div>
+    )
   }
 
   return (
@@ -119,14 +229,7 @@ export default function CamerasView({ cameras, zones, refresh }: Props) {
           <h1>Câmeras</h1>
           <p>Gerencie as fontes de vídeo usadas pelo Monitora Pet.</p>
         </div>
-        <button
-          className="primary"
-          onClick={() => {
-            setCandidates([])
-            setError('')
-            setOpen(true)
-          }}
-        >
+        <button className="primary" onClick={() => openAdd('network')}>
           + Adicionar câmera
         </button>
       </div>
@@ -134,18 +237,11 @@ export default function CamerasView({ cameras, zones, refresh }: Props) {
         {cameras.map(camera => {
           const cameraZones = zones.filter(zone => zone.camera_id === camera.id && zone.enabled)
           const showZones = zoneOverlays.includes(camera.id)
+          const manual = camera.source_kind === 'MANUAL'
           return (
             <article className="camera-card" key={camera.id}>
               <div className="preview">
-                {camera.status.connected ? (
-                  <img src={`/api/cameras/${camera.id}/video`} alt={`Vídeo ao vivo de ${camera.name}`} />
-                ) : (
-                  <div className="offline-message">
-                    <Icon name="camera" />
-                    <strong>Câmera desconectada</strong>
-                    <p>{camera.status.message || 'Reconecte para continuar acompanhando esta área.'}</p>
-                  </div>
-                )}
+                {cameraPreview(camera)}
                 {showZones && (
                   <div className="camera-zone-overlay">
                     {cameraZones.map(zone => {
@@ -163,14 +259,17 @@ export default function CamerasView({ cameras, zones, refresh }: Props) {
                     })}
                   </div>
                 )}
-                <Status connected={camera.status.connected} />
+                {!manual && <Status connected={camera.status.connected} />}
               </div>
               <div className="camera-info">
                 <div>
                   <h3>{camera.name}</h3>
                   <p>
-                    {camera.model || camera.manufacturer || 'Câmera IP'} · {camera.ip}
+                    {manual
+                      ? 'Gravações do cartão de memória'
+                      : `${camera.model || camera.manufacturer || 'Câmera IP'} · ${camera.ip}`}
                   </p>
+                  {!manual && <small className="muted">{recordingSupportLabels[camera.recording_support]}</small>}
                 </div>
                 <div className="camera-actions">
                   {cameraZones.length > 0 && (
@@ -181,7 +280,21 @@ export default function CamerasView({ cameras, zones, refresh }: Props) {
                       {showZones ? 'Ocultar zonas' : `Mostrar zonas (${cameraZones.length})`}
                     </button>
                   )}
-                  {!camera.status.connected && (
+                  <button className="tertiary" onClick={() => setRecordingsCamera(camera)}>
+                    Gravações
+                  </button>
+                  {manual && (
+                    <button
+                      className="tertiary"
+                      onClick={() => {
+                        setConvertCamera(camera)
+                        setError('')
+                      }}
+                    >
+                      Conectar pela rede
+                    </button>
+                  )}
+                  {!manual && !camera.status.connected && (
                     <button
                       className="tertiary"
                       onClick={() => {
@@ -204,7 +317,8 @@ export default function CamerasView({ cameras, zones, refresh }: Props) {
       {!cameras.length && (
         <section className="panel">
           <Empty title="Nenhuma câmera cadastrada">
-            Adicione até duas câmeras IP para começar o monitoramento local.
+            Conecte uma câmera IP da sua rede ou cadastre uma câmera que grava no cartão de memória para importar os
+            vídeos depois.
           </Empty>
         </section>
       )}
@@ -214,16 +328,36 @@ export default function CamerasView({ cameras, zones, refresh }: Props) {
             <div className="panel-head">
               <div>
                 <p className="eyebrow">NOVA CÂMERA</p>
-                <h2>Conectar câmera IP</h2>
+                <h2>{mode === 'network' ? 'Conectar câmera IP' : 'Câmera com cartão de memória'}</h2>
               </div>
               <button type="button" className="close" aria-label="Fechar" onClick={() => setOpen(false)}>
                 ×
               </button>
             </div>
-            <button type="button" className="secondary full" onClick={discover} disabled={discovering}>
-              {discovering ? 'Procurando na rede…' : 'Localizar automaticamente'}
-            </button>
-            {candidates.length > 0 && (
+            <div className="camera-mode-toggle" role="tablist">
+              <button
+                type="button"
+                className={mode === 'network' ? 'secondary' : 'tertiary'}
+                aria-pressed={mode === 'network'}
+                onClick={() => setMode('network')}
+              >
+                Pela rede
+              </button>
+              <button
+                type="button"
+                className={mode === 'manual' ? 'secondary' : 'tertiary'}
+                aria-pressed={mode === 'manual'}
+                onClick={() => setMode('manual')}
+              >
+                Pelo cartão de memória
+              </button>
+            </div>
+            {mode === 'network' && (
+              <button type="button" className="secondary full" onClick={discover} disabled={discovering}>
+                {discovering ? 'Procurando na rede…' : 'Localizar automaticamente'}
+              </button>
+            )}
+            {mode === 'network' && candidates.length > 0 && (
               <div className="candidate-list">
                 {candidates.map(item => (
                   <button
@@ -241,7 +375,7 @@ export default function CamerasView({ cameras, zones, refresh }: Props) {
               </div>
             )}
             <div className="form-grid">
-              <label>
+              <label className={mode === 'manual' ? 'wide' : ''}>
                 Nome
                 <input
                   required
@@ -250,41 +384,31 @@ export default function CamerasView({ cameras, zones, refresh }: Props) {
                   placeholder="Ex.: Sala"
                 />
               </label>
-              <label>
-                Endereço IP
-                <input
-                  required
-                  value={form.ip}
-                  onChange={e => setForm({ ...form, ip: e.target.value })}
-                  placeholder="192.168.1.100"
-                />
-              </label>
-              <label>
-                Usuário
-                <input
-                  value={form.username}
-                  onChange={e => setForm({ ...form, username: e.target.value })}
-                  autoComplete="username"
-                />
-              </label>
-              <label>
-                Senha
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={e => setForm({ ...form, password: e.target.value })}
-                  autoComplete="current-password"
-                />
-              </label>
-              <label className="wide">
-                URL RTSP opcional
-                <input
-                  value={form.rtsp_url}
-                  onChange={e => setForm({ ...form, rtsp_url: e.target.value })}
-                  placeholder="rtsp://192.168.1.100:554/stream"
-                />
-              </label>
+              {mode === 'network' && (
+                <>
+                  <label>
+                    Endereço IP
+                    <input
+                      required
+                      value={form.ip}
+                      onChange={e => setForm({ ...form, ip: e.target.value })}
+                      placeholder="192.168.1.100"
+                    />
+                  </label>
+                  <CredentialFields
+                    value={form}
+                    onChange={next => setForm({ ...form, ...next })}
+                    placeholder="rtsp://192.168.1.100:554/stream"
+                  />
+                </>
+              )}
             </div>
+            {mode === 'manual' && (
+              <p className="muted">
+                A câmera grava no cartão. No fim do dia você copia os vídeos para o computador e o Monitora Pet analisa
+                tudo em segundo plano.
+              </p>
+            )}
             {error && <p className="form-error">{error}</p>}
             <button className="primary full" type="submit">
               Cadastrar câmera
@@ -306,36 +430,57 @@ export default function CamerasView({ cameras, zones, refresh }: Props) {
               </button>
             </div>
             <div className="form-grid">
-              <label>
-                Usuário
-                <input
-                  value={credentials.username}
-                  onChange={event => setCredentials({ ...credentials, username: event.target.value })}
-                  autoComplete="username"
-                />
-              </label>
-              <label>
-                Senha
-                <input
-                  type="password"
-                  value={credentials.password}
-                  onChange={event => setCredentials({ ...credentials, password: event.target.value })}
-                  autoComplete="current-password"
-                />
-              </label>
-              <label className="wide">
-                URL RTSP opcional
-                <input
-                  value={credentials.rtsp_url}
-                  onChange={event => setCredentials({ ...credentials, rtsp_url: event.target.value })}
-                  placeholder="Use somente se a descoberta automática falhar"
-                />
-              </label>
+              <CredentialFields
+                value={credentials}
+                onChange={setCredentials}
+                placeholder="Use somente se a descoberta automática falhar"
+              />
             </div>
             {error && <p className="form-error">{error}</p>}
             <button className="primary full">Conectar câmera</button>
           </form>
         </div>
+      )}
+      {convertCamera && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Conectar pela rede">
+          <form className="modal compact-modal" onSubmit={convertToNetwork}>
+            <div className="panel-head">
+              <div>
+                <p className="eyebrow">CONECTAR PELA REDE</p>
+                <h2>{convertCamera.name}</h2>
+                <p>As zonas e o histórico desta câmera são mantidos.</p>
+              </div>
+              <button type="button" className="close" aria-label="Fechar" onClick={() => setConvertCamera(null)}>
+                ×
+              </button>
+            </div>
+            <div className="form-grid">
+              <label className="wide">
+                Endereço IP
+                <input
+                  required
+                  value={convert.ip}
+                  onChange={event => setConvert({ ...convert, ip: event.target.value })}
+                  placeholder="192.168.1.100"
+                />
+              </label>
+              <CredentialFields
+                value={convert}
+                onChange={next => setConvert({ ...convert, ...next })}
+                placeholder="rtsp://192.168.1.100:554/stream"
+              />
+            </div>
+            {error && <p className="form-error">{error}</p>}
+            <button className="primary full">Conectar câmera</button>
+          </form>
+        </div>
+      )}
+      {recordingsCamera && (
+        <RecordingsPanel
+          camera={recordingsCamera}
+          onClose={() => setRecordingsCamera(null)}
+          reloadToken={reloadToken}
+        />
       )}
     </>
   )

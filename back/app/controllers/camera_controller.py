@@ -1,9 +1,14 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
-from app.controllers.schemas.camera_schema import CameraCreateRequest, CameraCredentialsRequest
+from app.controllers.schemas.camera_schema import (
+    CameraConvertRequest,
+    CameraCreateRequest,
+    CameraCredentialsRequest,
+    ManualCameraCreateRequest,
+)
 from app.core.container import Container, get_container
 
 
@@ -23,6 +28,23 @@ def list_cameras(container: Container = Depends(get_container)) -> dict[str, Any
 @router.post("", status_code=201)
 def create_camera(request: CameraCreateRequest, container: Container = Depends(get_container)) -> dict[str, Any]:
     return container.camera_service.create(request.to_command())
+
+
+@router.post("/manual", status_code=201)
+def create_manual_camera(request: ManualCameraCreateRequest, container: Container = Depends(get_container)) -> dict[str, Any]:
+    return container.camera_service.create_manual(request.name)
+
+
+@router.post("/{camera_id}/convert")
+def convert_camera(
+    camera_id: str, request: CameraConvertRequest, container: Container = Depends(get_container)
+) -> dict[str, Any]:
+    return container.camera_service.convert_to_network(camera_id, request.to_command())
+
+
+@router.get("/{camera_id}/preview")
+def camera_preview(camera_id: str, container: Container = Depends(get_container)) -> Response:
+    return Response(container.camera_preview_service.preview(camera_id), media_type="image/jpeg")
 
 
 @router.post("/{camera_id}/connect")
