@@ -77,6 +77,13 @@ class RecordingRepository:
             "UPDATE recordings SET processed_seconds = ? WHERE id = ?", (processed_seconds, recording_id)
         )
 
+    def expired(self, before: str) -> list[dict[str, Any]]:
+        return self.database.all(
+            f"""SELECT {RECORDING_COLUMNS} FROM recordings
+                WHERE status != 'PROCESSING' AND ended_at < ? ORDER BY ended_at""",
+            (before,),
+        )
+
     def shift_time(self, recording_id: str, started_at: str, ended_at: str, time_source: str) -> None:
         self.database.execute(
             "UPDATE recordings SET started_at = ?, ended_at = ?, time_source = ? WHERE id = ?",

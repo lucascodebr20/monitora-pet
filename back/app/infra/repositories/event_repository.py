@@ -36,7 +36,8 @@ class EventRepository:
     ) -> list[dict[str, Any]]:
         where, parameters = self._filters(camera_id=camera_id, zone_id=zone_id, date=date, pending_review=pending_review)
         return self.database.all(
-            f"{EVENT_PROJECTION} {where} ORDER BY e.started_at DESC LIMIT ?", (*parameters, limit)
+            f"{EVENT_PROJECTION} {where} ORDER BY e.started_at {self._direction(pending_review)} LIMIT ?",
+            (*parameters, limit),
         )
 
     def search(
@@ -59,10 +60,14 @@ class EventRepository:
         )
         total = int(total_row["total"]) if total_row else 0
         rows = self.database.all(
-            f"{EVENT_PROJECTION} {where} ORDER BY e.started_at DESC LIMIT ? OFFSET ?",
+            f"{EVENT_PROJECTION} {where} ORDER BY e.started_at {self._direction(pending_review)} LIMIT ? OFFSET ?",
             (*parameters, page_size, (page - 1) * page_size),
         )
         return rows, total
+
+    @staticmethod
+    def _direction(pending_review: bool) -> str:
+        return "ASC" if pending_review else "DESC"
 
     @staticmethod
     def _filters(
@@ -202,6 +207,18 @@ class EventRepository:
             parameters,
         )
         return [path for row in rows for path in row.values() if path]
+
+    def expire_media(self, before: str) -> list[str]:
+        where = "WHERE e.started_at < ? AND (e.snapshot_path IS NOT NULL OR e.clip_path IS NOT NULL OR e.pet_capture_path IS NOT NULL)"
+        paths = self.media_paths(where, (before,))
+        self.database.execute(
+            """UPDATE events SET snapshot_path = NULL, clip_path = NULL,
+               pet_capture_path = CASE WHEN EXISTS (SELECT 1 FROM pet_reference_images r WHERE r.image_path = events.pet_capture_path)
+                                       THEN pet_capture_path ELSE NULL END
+               WHERE started_at < ?""",
+            (before,),
+        )
+        return paths
 
     def delete_by_recording(self, recording_id: str) -> list[str]:
         return self._delete_where("WHERE e.recording_id = ?", (recording_id,))
