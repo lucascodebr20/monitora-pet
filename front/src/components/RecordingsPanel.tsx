@@ -90,6 +90,15 @@ export default function RecordingsPanel({ camera, onClose, reloadToken }: Props)
     }
   }
 
+  async function analyzeNow() {
+    try {
+      await api.startImportJob(camera.id)
+      showToast('Análise iniciada em segundo plano.')
+    } catch (reason) {
+      showToast(errorMessage(reason, 'Não foi possível iniciar a análise.'), 'error')
+    }
+  }
+
   async function scan(folder: WatchedFolder) {
     setBusy(true)
     try {
@@ -212,7 +221,14 @@ export default function RecordingsPanel({ camera, onClose, reloadToken }: Props)
         )}
         {error && <p className="form-error">{error}</p>}
         <section className="recording-list">
-          <h3>Gravações ({recordings.length})</h3>
+          <div className="panel-head">
+            <h3>Gravações ({recordings.length})</h3>
+            {recordings.some(item => item.status === 'PENDING') && (
+              <button className="secondary" type="button" onClick={() => void analyzeNow()}>
+                Analisar agora
+              </button>
+            )}
+          </div>
           {!recordings.length && <p className="muted">Nenhuma gravação importada para esta câmera.</p>}
           <ul>
             {recordings.map(recording => (

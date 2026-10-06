@@ -174,6 +174,15 @@ export default function CamerasView({ cameras, zones, refresh, reloadToken }: Pr
     }
   }
 
+  async function syncNow(camera: Camera) {
+    try {
+      await api.startSyncJob(camera.id)
+      showToast(`Buscando gravações novas em ${camera.name}…`)
+    } catch (reason) {
+      showToast(errorMessage(reason, 'Não foi possível iniciar o download.'), 'error')
+    }
+  }
+
   async function remove(camera: Camera) {
     if (!window.confirm(`Remover a câmera ${camera.name}, suas áreas e seus eventos?`)) return
     try {
@@ -283,6 +292,11 @@ export default function CamerasView({ cameras, zones, refresh, reloadToken }: Pr
                   <button className="tertiary" onClick={() => setRecordingsCamera(camera)}>
                     Gravações
                   </button>
+                  {camera.recording_support === 'ONVIF_REPLAY' && (
+                    <button className="tertiary" onClick={() => void syncNow(camera)}>
+                      Baixar da câmera
+                    </button>
+                  )}
                   {manual && (
                     <button
                       className="tertiary"

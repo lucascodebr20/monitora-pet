@@ -36,6 +36,25 @@ export type Recording = {
   time_source: 'PROTOCOL' | 'FILENAME' | 'MODIFIED' | 'MANUAL'
 }
 
+export type JobState = {
+  status: 'idle' | 'running'
+  stage: 'scanning' | 'downloading' | 'analyzing' | null
+  camera_id: string | null
+  camera_name: string | null
+  recording_id: string | null
+  progress_seconds: number
+  total_seconds: number
+  queue: number
+  pending_recordings: number
+  started_at: string | null
+  finished_at: string | null
+  last_result:
+    | { kind: 'import'; processed: number; skipped: number; failed: number }
+    | { kind: 'sync'; downloaded: number; errors: string[] }
+    | null
+  error: string | null
+}
+
 export type WatchedFolder = {
   id: string
   camera_id: string
@@ -258,6 +277,11 @@ export const getWatchedFolders = async (cameraId?: string) => {
 export const createWatchedFolder = (cameraId: string, path: string) =>
   request<WatchedFolder>('/api/recordings/folders', json('POST', { camera_id: cameraId, path }))
 export const deleteWatchedFolder = (id: string) => request<void>(`/api/recordings/folders/${id}`, { method: 'DELETE' })
+export const getJobState = () => request<JobState>('/api/jobs')
+export const startImportJob = (cameraId?: string) =>
+  request<JobState>(`/api/jobs/import${cameraId ? `?camera_id=${encodeURIComponent(cameraId)}` : ''}`, json('POST'))
+export const startSyncJob = (cameraId: string) => request<JobState>(`/api/jobs/sync/${cameraId}`, json('POST'))
+export const cancelJobs = () => request<JobState>('/api/jobs/cancel', json('POST'))
 export const scanWatchedFolder = async (id: string) =>
   (await request<{ recordings: Recording[] }>(`/api/recordings/folders/${id}/scan`, json('POST'))).recordings
 
