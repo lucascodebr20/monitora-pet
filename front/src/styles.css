@@ -3955,3 +3955,119 @@ dialog.modal {
   display: block;
   width: 100%;
 }
+
+
+.recordings-modal {
+  max-width: 760px;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.recording-import {
+  display: grid;
+  gap: 12px;
+}
+
+.recording-path {
+  display: flex;
+  gap: 8px;
+}
+
+.recording-path input {
+  flex: 1;
+}
+
+.recording-import-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.watched-folders ul,
+.recording-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.watched-folders li,
+.recording-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+  border-radius: 10px;
+}
+
+.watched-folders li span:first-child,
+.recording-row > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.recording-path-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
+.recording-row-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.badge {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  white-space: nowrap;
+}
+
+.badge.done {
+  background: rgba(46, 160, 67, 0.15);
+}
+
+.badge.processing {
+  background: rgba(31, 111, 235, 0.15);
+}
+
+.badge.failed {
+  background: rgba(207, 34, 46, 0.15);
+}
+
+.recording-time-form {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+}
+
+.camera-mode-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.camera-mode-toggle button {
+  flex: 1;
+}
+
+.zone-canvas .still-caption {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+}

@@ -87,7 +87,9 @@ export default function App() {
               onNavigate={setView}
             />
           )}
-          {view === 'cameras' && <CamerasView cameras={cameras} zones={zones} refresh={refresh} />}
+          {view === 'cameras' && (
+            <CamerasView cameras={cameras} zones={zones} refresh={refresh} reloadToken={reloadToken} />
+          )}
           {view === 'zones' && <ZoneEditor cameras={cameras} zones={zones} refresh={refresh} />}
           {view === 'pets' && <PetManager pets={pets} refresh={refresh} />}
           {view === 'history' && <HistoryView pets={pets} reloadToken={reloadToken} />}

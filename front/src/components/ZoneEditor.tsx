@@ -51,11 +51,13 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
   const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null)
   const [draggingZone, setDraggingZone] = useState<{ start: Point; original: Point[] } | null>(null)
   const [feedback, setFeedback] = useState<MonitoringFeedback | null>(null)
+  const [previewFailed, setPreviewFailed] = useState(false)
   const [error, setError] = useState('')
   const suppressCanvasClick = useRef(false)
 
   const camera = cameras.find(item => item.id === cameraId)
   const connected = camera?.status.connected ?? false
+  const canDraw = connected || (camera !== undefined && !previewFailed)
   const cameraZones = useMemo(() => zones.filter(zone => zone.camera_id === cameraId), [zones, cameraId])
   const feedbackByZone = useMemo(() => new Map((feedback?.zones ?? []).map(item => [item.zone_id, item])), [feedback])
 
@@ -67,6 +69,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
 
   useEffect(() => {
     setFeedback(null)
+    setPreviewFailed(false)
     if (!cameraId) return
     let active = true
     const load = async () => {
@@ -145,7 +148,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
       suppressCanvasClick.current = false
       return
     }
-    if (!connected) return
+    if (!canDraw) return
     const point = normalizedPoint(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect())
     setPoints(current => [...current, point])
     setSelectedPointIndex(null)
@@ -282,16 +285,25 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
               </button>
             </div>
           </div>
-          <div className={`zone-canvas ${connected ? '' : 'disabled'}`}>
+          <div className={`zone-canvas ${canDraw ? '' : 'disabled'}`}>
             {camera && connected ? (
               <CameraVideo cameraId={camera.id} cameraName={camera.name} />
+            ) : camera && !previewFailed ? (
+              <>
+                <img
+                  src={`/api/cameras/${camera.id}/preview?v=${camera.id}`}
+                  alt={`Última imagem de ${camera.name}`}
+                  onError={() => setPreviewFailed(true)}
+                />
+                <span className="still-caption">Imagem da última gravação</span>
+              </>
             ) : (
               <div className="zone-video-empty">
-                <strong>{camera ? 'Câmera offline' : 'Selecione uma câmera'}</strong>
-                <span>A câmera precisa estar conectada para desenhar a zona.</span>
+                <strong>{camera ? 'Sem imagem disponível' : 'Selecione uma câmera'}</strong>
+                <span>Conecte a câmera ou importe uma gravação para desenhar a zona.</span>
               </div>
             )}
-            {connected && (
+            {canDraw && (
               <svg
                 viewBox="0 0 100 100"
                 preserveAspectRatio="none"
@@ -435,7 +447,7 @@ export default function ZoneEditor({ cameras, zones, refresh }: Props) {
                   Remover
                 </button>
               )}
-              <button className="primary" disabled={saving || !connected || points.length < MIN_POINTS}>
+              <button className="primary" disabled={saving || !canDraw || points.length < MIN_POINTS}>
                 {saving ? 'Salvando…' : editingId ? 'Salvar' : 'Cadastrar zona'}
               </button>
             </div>

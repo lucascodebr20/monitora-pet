@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict
+from uuid import uuid4
 from typing import Any, Iterator
 
 from app.domain.errors import EntityNotFoundError, InvalidDomainValueError, OperationFailedError
@@ -11,7 +12,7 @@ from app.infra.camera.manager import CameraManager
 from app.infra.camera.onvif import device_information
 from app.infra.camera.stream import CameraConnectionError
 from app.infra.repositories.camera_repository import CameraRepository
-from app.services.camera.commands import CameraCredentialsCommand, CreateCameraCommand
+from app.services.camera.commands import CameraCredentialsCommand, ConvertCameraCommand, CreateCameraCommand
 from app.services.camera.profile import CameraProfileService
 from app.services.event.purge import EventPurgeService
 
@@ -61,8 +62,38 @@ class CameraService:
             logger.warning("Câmera %s (%s) cadastrada sem conexão: %s", camera["id"], request.ip, exc)
         return self._view(self.repository.get(camera["id"]) or camera)
 
+    def create_manual(self, name: str) -> dict[str, Any]:
+        camera = self.repository.create({
+            "name": name,
+            "ip": f"manual-{uuid4().hex[:8]}",
+            "source_kind": "MANUAL",
+        })
+        self.repository.update_recording_profile(camera["id"], "NONE", 0.0)
+        return self._view(self.repository.get(camera["id"]) or camera)
+
+    def convert_to_network(self, camera_id: str, request: ConvertCameraCommand) -> dict[str, Any]:
+        camera = self.get(camera_id)
+        if camera.get("source_kind") != "MANUAL":
+            raise InvalidDomainValueError("Esta câmera já está configurada pela rede.")
+        try:
+            urls = resolve_connection_urls(
+                request.ip, request.onvif_port, request.rtsp_url, request.username, request.password
+            )
+        except ValueError as exc:
+            raise InvalidDomainValueError(str(exc)) from exc
+        self.repository.convert_to_network(camera_id, request.ip, request.onvif_port, request.rtsp_url)
+        converted = self.repository.get(camera_id) or camera
+        self._remember(converted, request.username, request.password)
+        try:
+            self.manager.connect(camera_id, urls)
+        except CameraConnectionError as exc:
+            logger.warning("Câmera %s convertida sem conexão: %s", camera_id, exc)
+        return self._view(self.repository.get(camera_id) or converted)
+
     def connect(self, camera_id: str, credentials: CameraCredentialsCommand) -> dict[str, Any]:
         camera = self.get(camera_id)
+        if camera.get("source_kind") == "MANUAL":
+            raise InvalidDomainValueError("Câmeras manuais recebem gravações por pasta, não por conexão de rede.")
         try:
             urls = resolve_connection_urls(
                 camera["ip"],
@@ -132,6 +163,8 @@ class CameraService:
         result = dict(camera)
         result["enabled"] = bool(result["enabled"])
         result.pop("credential_ref", None)
+        if result.get("source_kind") == "MANUAL":
+            result["ip"] = ""
         if result.get("rtsp_url"):
             result["rtsp_url"] = split_url_credentials(result["rtsp_url"])[0]
         result["status"] = self.manager.status(str(result["id"]))

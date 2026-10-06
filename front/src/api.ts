@@ -14,6 +14,34 @@ export type Camera = {
   model: string
   enabled: boolean
   status: ConnectionStatus
+  source_kind: 'NETWORK' | 'MANUAL'
+  recording_support: 'UNKNOWN' | 'NONE' | 'ONVIF_REPLAY'
+  clock_offset_seconds: number
+  last_synced_at: string | null
+}
+
+export type Recording = {
+  id: string
+  camera_id: string
+  origin: 'FOLDER' | 'CAMERA'
+  path: string
+  size_bytes: number
+  started_at: string
+  ended_at: string
+  status: 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED' | 'SKIPPED'
+  processed_seconds: number
+  error: string | null
+  created_at: string
+  processed_at: string | null
+  time_source: 'PROTOCOL' | 'FILENAME' | 'MODIFIED' | 'MANUAL'
+}
+
+export type WatchedFolder = {
+  id: string
+  camera_id: string
+  path: string
+  created_at: string
+  last_scanned_at: string | null
 }
 
 export type PetSpecies = 'CAT' | 'DOG'
@@ -205,6 +233,33 @@ export const createCamera = (payload: CameraPayload) => request<Camera>('/api/ca
 export const connectCamera = (id: string, payload: Pick<CameraPayload, 'username' | 'password' | 'rtsp_url'>) =>
   request<ConnectionStatus>(`/api/cameras/${id}/connect`, json('POST', payload))
 export const deleteCamera = (id: string) => request<void>(`/api/cameras/${id}`, { method: 'DELETE' })
+export const createManualCamera = (name: string) => request<Camera>('/api/cameras/manual', json('POST', { name }))
+export const convertCamera = (id: string, payload: Omit<CameraPayload, 'name'>) =>
+  request<Camera>(`/api/cameras/${id}/convert`, json('POST', payload))
+
+export const getRecordings = async (cameraId?: string) => {
+  const query = cameraId ? `?camera_id=${encodeURIComponent(cameraId)}` : ''
+  return (await request<{ recordings: Recording[] }>(`/api/recordings${query}`)).recordings
+}
+export const importRecordings = async (cameraId: string, path: string, startedAt?: string) =>
+  (
+    await request<{ recordings: Recording[] }>(
+      '/api/recordings/import',
+      json('POST', { camera_id: cameraId, path, ...(startedAt ? { started_at: startedAt } : {}) }),
+    )
+  ).recordings
+export const reprocessRecording = (id: string) => request<Recording>(`/api/recordings/${id}/reprocess`, json('POST'))
+export const adjustRecordingTime = (id: string, startedAt: string) =>
+  request<Recording>(`/api/recordings/${id}`, json('PATCH', { started_at: startedAt }))
+export const getWatchedFolders = async (cameraId?: string) => {
+  const query = cameraId ? `?camera_id=${encodeURIComponent(cameraId)}` : ''
+  return (await request<{ folders: WatchedFolder[] }>(`/api/recordings/folders${query}`)).folders
+}
+export const createWatchedFolder = (cameraId: string, path: string) =>
+  request<WatchedFolder>('/api/recordings/folders', json('POST', { camera_id: cameraId, path }))
+export const deleteWatchedFolder = (id: string) => request<void>(`/api/recordings/folders/${id}`, { method: 'DELETE' })
+export const scanWatchedFolder = async (id: string) =>
+  (await request<{ recordings: Recording[] }>(`/api/recordings/folders/${id}/scan`, json('POST'))).recordings
 
 export const getZones = async () => (await request<{ zones: Zone[] }>('/api/zones')).zones
 export const createZone = (payload: Omit<Zone, 'id' | 'enabled'>) => request<Zone>('/api/zones', json('POST', payload))

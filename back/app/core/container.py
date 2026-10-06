@@ -22,10 +22,13 @@ from app.infra.repositories.notice_repository import NoticeRepository
 from app.infra.repositories.pet_identification_repository import PetIdentificationRepository
 from app.infra.repositories.pet_repository import PetRepository
 from app.infra.repositories.recording_repository import RecordingRepository
+from app.infra.repositories.settings_repository import SettingsRepository
+from app.infra.repositories.watched_folder_repository import WatchedFolderRepository
 from app.infra.repositories.zone_repository import ZoneRepository
 from app.infra.security.credential_store import CredentialStore
 from app.services import (
     CameraDiscoveryService,
+    CameraPreviewService,
     CameraProfileService,
     CameraRecordingSync,
     CameraService,
@@ -65,6 +68,9 @@ class Container:
     recording_import_service: RecordingImportService
     recording_analyzer: RecordingAnalyzer | None
     camera_recording_sync: CameraRecordingSync
+    camera_preview_service: CameraPreviewService
+    watched_folder_repository: WatchedFolderRepository
+    settings_repository: SettingsRepository
 
 
 def build_container(settings: Settings) -> Container:
@@ -82,6 +88,8 @@ def build_container(settings: Settings) -> Container:
     notice_repository = NoticeRepository(database)
     session_repository = MonitoringSessionRepository(database)
     recording_repository = RecordingRepository(database)
+    watched_folder_repository = WatchedFolderRepository(database)
+    settings_repository = SettingsRepository(database)
     purge_service = EventPurgeService(event_repository, recording_repository, MediaCleanup(settings.data_dir))
 
     pet_identifier = PetIdentifier(
@@ -120,7 +128,9 @@ def build_container(settings: Settings) -> Container:
         if detector
         else None
     )
-    recording_import_service = RecordingImportService(recording_repository, camera_service, purge_service)
+    recording_import_service = RecordingImportService(
+        recording_repository, camera_service, purge_service, folders=watched_folder_repository
+    )
     return Container(
         settings=settings,
         database=database,
@@ -146,6 +156,9 @@ def build_container(settings: Settings) -> Container:
             recording_import_service,
             settings.recordings_dir,
         ),
+        camera_preview_service=CameraPreviewService(camera_service, camera_manager, recording_repository),
+        watched_folder_repository=watched_folder_repository,
+        settings_repository=settings_repository,
     )
 
 

@@ -31,6 +31,7 @@ fn show_startup_error(app: &tauri::AppHandle, message: &str) {
 fn main() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let sidecar = app
                 .shell()
