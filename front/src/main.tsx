@@ -21,7 +21,7 @@ bootstrapSession()
     root.render(
       <div className="empty" role="alert">
         <span className="empty-icon">◇</span>
-        <h3>VigiaPet não conseguiu iniciar a sessão</h3>
+        <h3>Monitora Pet não conseguiu iniciar a sessão</h3>
         <p>{error.message}</p>
       </div>,
     ),

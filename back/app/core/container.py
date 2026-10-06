@@ -20,17 +20,19 @@ from app.infra.repositories.notice_repository import NoticeRepository
 from app.infra.repositories.pet_identification_repository import PetIdentificationRepository
 from app.infra.repositories.pet_repository import PetRepository
 from app.infra.repositories.zone_repository import ZoneRepository
-from app.services.camera_discovery_service import CameraDiscoveryService
-from app.services.camera_service import CameraService
-from app.services.event_media_service import EventMediaService
-from app.services.event_query_service import EventQueryService
-from app.services.event_review_service import EventReviewService
-from app.services.health_service import HealthService
-from app.services.identification_service import IdentificationService
-from app.services.monitoring import MonitoringService
-from app.services.notice_service import NoticeService
-from app.services.pet_service import PetService
-from app.services.zone_service import ZoneService
+from app.services import (
+    CameraDiscoveryService,
+    CameraService,
+    EventMediaService,
+    EventQueryService,
+    EventReviewService,
+    HealthService,
+    IdentificationService,
+    MonitoringService,
+    NoticeService,
+    PetService,
+    ZoneService,
+)
 
 logger = logging.getLogger(__name__)
 

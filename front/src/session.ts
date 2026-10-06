@@ -38,14 +38,14 @@ export async function reauthenticate(): Promise<boolean> {
 export async function bootstrapSession(): Promise<void> {
   launcherToken = readLauncherToken()
   const response = await fetch('/api/session')
-  if (!response.ok) throw new Error('Não foi possível falar com o serviço do VigiaPet.')
+  if (!response.ok) throw new Error('Não foi possível falar com o serviço do Monitora Pet.')
   const status = (await response.json()) as SessionStatus
   if (!status.required || status.authenticated) {
     forgetTokenInUrl()
     return
   }
-  if (!launcherToken) throw new Error('Esta janela não recebeu a chave de sessão. Abra o VigiaPet pelo aplicativo.')
+  if (!launcherToken) throw new Error('Esta janela não recebeu a chave de sessão. Abra o Monitora Pet pelo aplicativo.')
   if (!(await openSession(launcherToken)))
-    throw new Error('A chave de sessão foi recusada. Feche e abra o VigiaPet novamente.')
+    throw new Error('A chave de sessão foi recusada. Feche e abra o Monitora Pet novamente.')
   forgetTokenInUrl()
 }

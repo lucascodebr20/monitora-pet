@@ -6,7 +6,12 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 ROOT = Path(SPECPATH).resolve().parent
 sys.path.insert(0, str(ROOT / "back"))
 
-datas = [(str(ROOT / "front" / "dist"), "front/dist")]
+datas = [
+    (str(ROOT / "front" / "dist"), "front/dist"),
+    (str(ROOT / "back" / "app" / "infra" / "database" / "migrations"), "app/infra/database/migrations"),
+    (str(ROOT / "back" / "app-data" / "models" / "yolox_tiny.onnx"), "bundled-models"),
+    (str(ROOT / "back" / "app-data" / "models" / "mobilenetv2_embedding.onnx"), "bundled-models"),
+]
 binaries = []
 hiddenimports = collect_submodules("app") + [
     "uvicorn.logging",
@@ -47,7 +52,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="VigiaPet",
+    name="MonitoraPet",
     icon=str(ROOT / "desktop" / "vigiapet.ico"),
     console=True,
     upx=False,

@@ -10,7 +10,7 @@ from app.domain.errors import EntityNotFoundError, InvalidDomainValueError
 from app.infra.ai.identification_calibration import IdentificationCalibrator
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.pet_repository import PetRepository
-from app.services.commands import ReviewEventCommand
+from app.services.event.commands import ReviewEventCommand
 
 CORRECTABLE_ZONE_TYPES = {ZoneType.WATER, ZoneType.FOOD, ZoneType.LITTER}
 

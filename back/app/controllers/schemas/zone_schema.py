@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 
 from app.domain.enums import ZoneType
-from app.services.commands import CreateZoneCommand
+from app.services.zone import CreateZoneCommand
 
 
 class PointRequest(BaseModel):
