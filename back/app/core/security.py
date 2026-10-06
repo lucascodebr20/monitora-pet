@@ -14,7 +14,7 @@ from app.core.rate_limit import FailedAttemptLimiter
 SESSION_COOKIE = "vigiapet_session"
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "testserver")
 PUBLIC_API_PATHS = frozenset({"/api/session"})
-UNAUTHENTICATED_DETAIL = "Sessão não autenticada. Abra o VigiaPet pelo aplicativo."
+UNAUTHENTICATED_DETAIL = "Sessão não autenticada. Abra o Monitora Pet pelo aplicativo."
 LOCKED_DETAIL = "Muitas tentativas de autenticação. Aguarde {seconds} segundos."
 
 LIMITER = FailedAttemptLimiter()

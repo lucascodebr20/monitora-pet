@@ -10,7 +10,7 @@ from app.infra.camera.stream import (
     build_authenticated_url,
     candidate_urls,
 )
-from app.services.camera_discovery_service import CameraDiscoveryService
+from app.services.camera import CameraDiscoveryService
 
 
 class CameraUrlTests(unittest.TestCase):
@@ -82,7 +82,7 @@ class CameraUrlTests(unittest.TestCase):
 
 
 class CameraDiscoveryTests(unittest.TestCase):
-    @patch("app.services.camera_discovery_service.discover_all")
+    @patch("app.services.camera.discovery.discover_all")
     def test_registered_cameras_are_removed_from_discovery(self, discover_all):
         discover_all.return_value = [
             {"ip": "192.168.15.20", "name": "Câmera cadastrada"},
@@ -94,8 +94,8 @@ class CameraDiscoveryTests(unittest.TestCase):
 
         self.assertEqual(service.discover(), [{"ip": "192.168.15.21", "name": "Câmera nova"}])
 
-    @patch("app.services.camera_discovery_service.fallback_scan")
-    @patch("app.services.camera_discovery_service.discover_all")
+    @patch("app.services.camera.discovery.fallback_scan")
+    @patch("app.services.camera.discovery.discover_all")
     def test_fallback_search_filters_registered_cameras(self, discover_all, fallback_scan):
         fallback_scan.return_value = [
             {"ip": "192.168.15.20", "name": "Câmera cadastrada"},

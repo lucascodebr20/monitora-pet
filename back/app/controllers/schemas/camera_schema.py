@@ -5,7 +5,7 @@ import ipaddress
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.domain.urls import split_url_credentials
-from app.services.commands import CameraCredentialsCommand, CreateCameraCommand
+from app.services.camera import CameraCredentialsCommand, CreateCameraCommand
 
 
 def _move_url_credentials_to_fields(model: _WithRtspCredentials) -> None:

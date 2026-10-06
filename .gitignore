@@ -39,3 +39,14 @@ Thumbs.db
 # Executavel desktop (PyInstaller)
 desktop/build/
 desktop/dist/
+desktop/build-tauri/
+desktop/dist-tauri/
+front/src-tauri/binaries/*.exe
+front/src-tauri/target/
+front/src-tauri/WebView2Runtime/
+front/src-tauri/WebView2Runtime.extracting/
+.tauri-test-data*/
+/.tools/
+/desktop/dist-store/
+/desktop/msix/staging/
+/monitorapet-deploy.tar.gz
