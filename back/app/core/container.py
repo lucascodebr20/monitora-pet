@@ -23,8 +23,11 @@ from app.infra.repositories.pet_identification_repository import PetIdentificati
 from app.infra.repositories.pet_repository import PetRepository
 from app.infra.repositories.recording_repository import RecordingRepository
 from app.infra.repositories.zone_repository import ZoneRepository
+from app.infra.security.credential_store import CredentialStore
 from app.services import (
     CameraDiscoveryService,
+    CameraProfileService,
+    CameraRecordingSync,
     CameraService,
     EventMediaService,
     EventPurgeService,
@@ -61,6 +64,7 @@ class Container:
     notice_service: NoticeService
     recording_import_service: RecordingImportService
     recording_analyzer: RecordingAnalyzer | None
+    camera_recording_sync: CameraRecordingSync
 
 
 def build_container(settings: Settings) -> Container:
@@ -86,7 +90,8 @@ def build_container(settings: Settings) -> Container:
     identification_calibrator = IdentificationCalibrator(pet_identification_repository)
     detector, model_error = _load_detector(settings)
 
-    camera_service = CameraService(camera_repository, camera_manager, purge_service)
+    camera_profile = CameraProfileService(camera_repository, CredentialStore(settings.data_dir))
+    camera_service = CameraService(camera_repository, camera_manager, purge_service, camera_profile)
     event_query_service = EventQueryService(event_repository)
     monitoring_service = MonitoringService(
         camera_manager,
@@ -115,6 +120,7 @@ def build_container(settings: Settings) -> Container:
         if detector
         else None
     )
+    recording_import_service = RecordingImportService(recording_repository, camera_service, purge_service)
     return Container(
         settings=settings,
         database=database,
@@ -130,8 +136,16 @@ def build_container(settings: Settings) -> Container:
         monitoring_service=monitoring_service,
         health_service=HealthService(camera_service, event_query_service, event_repository, monitoring_service),
         notice_service=NoticeService(notice_repository),
-        recording_import_service=RecordingImportService(recording_repository, camera_service, purge_service),
+        recording_import_service=recording_import_service,
         recording_analyzer=recording_analyzer,
+        camera_recording_sync=CameraRecordingSync(
+            camera_repository,
+            session_repository,
+            recording_repository,
+            camera_profile,
+            recording_import_service,
+            settings.recordings_dir,
+        ),
     )
 
 

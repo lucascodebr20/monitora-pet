@@ -12,6 +12,7 @@ from app.infra.camera.onvif import device_information
 from app.infra.camera.stream import CameraConnectionError
 from app.infra.repositories.camera_repository import CameraRepository
 from app.services.camera.commands import CameraCredentialsCommand, CreateCameraCommand
+from app.services.camera.profile import CameraProfileService
 from app.services.event.purge import EventPurgeService
 
 logger = logging.getLogger(__name__)
@@ -19,11 +20,16 @@ logger = logging.getLogger(__name__)
 
 class CameraService:
     def __init__(
-        self, repository: CameraRepository, manager: CameraManager, purge: EventPurgeService | None = None
+        self,
+        repository: CameraRepository,
+        manager: CameraManager,
+        purge: EventPurgeService | None = None,
+        profile: CameraProfileService | None = None,
     ) -> None:
         self.repository = repository
         self.manager = manager
         self.purge = purge
+        self.profile = profile
 
     def list(self) -> list[dict[str, Any]]:
         return [self._view(camera) for camera in self.repository.list()]
@@ -47,12 +53,13 @@ class CameraService:
         values.pop("password")
         values.update(identity)
         camera = self.repository.create(values)
+        self._remember(camera, request.username, request.password)
         try:
             self.manager.connect(camera["id"], urls)
             logger.info("Câmera %s (%s) cadastrada e conectada", camera["id"], request.ip)
         except CameraConnectionError as exc:
             logger.warning("Câmera %s (%s) cadastrada sem conexão: %s", camera["id"], request.ip, exc)
-        return self._view(camera)
+        return self._view(self.repository.get(camera["id"]) or camera)
 
     def connect(self, camera_id: str, credentials: CameraCredentialsCommand) -> dict[str, Any]:
         camera = self.get(camera_id)
@@ -67,7 +74,24 @@ class CameraService:
             self.manager.connect(camera_id, urls)
         except (CameraConnectionError, ValueError) as exc:
             raise OperationFailedError(str(exc)) from exc
+        self._remember(camera, credentials.username, credentials.password)
         return self.manager.status(camera_id)
+
+    def reconnect_all(self) -> None:
+        if not self.profile:
+            return
+        for camera in self.repository.list():
+            if camera.get("source_kind") == "MANUAL":
+                continue
+            username, password = self.profile.credentials_for(camera["id"])
+            if not username and not password:
+                continue
+            try:
+                urls = resolve_connection_urls(camera["ip"], camera["onvif_port"], camera.get("rtsp_url"), username, password)
+                self.manager.connect(camera["id"], urls)
+                logger.info("Câmera %s reconectada com as credenciais salvas", camera["id"])
+            except (CameraConnectionError, ValueError) as exc:
+                logger.warning("Câmera %s não reconectou no início: %s", camera["id"], exc)
 
     def disconnect(self, camera_id: str) -> dict[str, Any]:
         self.get(camera_id)
@@ -79,6 +103,8 @@ class CameraService:
         self.manager.disconnect(camera_id)
         if self.purge:
             self.purge.purge_camera(camera_id)
+        if self.profile:
+            self.profile.forget(camera_id)
         self.repository.delete(camera_id)
 
     def frames(self, camera_id: str) -> Iterator[bytes]:
@@ -92,6 +118,15 @@ class CameraService:
         registered = self.repository.list()
         connected = sum(bool(self.manager.status(item["id"])["connected"]) for item in registered)
         return {"registered": len(registered), "connected": connected}
+
+    def _remember(self, camera: dict[str, Any], username: str, password: str) -> None:
+        if not self.profile:
+            return
+        self.profile.remember(camera["id"], username, password)
+        try:
+            self.profile.probe(camera)
+        except Exception:
+            logger.exception("Falha ao sondar suporte a gravações da câmera %s", camera["id"])
 
     def _view(self, camera: dict[str, Any]) -> dict[str, Any]:
         result = dict(camera)
