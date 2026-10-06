@@ -51,3 +51,5 @@ front/src-tauri/WebView2Runtime.extracting/
 /desktop/dist-store/
 /desktop/msix/staging/
 /monitorapet-deploy.tar.gz
+
+node_modules/
