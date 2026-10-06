@@ -14,7 +14,7 @@ export type AppData = {
 }
 
 const POLL_MS = 10000
-const LOAD_ERROR = 'Não foi possível carregar o VigiaPet.'
+const LOAD_ERROR = 'Não foi possível carregar o Monitora Pet.'
 
 export function useAppData(): AppData {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)

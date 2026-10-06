@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 
 from app.domain.enums import Activity, ReviewDecision, ZoneType
-from app.services.commands import ReviewEventCommand
+from app.services.event import ReviewEventCommand
 
 
 class ReviewCreateRequest(BaseModel):

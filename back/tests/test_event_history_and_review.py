@@ -10,10 +10,8 @@ from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.pet_repository import PetRepository
 from app.infra.repositories.pet_identification_repository import PetIdentificationRepository
 from app.infra.ai.pet_identifier import PetIdentifier
-from app.services.commands import ReviewEventCommand
+from app.services.event import EventQueryService, EventReviewService, ReviewEventCommand
 from app.infra.ai.identification_calibration import IdentificationCalibrator
-from app.services.event_query_service import EventQueryService
-from app.services.event_review_service import EventReviewService
 
 
 class EventHistoryAndReviewTests(unittest.TestCase):

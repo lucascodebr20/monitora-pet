@@ -69,8 +69,8 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(self.client.delete(f"/api/pets/{pet_id}").status_code, 204)
         self.assertEqual(self.client.get("/api/pets").json(), {"pets": []})
 
-    @patch("app.services.camera_service.device_information", return_value={})
-    @patch("app.services.camera_service.resolve_connection_urls", return_value=[])
+    @patch("app.services.camera.service.device_information", return_value={})
+    @patch("app.services.camera.service.resolve_connection_urls", return_value=[])
     def test_camera_and_zone_lifecycle_without_network(self, _urls, _identity):
         created = self.client.post("/api/cameras", json={"name": "Sala", "ip": "192.168.1.50"})
         self.assertEqual(created.status_code, 201)

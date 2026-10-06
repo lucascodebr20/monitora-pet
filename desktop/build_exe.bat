@@ -30,5 +30,5 @@ echo Gerando o executavel...
 "%VIGIAPET_PYTHON%" -m PyInstaller --noconfirm --clean --distpath desktop\dist --workpath desktop\build desktop\vigiapet.spec || exit /b 1
 
 echo.
-echo Pronto: desktop\dist\VigiaPet.exe
+echo Pronto: desktop\dist\MonitoraPet.exe
 endlocal

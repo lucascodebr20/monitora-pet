@@ -117,7 +117,7 @@ export default function CamerasView({ cameras, zones, refresh }: Props) {
         <div>
           <p className="eyebrow">MONITORAMENTO</p>
           <h1>Câmeras</h1>
-          <p>Gerencie as fontes de vídeo usadas pelo VigiaPet.</p>
+          <p>Gerencie as fontes de vídeo usadas pelo Monitora Pet.</p>
         </div>
         <button
           className="primary"

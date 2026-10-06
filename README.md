@@ -1,4 +1,4 @@
-# VigiaPet
+# Monitora Pet
 
 Aplicação local e open source para acompanhar visitas de gatos às áreas de
 comida, água e caixa de areia usando câmeras IP existentes.
@@ -40,7 +40,7 @@ Confirme que o computador e as câmeras estão na mesma rede. Depois execute:
 ```
 
 Na primeira execução, o script prepara as dependências. Em seguida, o
-VigiaPet fica disponível em `http://127.0.0.1:8000`.
+Monitora Pet fica disponível em `http://127.0.0.1:8000`.
 
 ## Desenvolvimento
 
@@ -79,10 +79,46 @@ O iniciador do app (`start.bat` ou o Tauri) gera um token novo a cada execução
 ao frontend por `?token=` na URL inicial ou por `window.__VIGIAPET_TOKEN__`.
 Sem a variável, a API responde sem token, mas continua restrita ao host local.
 
+## Empacotamento para Microsoft Store
+
+O pacote MSIX inclui o frontend, o backend Python, as dependências nativas, os dois
+modelos ONNX e uma versão fixa do WebView2. O computador do usuário não precisa baixar
+componentes na instalação nem na primeira execução.
+
+Crie o produto no Partner Center como **MSIX ou PWA**. Na página **Identidade do
+produto**, copie exatamente o nome da identidade do pacote, o editor e o nome de
+exibição do editor. Depois execute:
+
+```powershell
+.\desktop\build_store.ps1 `
+  -PackageIdentityName "IDENTIDADE_EXATA_DA_STORE" `
+  -Publisher "CN=EDITOR_EXATO_DA_STORE" `
+  -PublisherDisplayName "NOME_PUBLICO_DO_EDITOR"
+```
+
+O artefato é criado em `desktop\dist-store\MonitoraPet_<versão>_x64.msix`. Ele não precisa
+de certificado próprio para envio pelo Partner Center: a Microsoft Store assina o MSIX
+depois da certificação. Para instalar o pacote diretamente fora da Store, seria necessária
+uma assinatura própria.
+
+Para preparar uma atualização, sincronize a versão e gere outro MSIX com os mesmos dados
+de identidade:
+
+```powershell
+.\desktop\set_version.ps1 -Version 0.3.0
+.\desktop\build_store.ps1 `
+  -PackageIdentityName "IDENTIDADE_EXATA_DA_STORE" `
+  -Publisher "CN=EDITOR_EXATO_DA_STORE" `
+  -PublisherDisplayName "NOME_PUBLICO_DO_EDITOR"
+```
+
+A Store distribui a nova versão automaticamente aos clientes depois que o novo envio é
+certificado e publicado.
+
 ## Diagnóstico
 
 O backend grava um log rotativo em `<pasta de dados>/logs/vigiapet.log` (no executável,
-`%LOCALAPPDATA%\VigiaPet\logs`). Falhas de modelo, de inferência e de conexão com câmeras
+`%LOCALAPPDATA%\MonitoraPet\logs`). Falhas de modelo, de inferência e de conexão com câmeras
 aparecem ali.
 
 ## Privacidade

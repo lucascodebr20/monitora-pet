@@ -5,7 +5,7 @@ cd /d "%~dp0"
 set "VIGIAPET_PYTHON=%CD%\.venv\Scripts\python.exe"
 
 if not exist "%VIGIAPET_PYTHON%" (
-    echo Preparando o VigiaPet pela primeira vez...
+    echo Preparando o Monitora Pet pela primeira vez...
     py -3 -m venv .venv || exit /b 1
     "%VIGIAPET_PYTHON%" -m pip install --upgrade pip || exit /b 1
     "%VIGIAPET_PYTHON%" -m pip install -r back\requirements.txt || exit /b 1
@@ -33,7 +33,7 @@ if not defined VIGIAPET_API_TOKEN (
     exit /b 1
 )
 
-echo VigiaPet disponivel em http://127.0.0.1:8000
+echo Monitora Pet disponivel em http://127.0.0.1:8000
 start "" "http://127.0.0.1:8000/?token=%VIGIAPET_API_TOKEN%"
 "%VIGIAPET_PYTHON%" -m uvicorn app.main:app --app-dir back --host 127.0.0.1 --port 8000
 
