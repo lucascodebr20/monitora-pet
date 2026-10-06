@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useState } from 'react'
 import * as api from '../api'
-import type { IdentificationLogs } from '../api'
+import type { AppSettings, IdentificationLogs } from '../api'
 import Icon from '../components/Icon'
 import { errorMessage } from '../lib/errors'
 import { formatDateTime, identificationDecisionLabels } from '../lib/labels'
@@ -18,6 +18,47 @@ export default function SettingsView({ version }: { version: string }) {
   const [logPage, setLogPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [settings, setSettings] = useState<AppSettings | null>(null)
+  const [retention, setRetention] = useState('7')
+  const [savingRetention, setSavingRetention] = useState(false)
+  const [retentionMessage, setRetentionMessage] = useState('')
+
+  useEffect(() => {
+    let active = true
+    void api
+      .getSettings()
+      .then(value => {
+        if (!active) return
+        setSettings(value)
+        setRetention(String(value.retention_days))
+      })
+      .catch(() => {
+        if (active) setRetentionMessage('Não foi possível carregar a retenção.')
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  async function saveRetention(event: FormEvent) {
+    event.preventDefault()
+    const days = Number(retention)
+    if (!Number.isInteger(days) || days < 1 || days > 365) {
+      setRetentionMessage('Informe um número de dias entre 1 e 365.')
+      return
+    }
+    setSavingRetention(true)
+    setRetentionMessage('')
+    try {
+      const saved = await api.updateSettings({ retention_days: days })
+      setSettings(saved)
+      setRetentionMessage('Retenção salva.')
+    } catch (reason) {
+      setRetentionMessage(errorMessage(reason, 'Não foi possível salvar.'))
+    } finally {
+      setSavingRetention(false)
+    }
+  }
 
   const loadLogs = useCallback(async (page: number) => {
     setLoading(true)
@@ -68,6 +109,31 @@ export default function SettingsView({ version }: { version: string }) {
         <section className="panel settings">
           <h2>Privacidade</h2>
           <p>Todos os dados são armazenados localmente.</p>
+          <h2>Retenção de vídeos e imagens</h2>
+          <form className="retention-form" onSubmit={saveRetention}>
+            <label>
+              Guardar por
+              <span className="retention-input">
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={retention}
+                  onChange={event => setRetention(event.target.value)}
+                  disabled={settings === null}
+                />
+                dias
+              </span>
+              <small>
+                Gravações baixadas, fotos e vídeos dos eventos mais antigos que isso são apagados automaticamente. O
+                histórico das visitas é mantido.
+              </small>
+            </label>
+            <button className="secondary" type="submit" disabled={savingRetention || settings === null}>
+              {savingRetention ? 'Salvando…' : 'Salvar'}
+            </button>
+            {retentionMessage && <small className="muted">{retentionMessage}</small>}
+          </form>
           <h2>Versão</h2>
           <p>Monitora Pet {version}</p>
         </section>

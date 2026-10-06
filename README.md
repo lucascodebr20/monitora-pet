@@ -16,8 +16,8 @@ back/   FastAPI, SQLite, ONVIF e RTSP
 O backend usa uma arquitetura em camadas: controllers REST, services de casos
 de uso, domínio independente, repositories e infraestrutura SQLite com
 migrações versionadas. Ele oferece cadastro e operação independente de câmeras,
-zonas normalizadas, histórico de eventos, fila de revisão humana, avisos locais
-e estado de saúde. A interface é responsiva para desktop e dispositivos na
+zonas normalizadas, histórico de eventos, fila de revisão humana, análise de
+gravações do cartão de memória e estado de saúde. A interface é responsiva para desktop e dispositivos na
 rede local.
 
 ## Zonas e inteligência artificial
@@ -30,6 +30,38 @@ tempo real; uma permanência confirmada gera evento e snapshot para revisão.
 O `start.bat` baixa o modelo oficial na primeira execução e valida seu SHA-256.
 O arquivo permanece em `back/app-data/models` e não é enviado ao Git. YOLOX é
 distribuído sob Apache-2.0 pelo projeto Megvii-BaseDetection.
+
+## Gravações do cartão de memória
+
+O computador não precisa ficar ligado o dia inteiro. A câmera grava no cartão
+de memória e o Monitora Pet analisa as gravações depois, em segundo plano, com
+as mesmas zonas, eventos, fotos e vídeos do modo ao vivo.
+
+Há três caminhos para as gravações chegarem ao aplicativo:
+
+- **Download direto da câmera**: câmeras com ONVIF Profile G (busca e replay
+  de gravações) são detectadas no cadastro. O botão "Baixar da câmera" traz só
+  os períodos que o modo ao vivo não cobriu, corrigindo a hora pelo relógio da
+  câmera. O download usa RTSP de replay e grava arquivos H.264/H.265 em
+  `<dados>/recordings`.
+- **Pasta vigiada**: copie os vídeos do cartão para uma pasta e cadastre-a em
+  "Gravações". A pasta é varrida ao abrir o aplicativo e a cada importação. A
+  hora de início vem do nome do arquivo ou da data de modificação e pode ser
+  ajustada manualmente.
+- **Câmera manual**: uma câmera cadastrada "pelo cartão de memória" não tem
+  endereço de rede e só recebe gravações por pasta. Pode ser convertida em
+  câmera de rede depois sem perder zonas nem histórico.
+
+Cada gravação é identificada por uma impressão digital do arquivo, então
+importar a mesma pasta duas vezes não duplica eventos. "Reprocessar" apaga os
+eventos daquela gravação e a devolve à fila. A análise continua em segundo
+plano mesmo com a janela fechada: no desktop o aplicativo vai para a bandeja e
+volta quando termina. Gravações baixadas, fotos e vídeos de eventos são
+apagados após o período de retenção configurado (7 dias por padrão); os
+registros das visitas permanecem.
+
+As credenciais das câmeras ficam cifradas com DPAPI em `<dados>/credentials.bin`
+para reconectar no início e sincronizar sem pedir a senha novamente.
 
 ## Executar no Windows
 

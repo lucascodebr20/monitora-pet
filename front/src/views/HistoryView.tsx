@@ -15,6 +15,7 @@ export default function HistoryView({ pets, reloadToken }: Props) {
   const [page, setPage] = useState(1)
   const [petId, setPetId] = useState('')
   const [zoneType, setZoneType] = useState<Zone['type'] | ''>('')
+  const [date, setDate] = useState('')
   const [result, setResult] = useState<EventPage | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -23,7 +24,7 @@ export default function HistoryView({ pets, reloadToken }: Props) {
     let active = true
     setLoading(true)
     void api
-      .getEventPage(page, petId, zoneType, PAGE_SIZE)
+      .getEventPage(page, petId, zoneType, PAGE_SIZE, date)
       .then(data => {
         if (active) {
           setResult(data)
@@ -39,7 +40,7 @@ export default function HistoryView({ pets, reloadToken }: Props) {
     return () => {
       active = false
     }
-  }, [page, petId, zoneType, reloadToken])
+  }, [page, petId, zoneType, date, reloadToken])
 
   const total = result?.total ?? 0
   const pageSize = result?.page_size ?? PAGE_SIZE
@@ -56,6 +57,17 @@ export default function HistoryView({ pets, reloadToken }: Props) {
   function chooseZone(type: Zone['type'] | '') {
     setZoneType(type)
     setPage(1)
+  }
+
+  function chooseDate(value: string) {
+    setDate(value)
+    setPage(1)
+  }
+
+  function shiftDate(days: number) {
+    const base = date ? new Date(`${date}T12:00:00`) : new Date()
+    base.setDate(base.getDate() + days)
+    chooseDate(base.toISOString().slice(0, 10))
   }
 
   return (
@@ -84,6 +96,27 @@ export default function HistoryView({ pets, reloadToken }: Props) {
           </div>
         </div>
         <div className="filter-chip-row">
+          <span className="filter-chip-label">Dia</span>
+          <div className="filter-chip-options history-date" role="group" aria-label="Filtrar por dia">
+            <button className={date ? '' : 'selected'} aria-pressed={!date} onClick={() => chooseDate('')}>
+              Todos os dias
+            </button>
+            <button type="button" aria-label="Dia anterior" onClick={() => shiftDate(-1)}>
+              ‹
+            </button>
+            <input
+              type="date"
+              value={date}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={event => chooseDate(event.target.value)}
+              aria-label="Escolher dia"
+            />
+            <button type="button" aria-label="Dia seguinte" disabled={!date} onClick={() => shiftDate(1)}>
+              ›
+            </button>
+          </div>
+        </div>
+        <div className="filter-chip-row">
           <span className="filter-chip-label">Área</span>
           <div className="filter-chip-options" role="group" aria-label="Filtrar por área">
             {([['', 'Todas as áreas'], ...Object.entries(zoneLabels)] as [Zone['type'] | '', string][]).map(
@@ -104,7 +137,9 @@ export default function HistoryView({ pets, reloadToken }: Props) {
       <section className="panel">
         <div className="panel-head">
           <h2>{total} registros</h2>
-          <span className="muted">Todos os períodos</span>
+          <span className="muted">
+            {date ? new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR') : 'Todos os períodos'}
+          </span>
         </div>
         {error && <p className="form-error">{error}</p>}
         {loading && !result ? (

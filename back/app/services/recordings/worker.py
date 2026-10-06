@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -18,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 STATUS_IDLE = "idle"
 STATUS_RUNNING = "running"
+MAINTENANCE_INTERVAL_SECONDS = 6 * 3600
+MAINTENANCE_CHECK_SECONDS = 300
 
 
 @dataclass(frozen=True)
@@ -35,6 +38,7 @@ class ImportWorker:
         recording_repository: RecordingRepository,
         camera_repository: CameraRepository,
         on_state: Callable[[str], None] | None = None,
+        maintenance: Callable[[], Any] | None = None,
     ) -> None:
         self.importer = importer
         self.analyzer = analyzer
@@ -42,6 +46,8 @@ class ImportWorker:
         self.recording_repository = recording_repository
         self.camera_repository = camera_repository
         self.on_state = on_state
+        self.maintenance = maintenance
+        self._last_maintenance = 0.0
         self._queue: deque[Job] = deque()
         self._lock = threading.Lock()
         self._wake = threading.Event()
@@ -123,17 +129,34 @@ class ImportWorker:
         return self.state()
 
     def _run(self) -> None:
+        self.run_maintenance()
         while not self._stop_all.is_set():
-            self._wake.wait()
+            woke = self._wake.wait(MAINTENANCE_CHECK_SECONDS)
             self._wake.clear()
             if self._stop_all.is_set():
                 break
+            if not woke:
+                self.run_maintenance()
+                continue
             self._set_status(STATUS_RUNNING)
             try:
                 self.run_pending()
+                self.run_maintenance(force=True)
             finally:
                 self._set_status(STATUS_IDLE)
                 self._idle.set()
+
+    def run_maintenance(self, force: bool = False) -> None:
+        if self.maintenance is None:
+            return
+        now = time.monotonic()
+        if not force and now - self._last_maintenance < MAINTENANCE_INTERVAL_SECONDS:
+            return
+        self._last_maintenance = now
+        try:
+            self.maintenance()
+        except Exception:
+            logger.exception("Falha na manutenção de retenção")
 
     def _process(self, job: Job) -> None:
         self._cancel_current.clear()

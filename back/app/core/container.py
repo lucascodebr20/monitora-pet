@@ -19,7 +19,6 @@ from app.infra.media.snapshot_store import SnapshotStore
 from app.infra.repositories.camera_repository import CameraRepository
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.monitoring_session_repository import MonitoringSessionRepository
-from app.infra.repositories.notice_repository import NoticeRepository
 from app.infra.repositories.pet_identification_repository import PetIdentificationRepository
 from app.infra.repositories.pet_repository import PetRepository
 from app.infra.repositories.recording_repository import RecordingRepository
@@ -40,8 +39,8 @@ from app.services import (
     HealthService,
     IdentificationService,
     ImportWorker,
+    MediaRetentionService,
     MonitoringService,
-    NoticeService,
     PetService,
     RecordingAnalyzer,
     RecordingImportService,
@@ -66,7 +65,7 @@ class Container:
     identification_service: IdentificationService
     monitoring_service: MonitoringService
     health_service: HealthService
-    notice_service: NoticeService
+    retention_service: MediaRetentionService
     recording_import_service: RecordingImportService
     recording_analyzer: RecordingAnalyzer | None
     camera_recording_sync: CameraRecordingSync
@@ -88,12 +87,13 @@ def build_container(settings: Settings, on_job_state: Callable[[str], None] | No
     event_repository = EventRepository(database)
     pet_repository = PetRepository(database)
     pet_identification_repository = PetIdentificationRepository(database)
-    notice_repository = NoticeRepository(database)
     session_repository = MonitoringSessionRepository(database)
     recording_repository = RecordingRepository(database)
     watched_folder_repository = WatchedFolderRepository(database)
     settings_repository = SettingsRepository(database)
-    purge_service = EventPurgeService(event_repository, recording_repository, MediaCleanup(settings.data_dir))
+    media_cleanup = MediaCleanup(settings.data_dir)
+    purge_service = EventPurgeService(event_repository, recording_repository, media_cleanup)
+    retention_service = MediaRetentionService(settings_repository, event_repository, recording_repository, media_cleanup)
 
     pet_identifier = PetIdentifier(
         pet_repository, pet_image_store, pet_identification_repository, settings.embedding_model_path
@@ -144,7 +144,7 @@ def build_container(settings: Settings, on_job_state: Callable[[str], None] | No
     )
     import_worker = ImportWorker(
         recording_import_service, recording_analyzer, camera_recording_sync, recording_repository, camera_repository,
-        on_state=on_job_state,
+        on_state=on_job_state, maintenance=retention_service.run,
     )
     return Container(
         settings=settings,
@@ -160,7 +160,7 @@ def build_container(settings: Settings, on_job_state: Callable[[str], None] | No
         identification_service=IdentificationService(pet_identification_repository, identification_calibrator),
         monitoring_service=monitoring_service,
         health_service=HealthService(camera_service, event_query_service, event_repository, monitoring_service),
-        notice_service=NoticeService(notice_repository),
+        retention_service=retention_service,
         recording_import_service=recording_import_service,
         recording_analyzer=recording_analyzer,
         camera_recording_sync=camera_recording_sync,
