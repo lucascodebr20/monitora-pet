@@ -6,7 +6,7 @@ from app.services.identification import IdentificationService
 from app.services.monitoring import MonitoringService
 from app.services.notice import NoticeService
 from app.services.pet import PetService
-from app.services.recordings import CameraRecordingSync, RecordingAnalyzer, RecordingImportService
+from app.services.recordings import CameraRecordingSync, ImportWorker, RecordingAnalyzer, RecordingImportService
 from app.services.zone import ZoneService
 
 __all__ = [
@@ -21,6 +21,7 @@ __all__ = [
     "EventReviewService",
     "HealthService",
     "IdentificationService",
+    "ImportWorker",
     "MonitoringService",
     "NoticeService",
     "PetService",

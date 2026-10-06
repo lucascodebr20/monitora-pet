@@ -4071,3 +4071,62 @@ dialog.modal {
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
 }
+
+
+.topbar {
+  gap: 16px;
+}
+
+.job-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  padding: 6px 10px 6px 12px;
+  border-radius: 999px;
+  background: rgba(31, 111, 235, 0.1);
+  font-size: 13px;
+  max-width: 60%;
+}
+
+.job-banner .job-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.job-banner .job-text small {
+  opacity: 0.75;
+}
+
+.job-progress {
+  width: 120px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.job-progress i {
+  display: block;
+  height: 100%;
+  background: #1f6feb;
+  transition: width 0.4s ease;
+}
+
+.job-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(31, 111, 235, 0.25);
+  border-top-color: #1f6feb;
+  border-radius: 50%;
+  animation: job-spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes job-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

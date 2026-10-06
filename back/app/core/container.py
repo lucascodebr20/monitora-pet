@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Callable
 
 from fastapi import Request
 
@@ -38,6 +39,7 @@ from app.services import (
     EventReviewService,
     HealthService,
     IdentificationService,
+    ImportWorker,
     MonitoringService,
     NoticeService,
     PetService,
@@ -71,9 +73,10 @@ class Container:
     camera_preview_service: CameraPreviewService
     watched_folder_repository: WatchedFolderRepository
     settings_repository: SettingsRepository
+    import_worker: ImportWorker
 
 
-def build_container(settings: Settings) -> Container:
+def build_container(settings: Settings, on_job_state: Callable[[str], None] | None = None) -> Container:
     database = Database(settings.database_path)
     camera_manager = CameraManager()
     snapshot_store = SnapshotStore(settings.data_dir, settings.snapshot_dir)
@@ -131,6 +134,18 @@ def build_container(settings: Settings) -> Container:
     recording_import_service = RecordingImportService(
         recording_repository, camera_service, purge_service, folders=watched_folder_repository
     )
+    camera_recording_sync = CameraRecordingSync(
+        camera_repository,
+        session_repository,
+        recording_repository,
+        camera_profile,
+        recording_import_service,
+        settings.recordings_dir,
+    )
+    import_worker = ImportWorker(
+        recording_import_service, recording_analyzer, camera_recording_sync, recording_repository, camera_repository,
+        on_state=on_job_state,
+    )
     return Container(
         settings=settings,
         database=database,
@@ -148,14 +163,8 @@ def build_container(settings: Settings) -> Container:
         notice_service=NoticeService(notice_repository),
         recording_import_service=recording_import_service,
         recording_analyzer=recording_analyzer,
-        camera_recording_sync=CameraRecordingSync(
-            camera_repository,
-            session_repository,
-            recording_repository,
-            camera_profile,
-            recording_import_service,
-            settings.recordings_dir,
-        ),
+        camera_recording_sync=camera_recording_sync,
+        import_worker=import_worker,
         camera_preview_service=CameraPreviewService(camera_service, camera_manager, recording_repository),
         watched_folder_repository=watched_folder_repository,
         settings_repository=settings_repository,
