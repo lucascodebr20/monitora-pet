@@ -11,7 +11,7 @@ from app.infra.camera.manager import CameraManager
 from app.infra.camera.onvif import device_information
 from app.infra.camera.stream import CameraConnectionError
 from app.infra.repositories.camera_repository import CameraRepository
-from app.services.commands import CameraCredentialsCommand, CreateCameraCommand
+from app.services.camera.commands import CameraCredentialsCommand, CreateCameraCommand
 
 logger = logging.getLogger(__name__)
 

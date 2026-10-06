@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-APP_NAME = "VigiaPet"
+APP_NAME = "Monitora Pet"
 APP_VERSION = "0.2.0"
 BACK_DIR = Path(__file__).resolve().parents[2]
 PROJECT_DIR = BACK_DIR.parent

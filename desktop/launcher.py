@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import secrets
+import shutil
 import socket
 import sys
 import threading
@@ -16,12 +17,12 @@ def bundle_root() -> Path:
     return Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
 
 
-LEGACY_APP_NAMES = ("MonitoraPet",)
+LEGACY_APP_NAMES = ("VigiaPet",)
 
 
 def default_data_dir() -> Path:
     base = Path(os.getenv("LOCALAPPDATA") or os.getenv("XDG_DATA_HOME") or str(Path.home() / ".local" / "share"))
-    current = base / "VigiaPet"
+    current = base / "MonitoraPet"
     if current.exists():
         return current
 
@@ -59,7 +60,7 @@ def wait_until_ready(url: str, token: str, timeout: float = 60.0) -> bool:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="VigiaPet")
+    parser = argparse.ArgumentParser(description="Monitora Pet")
     parser.add_argument("--port", type=int, default=0, help="porta local (0 = escolher uma livre)")
     parser.add_argument("--no-window", action="store_true", help="não abrir janela nem navegador (modo sidecar)")
     parser.add_argument("--browser", action="store_true", help="abrir no navegador padrão em vez da janela nativa")
@@ -74,6 +75,39 @@ def keep_serving(thread: threading.Thread) -> None:
         pass
 
 
+def prepare_models(root: Path) -> None:
+    from app.core.config import MODEL_PATH, PET_EMBEDDING_MODEL_PATH, ensure_data_directories
+    from app.infra.ai.model_setup import (
+        MODEL_SHA256,
+        PET_EMBEDDING_MODEL_SHA256,
+        ensure_models,
+        file_hash,
+    )
+
+    if not getattr(sys, "frozen", False):
+        ensure_models()
+        return
+
+    ensure_data_directories()
+    bundled_dir = root / "bundled-models"
+    models = (
+        (bundled_dir / "yolox_tiny.onnx", MODEL_PATH, MODEL_SHA256),
+        (bundled_dir / "mobilenetv2_embedding.onnx", PET_EMBEDDING_MODEL_PATH, PET_EMBEDDING_MODEL_SHA256),
+    )
+    for source, target, expected_hash in models:
+        if target.is_file() and file_hash(target) == expected_hash:
+            continue
+        if not source.is_file() or file_hash(source) != expected_hash:
+            raise RuntimeError(f"Modelo de IA ausente ou inválido no pacote: {source.name}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_suffix(target.suffix + ".bundled")
+        shutil.copyfile(source, temporary)
+        if file_hash(temporary) != expected_hash:
+            temporary.unlink(missing_ok=True)
+            raise RuntimeError(f"Falha ao validar o modelo empacotado: {source.name}")
+        temporary.replace(target)
+
+
 def main() -> int:
     args = parse_args()
     root = bundle_root()
@@ -84,15 +118,14 @@ def main() -> int:
     token = os.environ.get("VIGIAPET_API_TOKEN") or secrets.token_urlsafe(32)
     os.environ["VIGIAPET_API_TOKEN"] = token
 
-    print(f"VigiaPet · dados em {os.environ['VIGIAPET_DATA_DIR']}")
-
-    from app.infra.ai.model_setup import ensure_models
+    print(f"Monitora Pet · dados em {os.environ['VIGIAPET_DATA_DIR']}")
 
     try:
-        print("Verificando os modelos de inteligência artificial (download só no primeiro uso)...")
-        ensure_models()
+        print("Preparando os modelos de inteligência artificial...", flush=True)
+        prepare_models(root)
     except Exception as error:
-        print(f"Aviso: não foi possível preparar os modelos de IA agora ({error}).")
+        print(f"Não foi possível preparar os modelos de IA ({error}).", flush=True)
+        return 1
 
     import uvicorn
 
@@ -105,31 +138,32 @@ def main() -> int:
     thread.start()
 
     if not wait_until_ready(f"{base_url}/api/session", token):
-        print("O serviço do VigiaPet não respondeu a tempo.")
+        print("O serviço do Monitora Pet não respondeu a tempo.")
         server.should_exit = True
         return 1
 
-    print(f"VigiaPet pronto em {base_url}")
+    print(f"Monitora Pet pronto em {base_url}", flush=True)
+    start_url = f"{base_url}/?token={token}"
     if args.no_window:
+        print(f"VIGIAPET_READY={start_url}", flush=True)
         keep_serving(thread)
         server.should_exit = True
         thread.join(timeout=15)
         return 0
 
-    start_url = f"{base_url}/?token={token}"
     opened_window = False
     if not args.browser:
         try:
             import webview
 
-            webview.create_window("VigiaPet", start_url, width=1280, height=820, min_size=(960, 640))
+            webview.create_window("Monitora Pet", start_url, width=1280, height=820, min_size=(960, 640))
             webview.start()
             opened_window = True
         except Exception as error:
             print(f"Janela nativa indisponível ({error}); abrindo no navegador padrão.")
     if not opened_window:
         webbrowser.open(start_url)
-        print("Feche esta janela para encerrar o VigiaPet.")
+        print("Feche esta janela para encerrar o Monitora Pet.")
         keep_serving(thread)
 
     server.should_exit = True

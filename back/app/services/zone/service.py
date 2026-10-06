@@ -5,8 +5,8 @@ from typing import Any
 from app.domain.errors import EntityNotFoundError
 from app.domain.geometry import validate_polygon
 from app.infra.repositories.zone_repository import ZoneRepository
-from app.services.commands import CreateZoneCommand
-from app.services.camera_service import CameraService
+from app.services.camera import CameraService
+from app.services.zone.commands import CreateZoneCommand
 
 
 class ZoneService:

@@ -95,7 +95,7 @@ export default function App() {
           {view === 'settings' && <SettingsView version={dashboard?.health.version ?? ''} />}
         </main>
         <footer className="app-footer">
-          VigiaPet <span>Um pouco mais perto da rotina deles.</span>
+          Monitora Pet <span>Um pouco mais perto da rotina deles.</span>
         </footer>
       </div>
     </div>
