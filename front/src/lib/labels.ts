@@ -26,12 +26,12 @@ export function zoneIcon(type: string): IconName {
 export const speciesLabels: Record<PetSpecies, string> = { CAT: 'Gato', DOG: 'Cão' }
 
 export const identificationDecisionLabels: Record<string, string> = {
-  MATCHED: 'Gato identificado',
+  MATCHED: 'Pet identificado',
   LOW_SIMILARITY: 'Similaridade insuficiente',
   AMBIGUOUS: 'Resultado ambíguo',
   NO_REFERENCES: 'Sem referências disponíveis',
   CAPTURE_UNAVAILABLE: 'Captura indisponível',
-  UNSUPPORTED: 'Espécie não analisada',
+  UNSUPPORTED: 'Espécie não reconhecida',
 }
 
 export const recordingStatusLabels: Record<Recording['status'], string> = {

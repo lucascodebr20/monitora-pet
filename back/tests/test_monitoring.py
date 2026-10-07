@@ -424,7 +424,7 @@ class FrameAnalyzerTests(unittest.TestCase):
 
             event = event_repository.list(camera_id=camera["id"])[0]
             self.assertEqual(event["ended_at"], (EPOCH + timedelta(seconds=101)).isoformat())
-            self.assertEqual(event["end_reason"], "CAT_LEFT_ZONE")
+            self.assertEqual(event["end_reason"], "PET_LEFT_ZONE")
             self.assertEqual(event["clip_path"], "clips/test.webm")
             self.assertEqual(clip_store.saved[0][1], EPOCH + timedelta(seconds=108))
             self.assertEqual(zones[0]["state"], "OUTSIDE")
@@ -454,7 +454,7 @@ class OfflineCameraAndMemoryTests(unittest.TestCase):
 
             event = event_repository.list(camera_id=camera["id"])[0]
             self.assertIsNotNone(event["ended_at"])
-            self.assertEqual(event["end_reason"], "CAT_LEFT_ZONE")
+            self.assertEqual(event["end_reason"], "PET_LEFT_ZONE")
             self.assertEqual(service.feedback(camera["id"])["status"], "stopped")
             self.assertNotIn(camera["id"], service.tracker.runtimes)
 

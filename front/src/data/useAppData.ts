@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../api'
-import type { Camera, Dashboard, Pet, Zone } from '../api'
+import type { AppSettings, Camera, Dashboard, Pet, Zone } from '../api'
 import { errorMessage } from '../lib/errors'
 
 export type AppData = {
@@ -8,9 +8,11 @@ export type AppData = {
   cameras: Camera[]
   zones: Zone[]
   pets: Pet[]
+  settings: AppSettings | null
   error: string
   reloadToken: number
   refresh: () => Promise<void>
+  applySettings: (settings: AppSettings) => void
 }
 
 const POLL_MS = 10000
@@ -21,6 +23,7 @@ export function useAppData(): AppData {
   const [cameras, setCameras] = useState<Camera[]>([])
   const [zones, setZones] = useState<Zone[]>([])
   const [pets, setPets] = useState<Pet[]>([])
+  const [settings, setSettings] = useState<AppSettings | null>(null)
   const [error, setError] = useState('')
   const [reloadToken, setReloadToken] = useState(0)
   const summarySequence = useRef(0)
@@ -30,11 +33,12 @@ export function useAppData(): AppData {
     const summaryId = ++summarySequence.current
     const catalogId = ++catalogSequence.current
     try {
-      const [summary, cameraList, zoneList, petList] = await Promise.all([
+      const [summary, cameraList, zoneList, petList, appSettings] = await Promise.all([
         api.getDashboard(),
         api.getCameras(),
         api.getZones(),
         api.getPets(),
+        api.getSettings(),
       ])
       if (summaryId === summarySequence.current) {
         setDashboard(summary)
@@ -43,6 +47,7 @@ export function useAppData(): AppData {
       if (catalogId === catalogSequence.current) {
         setZones(zoneList)
         setPets(petList)
+        setSettings(appSettings)
         setReloadToken(value => value + 1)
       }
       setError('')
@@ -74,5 +79,5 @@ export function useAppData(): AppData {
     return () => window.clearInterval(timer)
   }, [poll])
 
-  return { dashboard, cameras, zones, pets, error, reloadToken, refresh }
+  return { dashboard, cameras, zones, pets, settings, error, reloadToken, refresh, applySettings: setSettings }
 }

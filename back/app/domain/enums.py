@@ -23,6 +23,12 @@ class ReviewDecision(StrEnum):
     INCONCLUSIVE = "INCONCLUSIVE"
 
 
+class HouseholdSpecies(StrEnum):
+    CAT = "CAT"
+    DOG = "DOG"
+    BOTH = "BOTH"
+
+
 class PetSpecies(StrEnum):
     CAT = "CAT"
     DOG = "DOG"

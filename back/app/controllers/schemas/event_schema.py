@@ -13,3 +13,7 @@ class ReviewCreateRequest(BaseModel):
 
     def to_command(self) -> ReviewEventCommand:
         return ReviewEventCommand(**self.model_dump())
+
+
+class HighlightUpdateRequest(BaseModel):
+    highlighted: bool

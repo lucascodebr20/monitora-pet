@@ -1,9 +1,11 @@
 import { useCallback, useState } from 'react'
 import type { Event } from '../api'
-import { formatDateTime, zoneIcon, zoneLabels } from '../lib/labels'
+import { formatDateTime } from '../lib/labels'
+import { useHousehold } from '../lib/useHousehold'
 import { useEscape } from '../lib/hooks'
 import Empty from './Empty'
 import Icon from './Icon'
+import StarButton from './StarButton'
 
 function reviewLabel(decision: string | null): string {
   if (decision === 'FALSE_POSITIVE') return 'Descartado'
@@ -11,7 +13,10 @@ function reviewLabel(decision: string | null): string {
   return decision ? 'Revisado' : 'A revisar'
 }
 
-function EventDetail({ event, onClose }: { event: Event; onClose: () => void }) {
+type DetailProps = { event: Event; onClose: () => void; onChange: (event: Event) => void }
+
+function EventDetail({ event, onClose, onChange }: DetailProps) {
+  const { zoneLabels } = useHousehold()
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Detalhes do registro">
       <section className="modal event-detail-modal">
@@ -45,6 +50,14 @@ function EventDetail({ event, onClose }: { event: Event; onClose: () => void }) 
         <p>
           {event.camera_name} · {formatDateTime(event.started_at)}
         </p>
+        <div className="highlight-box">
+          <StarButton event={event} onChange={onChange} withLabel />
+          <small className="muted">
+            {event.highlighted_at
+              ? `Favoritado em ${formatDateTime(event.highlighted_at)}. A mídia deste registro não é apagada pela retenção.`
+              : 'Guarde este registro nos favoritos. A mídia dele deixa de ser apagada pela retenção.'}
+          </small>
+        </div>
         <div className="detail-metrics">
           <div>
             <span>Permanência</span>
@@ -73,9 +86,13 @@ function EventDetail({ event, onClose }: { event: Event; onClose: () => void }) 
   )
 }
 
-export default function EventList({ events }: { events: Event[] }) {
-  const [detail, setDetail] = useState<Event | null>(null)
-  const close = useCallback(() => setDetail(null), [])
+type Props = { events: Event[]; onChange: (event: Event) => void }
+
+export default function EventList({ events, onChange }: Props) {
+  const { zoneLabels, zoneIcon } = useHousehold()
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const detail = events.find(event => event.id === detailId) ?? null
+  const close = useCallback(() => setDetailId(null), [])
   useEscape(close, detail !== null)
 
   if (!events.length)
@@ -88,27 +105,30 @@ export default function EventList({ events }: { events: Event[] }) {
     <>
       <div className="event-list">
         {events.map(event => (
-          <button className="event-row" key={event.id} onClick={() => setDetail(event)}>
-            <div className={`event-kind ${event.zone_type.toLowerCase()}`}>
-              <Icon name={zoneIcon(event.zone_type)} />
-            </div>
-            <div>
-              <strong>
-                {event.pet_name ? `${event.pet_name} · ` : 'Pet não identificado · '}
-                {zoneLabels[event.zone_type] ?? event.zone_name}
-              </strong>
-              <span>
-                {event.camera_name} · {formatDateTime(event.started_at)}
-              </span>
-            </div>
-            <div className="event-meta">
-              <strong>{Math.round(event.duration_seconds)}s</strong>
-              <span className={!event.review_decision ? 'pending' : ''}>{reviewLabel(event.review_decision)}</span>
-            </div>
-          </button>
+          <div className={`event-row ${event.highlighted_at ? 'highlighted' : ''}`} key={event.id}>
+            <button className="event-open" onClick={() => setDetailId(event.id)}>
+              <div className={`event-kind ${event.zone_type.toLowerCase()}`}>
+                <Icon name={zoneIcon(event.zone_type)} />
+              </div>
+              <div>
+                <strong>
+                  {event.pet_name ? `${event.pet_name} · ` : 'Pet não identificado · '}
+                  {zoneLabels[event.zone_type] ?? event.zone_name}
+                </strong>
+                <span>
+                  {event.camera_name} · {formatDateTime(event.started_at)}
+                </span>
+              </div>
+              <div className="event-meta">
+                <strong>{Math.round(event.duration_seconds)}s</strong>
+                <span className={!event.review_decision ? 'pending' : ''}>{reviewLabel(event.review_decision)}</span>
+              </div>
+            </button>
+            <StarButton event={event} onChange={onChange} />
+          </div>
         ))}
       </div>
-      {detail && <EventDetail event={detail} onClose={close} />}
+      {detail && <EventDetail event={detail} onClose={close} onChange={onChange} />}
     </>
   )
 }

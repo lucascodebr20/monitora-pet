@@ -17,6 +17,7 @@ from app.infra.media.media_cleanup import MediaCleanup
 from app.infra.media.pet_image_store import PetImageStore
 from app.infra.media.snapshot_store import SnapshotStore
 from app.infra.repositories.camera_repository import CameraRepository
+from app.infra.repositories.event_highlight_repository import EventHighlightRepository
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.monitoring_session_repository import MonitoringSessionRepository
 from app.infra.repositories.pet_identification_repository import PetIdentificationRepository
@@ -32,11 +33,13 @@ from app.services import (
     CameraProfileService,
     CameraRecordingSync,
     CameraService,
+    EventHighlightService,
     EventMediaService,
     EventPurgeService,
     EventQueryService,
     EventReviewService,
     HealthService,
+    HouseholdService,
     IdentificationService,
     ImportWorker,
     MediaRetentionService,
@@ -62,10 +65,12 @@ class Container:
     event_query_service: EventQueryService
     event_review_service: EventReviewService
     event_media_service: EventMediaService
+    event_highlight_service: EventHighlightService
     identification_service: IdentificationService
     monitoring_service: MonitoringService
     health_service: HealthService
     retention_service: MediaRetentionService
+    household_service: HouseholdService
     recording_import_service: RecordingImportService
     recording_analyzer: RecordingAnalyzer | None
     camera_recording_sync: CameraRecordingSync
@@ -85,6 +90,7 @@ def build_container(settings: Settings, on_job_state: Callable[[str], None] | No
     camera_repository = CameraRepository(database)
     zone_repository = ZoneRepository(database)
     event_repository = EventRepository(database)
+    event_highlight_repository = EventHighlightRepository(database)
     pet_repository = PetRepository(database)
     pet_identification_repository = PetIdentificationRepository(database)
     session_repository = MonitoringSessionRepository(database)
@@ -157,10 +163,12 @@ def build_container(settings: Settings, on_job_state: Callable[[str], None] | No
         event_query_service=event_query_service,
         event_review_service=EventReviewService(event_repository, pet_repository, identification_calibrator),
         event_media_service=EventMediaService(event_repository, snapshot_store, clip_store),
+        event_highlight_service=EventHighlightService(event_repository, event_highlight_repository),
         identification_service=IdentificationService(pet_identification_repository, identification_calibrator),
         monitoring_service=monitoring_service,
         health_service=HealthService(camera_service, event_query_service, event_repository, monitoring_service),
         retention_service=retention_service,
+        household_service=HouseholdService(settings_repository),
         recording_import_service=recording_import_service,
         recording_analyzer=recording_analyzer,
         camera_recording_sync=camera_recording_sync,

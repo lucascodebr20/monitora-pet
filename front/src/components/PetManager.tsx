@@ -3,6 +3,7 @@ import * as api from '../api'
 import type { Pet, PetReferenceImage, PetSpecies } from '../api'
 import { errorMessage } from '../lib/errors'
 import { speciesLabels } from '../lib/labels'
+import { useHousehold } from '../lib/useHousehold'
 import Lightbox from './Lightbox'
 import { useToast } from './useToast'
 
@@ -16,7 +17,7 @@ const CROP_QUALITY = 0.88
 const CENTER: CropPosition = { x: 50, y: 50 }
 const SPECIES: PetSpecies[] = ['CAT', 'DOG']
 
-const emptyForm = (): PetForm => ({ name: '', species: 'CAT', description: '', photo_data: null })
+const emptyForm = (species: PetSpecies): PetForm => ({ name: '', species, description: '', photo_data: null })
 const formFor = (pet: Pet): PetForm => ({
   name: pet.name,
   species: pet.species,
@@ -43,8 +44,9 @@ async function cropPhoto(sourceUrl: string, position: CropPosition): Promise<str
 }
 
 export default function PetManager({ pets, refresh }: Props) {
+  const { defaultSpecies, hasCats, hasDogs } = useHousehold()
   const showToast = useToast()
-  const [form, setForm] = useState<PetForm>(emptyForm)
+  const [form, setForm] = useState<PetForm>(() => emptyForm(defaultSpecies))
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -97,7 +99,7 @@ export default function PetManager({ pets, refresh }: Props) {
   function startCreate() {
     setDetailsId(null)
     setCreating(true)
-    setForm(emptyForm())
+    setForm(emptyForm(defaultSpecies))
     resetPhoto()
     setError('')
   }
@@ -115,7 +117,7 @@ export default function PetManager({ pets, refresh }: Props) {
     setCreating(false)
     setDetailsId(null)
     setActiveTab('edit')
-    setForm(emptyForm())
+    setForm(emptyForm(defaultSpecies))
     resetPhoto()
     setError('')
   }
@@ -219,7 +221,7 @@ export default function PetManager({ pets, refresh }: Props) {
             placeholder="Ex.: Mingau"
           />
         </label>
-        <fieldset className="species-options">
+        <fieldset className="species-options" hidden={!(hasCats && hasDogs)}>
           <legend>Espécie</legend>
           {SPECIES.map(species => (
             <label className={form.species === species ? 'chosen' : ''} key={species}>

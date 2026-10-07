@@ -106,10 +106,27 @@ class PetIdentifierTests(unittest.TestCase):
 
             self.assertIsNone(match)
 
-    def test_limits_automatic_identification_to_cats(self):
+    def test_identifies_dogs_only_among_dog_references(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_image(root / "capture.jpg", (30, 60, 200))
+            self.write_image(root / "rex.jpg", (30, 60, 200))
+            self.write_image(root / "mingau.jpg", (30, 60, 200))
+            repository = FakePetRepository([
+                {"id": "rex", "species": "DOG", "photo_path": "rex.jpg"},
+                {"id": "mingau", "species": "CAT", "photo_path": "mingau.jpg"},
+            ])
+
+            analysis = PetIdentifier(repository, FakeImageStore(root)).analyze("capture.jpg", "DOG")
+
+            self.assertEqual(analysis.decision, "MATCHED")
+            self.assertEqual(analysis.match.pet_id, "rex")
+            self.assertEqual([score["pet_id"] for score in analysis.scores], ["rex"])
+
+    def test_unknown_species_is_not_analyzed(self):
         repository = FakePetRepository([])
-        match = PetIdentifier(repository, FakeImageStore(Path("."))).analyze("capture.jpg", "DOG").match
-        self.assertIsNone(match)
+        analysis = PetIdentifier(repository, FakeImageStore(Path("."))).analyze("capture.jpg", "BIRD")
+        self.assertEqual(analysis.decision, "UNSUPPORTED")
 
     def test_recalibrates_thresholds_after_each_ten_confirmed_interactions(self):
         learning = FakeLearningRepository()

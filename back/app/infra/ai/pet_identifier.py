@@ -14,6 +14,7 @@ from app.infra.repositories.pet_identification_repository import PetIdentificati
 from app.infra.repositories.pet_repository import PetRepository
 
 Descriptor = np.ndarray | tuple[np.ndarray, np.ndarray, np.ndarray]
+SUPPORTED_SPECIES = frozenset({"CAT", "DOG"})
 
 
 @dataclass(frozen=True)
@@ -66,7 +67,7 @@ class PetIdentifier:
 
     def analyze_images(self, images: Iterable[np.ndarray], species: str) -> PetAnalysis:
         minimum_similarity, minimum_margin = self._thresholds()
-        if species != "CAT":
+        if species not in SUPPORTED_SPECIES:
             return PetAnalysis(None, "UNSUPPORTED", (), minimum_similarity, minimum_margin, self.METHOD)
         descriptors: list[Descriptor] = []
         for image in images:
@@ -117,7 +118,7 @@ class PetIdentifier:
 
     def _empty_analysis(self, decision: str, species: str) -> PetAnalysis:
         minimum_similarity, minimum_margin = self._thresholds()
-        return PetAnalysis(None, "UNSUPPORTED" if species != "CAT" else decision, (),
+        return PetAnalysis(None, "UNSUPPORTED" if species not in SUPPORTED_SPECIES else decision, (),
                            minimum_similarity, minimum_margin, self.METHOD)
 
     def _thresholds(self) -> tuple[float, float]:
