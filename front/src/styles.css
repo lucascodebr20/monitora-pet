@@ -1230,39 +1230,6 @@ nav button b {
   font-size: 12px;
   padding: 2px 7px;
 }
-.sidebar-bottom {
-  margin-top: auto;
-}
-.workspace-avatar {
-  border-top: 1px solid var(--line);
-  padding: 21px 6px 0;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-}
-.workspace-avatar > span {
-  width: 37px;
-  height: 37px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: #ecf1f4;
-  color: #586773;
-  font-size: 12px;
-  font-weight: 750;
-}
-.workspace-avatar strong,
-.workspace-avatar small {
-  display: block;
-}
-.workspace-avatar strong {
-  font-size: 14px;
-}
-.workspace-avatar small {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 4px;
-}
 .main-shell {
   min-width: 0;
 }
@@ -2150,8 +2117,7 @@ h1 {
     padding: 10px;
     gap: 7px;
   }
-  .sidebar .nav-caption,
-  .sidebar-bottom {
+  .sidebar .nav-caption {
     display: none;
   }
   .sidebar nav + nav {
