@@ -9,9 +9,10 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.core.config import env
 from app.core.rate_limit import FailedAttemptLimiter
 
-SESSION_COOKIE = "vigiapet_session"
+SESSION_COOKIE = "monitorapet_session"
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "testserver")
 PUBLIC_API_PATHS = frozenset({"/api/session"})
 UNAUTHENTICATED_DETAIL = "Sessão não autenticada. Abra o Monitora Pet pelo aplicativo."
@@ -21,12 +22,12 @@ LIMITER = FailedAttemptLimiter()
 
 
 def _configured_token() -> str | None:
-    value = os.getenv("VIGIAPET_API_TOKEN", "").strip()
+    value = env("API_TOKEN").strip()
     return value or None
 
 
 def _configured_hosts() -> list[str]:
-    extra = [host.strip() for host in os.getenv("VIGIAPET_ALLOWED_HOSTS", "").split(",")]
+    extra = [host.strip() for host in env("ALLOWED_HOSTS").split(",")]
     return [*LOCAL_HOSTS, *(host for host in extra if host)]
 
 

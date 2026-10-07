@@ -44,7 +44,7 @@ class RouteTests(unittest.TestCase):
         dashboard = self.client.get("/api/dashboard").json()
         self.assertEqual(dashboard["events_today"], 0)
         self.assertEqual(dashboard["pending_reviews"], 0)
-        self.assertTrue((self.settings.log_dir / "vigiapet.log").exists())
+        self.assertTrue((self.settings.log_dir / "monitorapet.log").exists())
 
     def test_domain_errors_become_http_statuses(self):
         self.assertEqual(self.client.get("/api/pets/nao-existe/photo").status_code, 404)

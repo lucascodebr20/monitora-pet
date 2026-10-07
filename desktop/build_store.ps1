@@ -1,7 +1,7 @@
 param(
-    [string]$PackageIdentityName = $env:VIGIAPET_STORE_IDENTITY_NAME,
-    [string]$Publisher = $env:VIGIAPET_STORE_PUBLISHER,
-    [string]$PublisherDisplayName = $env:VIGIAPET_STORE_PUBLISHER_DISPLAY_NAME,
+    [string]$PackageIdentityName = $env:MONITORAPET_STORE_IDENTITY_NAME,
+    [string]$Publisher = $env:MONITORAPET_STORE_PUBLISHER,
+    [string]$PublisherDisplayName = $env:MONITORAPET_STORE_PUBLISHER_DISPLAY_NAME,
     [string]$WebView2Version = "154.0.4258.62",
     [switch]$SkipAppBuild
 )

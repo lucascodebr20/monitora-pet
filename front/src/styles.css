@@ -4309,82 +4309,6 @@ dialog.modal {
 }
 
 
-.review-layout {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
-}
-
-.review-queue {
-  max-height: 72vh;
-  overflow: auto;
-}
-
-.review-queue ol {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-}
-
-.review-queue button {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  text-align: left;
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-}
-
-.review-queue button:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.review-queue button.selected {
-  border-color: rgba(31, 111, 235, 0.4);
-  background: rgba(31, 111, 235, 0.08);
-}
-
-.review-queue button > span:last-child {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.review-queue strong {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-}
-
-.review-queue small {
-  opacity: 0.7;
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.review-queue-index {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 12px;
-  background: rgba(0, 0, 0, 0.06);
-  flex-shrink: 0;
-}
-
 .history-primary-filters {
   display: flex;
   align-items: center;
@@ -4562,12 +4486,6 @@ dialog.modal {
   }
 }
 
-
-@media (max-width: 960px) {
-  .review-layout {
-    grid-template-columns: 1fr;
-  }
-}
 
 /* Marca --------------------------------------------------------------- */
 

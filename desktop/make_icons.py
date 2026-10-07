@@ -189,7 +189,7 @@ def main() -> None:
         image.save(path)
         written += 1
 
-    for ico in (ICON_DIR / "icon.ico", ROOT / "desktop" / "vigiapet.ico"):
+    for ico in (ICON_DIR / "icon.ico", ROOT / "desktop" / "monitorapet.ico"):
         write_ico(ico, [16, 24, 32, 48, 64, 128, 256])
         written += 1
 

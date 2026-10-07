@@ -1,6 +1,6 @@
 declare global {
   interface Window {
-    __VIGIAPET_TOKEN__?: string
+    __MONITORAPET_TOKEN__?: string
   }
 }
 
@@ -9,7 +9,7 @@ type SessionStatus = { required: boolean; authenticated: boolean }
 let launcherToken: string | null = null
 
 function readLauncherToken(): string | null {
-  if (window.__VIGIAPET_TOKEN__) return window.__VIGIAPET_TOKEN__
+  if (window.__MONITORAPET_TOKEN__) return window.__MONITORAPET_TOKEN__
   return new URLSearchParams(window.location.search).get('token')
 }
 

@@ -96,7 +96,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 def _announce_job_state(status: str) -> None:
-    print(f"VIGIAPET_JOB={status}", flush=True)
+    print(f"MONITORAPET_JOB={status}", flush=True)
 
 
 def _domain_error_handler(status_code: int):

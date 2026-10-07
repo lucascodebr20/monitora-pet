@@ -83,7 +83,7 @@ class RetentionTests(unittest.TestCase):
     def test_removes_only_app_owned_recording_files(self):
         owned = self._file("recordings/cam/old.h264")
         index_path_for(owned).write_text(json.dumps({"timestamps": []}))
-        outside = Path(self.directory.name).parent / "vigiapet-outside-test.mp4"
+        outside = Path(self.directory.name).parent / "monitorapet-outside-test.mp4"
         outside.write_bytes(b"x")
         try:
             for path in (owned, outside):

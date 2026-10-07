@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Monitora Pet",
   "version": "0.2.0",
-  "identifier": "br.com.lucascode.vigiapet",
+  "identifier": "br.com.lucascode.monitorapet",
   "build": {
     "beforeBuildCommand": "powershell -NoProfile -ExecutionPolicy Bypass -File ../desktop/prepare_tauri_sidecar.ps1",
     "frontendDist": "../dist"
@@ -35,10 +35,10 @@
     "shortDescription": "Monitoramento local de pets com câmeras IP",
     "longDescription": "O Monitora Pet monitora localmente visitas de gatos às áreas de alimentação, água e caixa de areia usando câmeras IP.",
     "externalBin": [
-      "binaries/vigiapet-backend"
+      "binaries/monitorapet-backend"
     ],
     "icon": [
-      "../../desktop/vigiapet.ico"
+      "../../desktop/monitorapet.ico"
     ],
     "windows": {
       "webviewInstallMode": {
