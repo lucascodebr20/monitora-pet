@@ -16,6 +16,7 @@ from app.infra.repositories.settings_repository import SettingsRepository
 logger = logging.getLogger(__name__)
 
 RETENTION_KEY = "retention_days"
+RETENTION_ENABLED_KEY = "retention_enabled"
 DEFAULT_RETENTION_DAYS = 7
 MIN_RETENTION_DAYS = 1
 MAX_RETENTION_DAYS = 365
@@ -25,7 +26,7 @@ MAX_RETENTION_DAYS = 365
 class RetentionResult:
     media_removed: int
     recordings_removed: int
-    cutoff: str
+    cutoff: str | None
 
 
 class MediaRetentionService:
@@ -43,6 +44,13 @@ class MediaRetentionService:
         self.cleanup = cleanup
         self._now = now
 
+    def enabled(self) -> bool:
+        return bool(self.settings.get(RETENTION_ENABLED_KEY, False))
+
+    def set_enabled(self, enabled: bool) -> bool:
+        self.settings.set(RETENTION_ENABLED_KEY, bool(enabled))
+        return bool(enabled)
+
     def retention_days(self) -> int:
         value = self.settings.get(RETENTION_KEY, DEFAULT_RETENTION_DAYS)
         try:
@@ -56,10 +64,12 @@ class MediaRetentionService:
         self.settings.set(RETENTION_KEY, days)
         return days
 
-    def view(self) -> dict[str, int]:
-        return {"retention_days": self.retention_days()}
+    def view(self) -> dict[str, int | bool]:
+        return {"retention_enabled": self.enabled(), "retention_days": self.retention_days()}
 
     def run(self) -> RetentionResult:
+        if not self.enabled():
+            return RetentionResult(0, 0, None)
         cutoff = self._now() - timedelta(days=self.retention_days())
         cutoff_iso = cutoff.isoformat()
         media_removed = self.cleanup.remove(self.event_repository.expire_media(cutoff_iso))

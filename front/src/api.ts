@@ -58,7 +58,11 @@ export type JobState = {
 
 export type HouseholdSpecies = 'CAT' | 'DOG' | 'BOTH'
 
-export type AppSettings = { retention_days: number; household_species: HouseholdSpecies | null }
+export type AppSettings = {
+  retention_enabled: boolean
+  retention_days: number
+  household_species: HouseholdSpecies | null
+}
 
 export type WatchedFolder = {
   id: string

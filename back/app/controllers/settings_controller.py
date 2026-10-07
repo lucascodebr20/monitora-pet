@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 class SettingsUpdateRequest(BaseModel):
     retention_days: int | None = Field(default=None, ge=1, le=365)
+    retention_enabled: bool | None = None
     household_species: HouseholdSpecies | None = None
     auto_review_enabled: bool | None = None
     auto_review_target_precision: float | None = Field(
@@ -24,6 +25,7 @@ class SettingsUpdateRequest(BaseModel):
             value is None
             for value in (
                 self.retention_days,
+                self.retention_enabled,
                 self.household_species,
                 self.auto_review_enabled,
                 self.auto_review_target_precision,
@@ -50,6 +52,8 @@ def get_settings(container: Container = Depends(get_container)) -> dict[str, Any
 def update_settings(request: SettingsUpdateRequest, container: Container = Depends(get_container)) -> dict[str, Any]:
     if request.retention_days is not None:
         container.retention_service.set_retention_days(request.retention_days)
+    if request.retention_enabled is not None:
+        container.retention_service.set_enabled(request.retention_enabled)
     if request.household_species is not None:
         container.household_service.set_species(request.household_species)
     container.auto_review_service.update(request.auto_review_enabled, request.auto_review_target_precision)

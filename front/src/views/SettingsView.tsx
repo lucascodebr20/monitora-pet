@@ -27,6 +27,7 @@ export default function SettingsView({ version, settings: appSettings, onSetting
   const [retention, setRetention] = useState('7')
   const [savingRetention, setSavingRetention] = useState(false)
   const [retentionMessage, setRetentionMessage] = useState('')
+  const [savingRetentionToggle, setSavingRetentionToggle] = useState(false)
   const [savingHousehold, setSavingHousehold] = useState(false)
   const [householdMessage, setHouseholdMessage] = useState('')
 
@@ -53,6 +54,20 @@ export default function SettingsView({ version, settings: appSettings, onSetting
       setRetentionMessage(errorMessage(reason, 'Não foi possível salvar.'))
     } finally {
       setSavingRetention(false)
+    }
+  }
+
+  async function toggleRetention(enabled: boolean) {
+    if (savingRetentionToggle || !appSettings) return
+    setSavingRetentionToggle(true)
+    setRetentionMessage('')
+    try {
+      onSettings(await api.updateSettings({ retention_enabled: enabled }))
+      setRetentionMessage(enabled ? 'Limpeza automática ativada.' : 'Limpeza automática desativada. Nada será apagado.')
+    } catch (reason) {
+      setRetentionMessage(errorMessage(reason, 'Não foi possível salvar.'))
+    } finally {
+      setSavingRetentionToggle(false)
     }
   }
 
@@ -172,14 +187,23 @@ export default function SettingsView({ version, settings: appSettings, onSetting
           <section className="panel">
             <div className="panel-head">
               <div>
-                <h2>Retenção de vídeos e imagens</h2>
+                <h2>Limpeza automática de vídeos e imagens</h2>
                 <p>
-                  Gravações baixadas, fotos e vídeos dos eventos mais antigos que o prazo abaixo são apagados
-                  automaticamente. O histórico das visitas é mantido, e registros favoritados com a estrela preservam a
-                  mídia.
+                  Por padrão nada é apagado. Se ativar, gravações baixadas, fotos e vídeos dos eventos mais antigos que
+                  o prazo são removidos automaticamente. O histórico das visitas é mantido, e registros favoritados com
+                  a estrela preservam a mídia.
                 </p>
               </div>
             </div>
+            <label className="retention-toggle">
+              <input
+                type="checkbox"
+                checked={appSettings?.retention_enabled ?? false}
+                disabled={savingRetentionToggle || appSettings === null}
+                onChange={event => void toggleRetention(event.target.checked)}
+              />
+              <span>Apagar mídia antiga automaticamente</span>
+            </label>
             <form className="retention-form" onSubmit={saveRetention}>
               <label htmlFor="retention-days">Guardar por</label>
               <div className="retention-input">
@@ -190,10 +214,14 @@ export default function SettingsView({ version, settings: appSettings, onSetting
                   max="365"
                   value={retention}
                   onChange={event => setRetention(event.target.value)}
-                  disabled={appSettings === null}
+                  disabled={!appSettings?.retention_enabled}
                 />
                 <span>dias</span>
-                <button className="secondary" type="submit" disabled={savingRetention || appSettings === null}>
+                <button
+                  className="secondary"
+                  type="submit"
+                  disabled={savingRetention || !appSettings?.retention_enabled}
+                >
                   {savingRetention ? 'Salvando…' : 'Salvar'}
                 </button>
               </div>

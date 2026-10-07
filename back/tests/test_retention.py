@@ -44,14 +44,30 @@ class RetentionTests(unittest.TestCase):
             self.camera["id"], self.zone["id"], started, started, 0.9, snapshot, "CAT", capture
         )
 
+    def test_disabled_by_default_and_removes_nothing_until_enabled(self):
+        old_snapshot = self._file("snapshots/old.jpg")
+        self._event(30, "snapshots/old.jpg")
+
+        self.assertFalse(self.service.enabled())
+        result = self.service.run()
+
+        self.assertEqual((result.media_removed, result.recordings_removed, result.cutoff), (0, 0, None))
+        self.assertTrue(old_snapshot.exists())
+
+        self.service.set_enabled(True)
+
+        self.assertEqual(self.service.run().media_removed, 1)
+        self.assertFalse(old_snapshot.exists())
+
     def test_default_retention_and_bounds(self):
         self.assertEqual(self.service.retention_days(), 7)
         self.assertEqual(self.service.set_retention_days(30), 30)
-        self.assertEqual(self.service.view(), {"retention_days": 30})
+        self.assertEqual(self.service.view(), {"retention_enabled": False, "retention_days": 30})
         with self.assertRaises(InvalidDomainValueError):
             self.service.set_retention_days(0)
 
     def test_removes_media_older_than_retention_but_keeps_events_and_references(self):
+        self.service.set_enabled(True)
         old_snapshot = self._file("snapshots/old.jpg")
         old_capture = self._file("pets/captures/old.jpg")
         kept_capture = self._file("pets/captures/ref.jpg")
@@ -82,6 +98,7 @@ class RetentionTests(unittest.TestCase):
         self.assertEqual(events[new_event]["snapshot_path"], "snapshots/new.jpg")
 
     def test_highlighted_events_keep_media_past_retention(self):
+        self.service.set_enabled(True)
         starred_snapshot = self._file("snapshots/starred.jpg")
         starred_clip = self._file("clips/starred.webm")
         plain_snapshot = self._file("snapshots/plain.jpg")
@@ -101,6 +118,7 @@ class RetentionTests(unittest.TestCase):
         self.assertIsNone(events[plain]["snapshot_path"])
 
     def test_removes_only_app_owned_recording_files(self):
+        self.service.set_enabled(True)
         owned = self._file("recordings/cam/old.h264")
         index_path_for(owned).write_text(json.dumps({"timestamps": []}))
         outside = Path(self.directory.name).parent / "monitorapet-outside-test.mp4"
