@@ -35,6 +35,9 @@ class CameraProfileService:
     def credentials_for(self, camera_id: str) -> tuple[str, str]:
         return self.credentials.get(camera_id) or ("", "")
 
+    def has_credentials(self, camera_id: str) -> bool:
+        return self.credentials.get(camera_id) is not None
+
     def forget(self, camera_id: str) -> None:
         self.credentials.delete(camera_id)
 

@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import * as api from '../api'
 import type { AppSettings, IdentificationLogs } from '../api'
+import BrandMark from '../components/BrandMark'
 import Icon from '../components/Icon'
 import { errorMessage } from '../lib/errors'
 import { formatDateTime, identificationDecisionLabels } from '../lib/labels'
@@ -106,15 +107,37 @@ export default function SettingsView({ version }: { version: string }) {
         </button>
       </nav>
       {section === 'general' ? (
-        <section className="panel settings">
-          <h2>Privacidade</h2>
-          <p>Todos os dados são armazenados localmente.</p>
-          <h2>Retenção de vídeos e imagens</h2>
-          <form className="retention-form" onSubmit={saveRetention}>
-            <label>
-              Guardar por
-              <span className="retention-input">
+        <div className="settings-panels">
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>Privacidade</h2>
+                <p>Onde ficam as imagens, os vídeos e o histórico das visitas.</p>
+              </div>
+            </div>
+            <div className="settings-highlight">
+              <Icon name="shield" />
+              <div>
+                <strong>Todos os dados são armazenados localmente</strong>
+                <p>Nada é enviado para servidores externos: tudo permanece neste computador.</p>
+              </div>
+            </div>
+          </section>
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>Retenção de vídeos e imagens</h2>
+                <p>
+                  Gravações baixadas, fotos e vídeos dos eventos mais antigos que o prazo abaixo são apagados
+                  automaticamente. O histórico das visitas é mantido.
+                </p>
+              </div>
+            </div>
+            <form className="retention-form" onSubmit={saveRetention}>
+              <label htmlFor="retention-days">Guardar por</label>
+              <div className="retention-input">
                 <input
+                  id="retention-days"
                   type="number"
                   min="1"
                   max="365"
@@ -122,21 +145,34 @@ export default function SettingsView({ version }: { version: string }) {
                   onChange={event => setRetention(event.target.value)}
                   disabled={settings === null}
                 />
-                dias
-              </span>
-              <small>
-                Gravações baixadas, fotos e vídeos dos eventos mais antigos que isso são apagados automaticamente. O
-                histórico das visitas é mantido.
-              </small>
-            </label>
-            <button className="secondary" type="submit" disabled={savingRetention || settings === null}>
-              {savingRetention ? 'Salvando…' : 'Salvar'}
-            </button>
-            {retentionMessage && <small className="muted">{retentionMessage}</small>}
-          </form>
-          <h2>Versão</h2>
-          <p>Monitora Pet {version}</p>
-        </section>
+                <span>dias</span>
+                <button className="secondary" type="submit" disabled={savingRetention || settings === null}>
+                  {savingRetention ? 'Salvando…' : 'Salvar'}
+                </button>
+              </div>
+              {retentionMessage && (
+                <small className="muted" aria-live="polite">
+                  {retentionMessage}
+                </small>
+              )}
+            </form>
+          </section>
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>Sobre</h2>
+                <p>Versão instalada do aplicativo.</p>
+              </div>
+            </div>
+            <div className="settings-about">
+              <BrandMark size={44} />
+              <div>
+                <strong>Monitora Pet</strong>
+                <span>{version ? `Versão ${version}` : 'Versão indisponível'}</span>
+              </div>
+            </div>
+          </section>
+        </div>
       ) : (
         <>
           <section className="identification-summary">

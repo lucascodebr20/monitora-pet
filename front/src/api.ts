@@ -16,6 +16,7 @@ export type Camera = {
   status: ConnectionStatus
   source_kind: 'NETWORK' | 'MANUAL'
   recording_support: 'UNKNOWN' | 'NONE' | 'ONVIF_REPLAY'
+  credentials_saved: boolean
   clock_offset_seconds: number
   last_synced_at: string | null
 }
@@ -315,11 +316,19 @@ export const getEvents = async (pendingReview = false, limit = 100, date?: strin
   if (date) query.set('date', date)
   return (await request<EventPage>(`/api/events?${query.toString()}`)).events
 }
-export const getEventPage = (page: number, petId: string, zoneType: Zone['type'] | '', pageSize = 10, date = '') => {
+export const getEventPage = (
+  page: number,
+  petId: string,
+  zoneType: Zone['type'] | '',
+  pageSize = 10,
+  startDate = '',
+  endDate = '',
+) => {
   const query = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
   if (petId) query.set('pet_id', petId)
   if (zoneType) query.set('zone_type', zoneType)
-  if (date) query.set('date', date)
+  if (startDate) query.set('start_date', startDate)
+  if (endDate) query.set('end_date', endDate)
   return request<EventPage>(`/api/events?${query.toString()}`)
 }
 export const reviewEvent = (id: string, decision: string, pet_id: string | null, zone_type?: Zone['type']) =>

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from app.infra.repositories.recording_repository import RecordingRepository
+from app.domain.errors import OperationFailedError
 from app.services.recordings.analyzer import RecordingBatchResult
 from app.services.recordings.worker import ImportWorker
 from tests.test_monitoring import build_repositories
@@ -44,6 +45,11 @@ class FakeSync:
 
         self.calls.append(camera_id)
         return CameraSyncResult(downloaded=[{"id": "x"}])
+
+
+class FailingSync:
+    def sync(self, camera_id):
+        raise OperationFailedError("A câmera recusou a consulta das gravações.")
 
 
 class ImportWorkerTests(unittest.TestCase):
@@ -98,6 +104,18 @@ class ImportWorkerTests(unittest.TestCase):
         self.assertEqual(self.sync.calls, [self.camera["id"]])
         self.assertEqual(self.importer.scanned, [self.camera["id"]])
         self.assertEqual(self.worker.state()["camera_name"], "Sala")
+        self.assertEqual(self.worker.state()["last_result"]["kind"], "sync")
+
+    def test_failed_sync_keeps_error_and_does_not_start_import(self):
+        worker = ImportWorker(
+            self.importer, self.analyzer, FailingSync(), self.recordings, self.camera_repository
+        )
+
+        worker.request_sync(self.camera["id"])
+        worker.run_pending()
+
+        self.assertEqual(worker.state()["error"], "A câmera recusou a consulta das gravações.")
+        self.assertEqual(self.importer.scanned, [])
 
     def test_missing_model_leaves_recordings_pending_with_error(self):
         worker = ImportWorker(self.importer, None, self.sync, self.recordings, self.camera_repository)

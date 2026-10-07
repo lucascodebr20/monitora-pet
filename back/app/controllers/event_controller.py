@@ -16,6 +16,8 @@ def get_events(
     camera_id: str | None = None,
     zone_id: str | None = None,
     date: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     pending_review: bool = False,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=500),
@@ -25,14 +27,16 @@ def get_events(
     container: Container = Depends(get_container),
 ) -> dict[str, Any]:
     return container.event_query_service.search(
-        page,
-        limit or page_size,
-        pet_id,
-        zone_type,
-        pending_review,
-        camera_id,
-        zone_id,
-        date,
+        page=page,
+        page_size=limit or page_size,
+        pet_id=pet_id,
+        zone_type=zone_type,
+        pending_review=pending_review,
+        camera_id=camera_id,
+        zone_id=zone_id,
+        date=date,
+        start_date=start_date,
+        end_date=end_date,
     )
 
 

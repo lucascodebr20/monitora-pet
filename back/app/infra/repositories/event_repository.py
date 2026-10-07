@@ -50,10 +50,12 @@ class EventRepository:
         camera_id: str | None = None,
         zone_id: str | None = None,
         date: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
         where, parameters = self._filters(
             camera_id=camera_id, zone_id=zone_id, date=date, pending_review=pending_review,
-            pet_id=pet_id, zone_type=zone_type,
+            pet_id=pet_id, zone_type=zone_type, start_date=start_date, end_date=end_date,
         )
         total_row = self.database.one(
             f"SELECT COUNT(*) AS total FROM events e JOIN zones z ON z.id = e.zone_id {where}", tuple(parameters)
@@ -77,6 +79,8 @@ class EventRepository:
         pending_review: bool = False,
         pet_id: str | None = None,
         zone_type: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> tuple[str, list[Any]]:
         filters: list[str] = []
         parameters: list[Any] = []
@@ -96,6 +100,15 @@ class EventRepository:
             start, end = utc_bounds_for_local_date(date)
             filters.append("e.started_at >= ? AND e.started_at < ?")
             parameters.extend((start, end))
+        else:
+            if start_date:
+                start, _ = utc_bounds_for_local_date(start_date)
+                filters.append("e.started_at >= ?")
+                parameters.append(start)
+            if end_date:
+                _, end = utc_bounds_for_local_date(end_date)
+                filters.append("e.started_at < ?")
+                parameters.append(end)
         if pending_review:
             filters.extend(PENDING_REVIEW_FILTERS)
         where = f"WHERE {' AND '.join(filters)}" if filters else ""
