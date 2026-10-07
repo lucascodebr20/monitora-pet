@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Icon from './components/Icon'
+import JobBanner from './components/JobBanner'
 import PetManager from './components/PetManager'
 import ZoneEditor from './components/ZoneEditor'
 import { useAppData } from './data/useAppData'
@@ -70,6 +71,7 @@ export default function App() {
             <span className="breadcrumb">/</span>
             <strong>{viewLabels[view]}</strong>
           </div>
+          <JobBanner refresh={refresh} />
         </header>
         <main className="content">
           {error && (
@@ -87,7 +89,9 @@ export default function App() {
               onNavigate={setView}
             />
           )}
-          {view === 'cameras' && <CamerasView cameras={cameras} zones={zones} refresh={refresh} />}
+          {view === 'cameras' && (
+            <CamerasView cameras={cameras} zones={zones} refresh={refresh} reloadToken={reloadToken} />
+          )}
           {view === 'zones' && <ZoneEditor cameras={cameras} zones={zones} refresh={refresh} />}
           {view === 'pets' && <PetManager pets={pets} refresh={refresh} />}
           {view === 'history' && <HistoryView pets={pets} reloadToken={reloadToken} />}

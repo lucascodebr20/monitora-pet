@@ -62,8 +62,15 @@ class Settings:
     def log_dir(self) -> Path:
         return self.data_dir / "logs"
 
+    @property
+    def recordings_dir(self) -> Path:
+        return self.data_dir / "recordings"
+
     def ensure_directories(self) -> None:
-        for directory in (self.data_dir, self.snapshot_dir, self.clip_dir, self.pet_image_dir, self.log_dir, self.model_dir):
+        for directory in (
+            self.data_dir, self.snapshot_dir, self.clip_dir, self.pet_image_dir, self.log_dir, self.model_dir,
+            self.recordings_dir,
+        ):
             directory.mkdir(parents=True, exist_ok=True)
         self.migrate_legacy_database()
 

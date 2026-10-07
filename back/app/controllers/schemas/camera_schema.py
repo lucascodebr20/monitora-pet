@@ -5,7 +5,7 @@ import ipaddress
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.domain.urls import split_url_credentials
-from app.services.camera import CameraCredentialsCommand, CreateCameraCommand
+from app.services.camera import CameraCredentialsCommand, ConvertCameraCommand, CreateCameraCommand
 
 
 def _move_url_credentials_to_fields(model: _WithRtspCredentials) -> None:
@@ -48,3 +48,20 @@ class CameraCreateRequest(_WithRtspCredentials):
 class CameraCredentialsRequest(_WithRtspCredentials):
     def to_command(self) -> CameraCredentialsCommand:
         return CameraCredentialsCommand(**self.model_dump())
+
+
+class ManualCameraCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
+class CameraConvertRequest(_WithRtspCredentials):
+    ip: str
+    onvif_port: int = Field(default=8899, ge=1, le=65535)
+
+    @field_validator("ip")
+    @classmethod
+    def valid_ip(cls, value: str) -> str:
+        return str(ipaddress.ip_address(value.strip()))
+
+    def to_command(self) -> ConvertCameraCommand:
+        return ConvertCameraCommand(**self.model_dump())

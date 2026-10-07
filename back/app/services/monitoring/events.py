@@ -8,10 +8,10 @@ from app.domain.detection import Detection
 from app.domain.enums import PetSpecies
 from app.domain.zone_presence import PresenceTransition
 from app.infra.ai.pet_identifier import PetAnalysis, PetIdentifier
-from app.infra.camera.manager import CameraManager
 from app.infra.media.pet_image_store import PetImageStore
 from app.infra.media.snapshot_store import SnapshotStore
 from app.infra.repositories.event_repository import EventRepository
+from app.services.monitoring.snapshots import SnapshotSource
 
 END_REASON_LEFT_ZONE = "CAT_LEFT_ZONE"
 
@@ -21,15 +21,18 @@ class EventRecorder:
         self,
         event_repository: EventRepository,
         snapshot_store: SnapshotStore,
-        camera_manager: CameraManager,
+        snapshot_source: SnapshotSource,
         pet_image_store: PetImageStore | None = None,
         pet_identifier: PetIdentifier | None = None,
+        source: str = "LIVE",
     ) -> None:
         self.event_repository = event_repository
         self.snapshot_store = snapshot_store
-        self.camera_manager = camera_manager
+        self.snapshot_source = snapshot_source
         self.pet_image_store = pet_image_store
         self.pet_identifier = pet_identifier
+        self.source = source
+        self.recording_id: str | None = None
 
     def open(
         self,
@@ -42,8 +45,8 @@ class EventRecorder:
         primary: Detection,
         now_utc: datetime,
     ) -> str:
-        snapshot_path = self.snapshot_store.save(self.camera_manager.snapshot(camera_id), now_utc)
-        capture_path = self._capture(observations, frame, primary)
+        snapshot_path = self.snapshot_store.save(self.snapshot_source.snapshot(camera_id, frame), now_utc)
+        capture_path = self._capture(observations, frame, primary, now_utc)
         analysis = self._analyze(observations, capture_path, species)
         match = analysis.match if analysis else None
         started_at = now_utc - timedelta(seconds=transition.elapsed_seconds)
@@ -59,6 +62,8 @@ class EventRecorder:
             match.pet_id if match else None,
             match.confidence if match else None,
             match.method if match else None,
+            source=self.source,
+            recording_id=self.recording_id,
         )
         if self.pet_identifier and analysis:
             self.pet_identifier.record_analysis(event_id, capture_path, species.value, analysis)
@@ -71,15 +76,17 @@ class EventRecorder:
         )
 
     def close_all_open(self, ended_at: datetime) -> None:
-        self.event_repository.finish_open_events(ended_at.isoformat())
+        self.event_repository.finish_open_events(ended_at.isoformat(), self.source)
 
-    def _capture(self, observations: list[np.ndarray], frame: np.ndarray, primary: Detection) -> str | None:
+    def _capture(
+        self, observations: list[np.ndarray], frame: np.ndarray, primary: Detection, captured_at: datetime
+    ) -> str | None:
         if not self.pet_image_store:
             return None
         if observations:
             best = max(observations, key=PetIdentifier.image_quality)
-            return self.pet_image_store.save_capture_image(best)
-        return self.pet_image_store.save_capture(frame, primary)
+            return self.pet_image_store.save_capture_image(best, captured_at)
+        return self.pet_image_store.save_capture(frame, primary, captured_at)
 
     def _analyze(self, observations: list[np.ndarray], capture_path: str | None, species: PetSpecies) -> PetAnalysis | None:
         if not self.pet_identifier:

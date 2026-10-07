@@ -1,4 +1,5 @@
 import logging
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -10,9 +11,11 @@ from app.controllers.camera_controller import router as camera_router
 from app.controllers.event_controller import router as event_router
 from app.controllers.health_controller import router as health_router
 from app.controllers.identification_controller import router as identification_router
+from app.controllers.job_controller import router as job_router
 from app.controllers.monitoring_controller import router as monitoring_router
-from app.controllers.notice_controller import router as notice_router
 from app.controllers.pet_controller import router as pet_router
+from app.controllers.settings_controller import router as settings_router
+from app.controllers.recording_controller import router as recording_router
 from app.controllers.web_controller import router as web_router
 from app.controllers.zone_controller import router as zone_router
 from app.core.config import APP_NAME, APP_VERSION, Settings
@@ -44,13 +47,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings.ensure_directories()
         log_file = configure_logging(settings.log_dir)
         logger.info("%s %s iniciando; dados em %s; log em %s", APP_NAME, APP_VERSION, settings.data_dir, log_file)
-        container = build_container(settings)
+        container = build_container(settings, on_job_state=_announce_job_state)
         container.database.migrate()
         container.monitoring_service.start()
         app.state.container = container
+        threading.Thread(target=container.camera_service.reconnect_all, name="camera-reconnect", daemon=True).start()
+        container.import_worker.start()
         logger.info("Inferência: %s", container.monitoring_service.health())
         yield
         logger.info("Encerrando: parando inferência e desconectando câmeras")
+        container.import_worker.stop()
         container.monitoring_service.stop()
         container.camera_manager.disconnect_all()
 
@@ -79,12 +85,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         zone_router,
         event_router,
         pet_router,
-        notice_router,
+        recording_router,
+        job_router,
+        settings_router,
         monitoring_router,
         web_router,
     ):
         app.include_router(router)
     return app
+
+
+def _announce_job_state(status: str) -> None:
+    print(f"VIGIAPET_JOB={status}", flush=True)
 
 
 def _domain_error_handler(status_code: int):
