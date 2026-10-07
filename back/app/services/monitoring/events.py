@@ -11,6 +11,7 @@ from app.infra.ai.pet_identifier import PetAnalysis, PetIdentifier
 from app.infra.media.pet_image_store import PetImageStore
 from app.infra.media.snapshot_store import SnapshotStore
 from app.infra.repositories.event_repository import EventRepository
+from app.services.event.auto_review import AutoReviewService
 from app.services.monitoring.snapshots import SnapshotSource
 
 END_REASON_LEFT_ZONE = "CAT_LEFT_ZONE"
@@ -25,6 +26,7 @@ class EventRecorder:
         pet_image_store: PetImageStore | None = None,
         pet_identifier: PetIdentifier | None = None,
         source: str = "LIVE",
+        auto_review: AutoReviewService | None = None,
     ) -> None:
         self.event_repository = event_repository
         self.snapshot_store = snapshot_store
@@ -32,6 +34,7 @@ class EventRecorder:
         self.pet_image_store = pet_image_store
         self.pet_identifier = pet_identifier
         self.source = source
+        self.auto_review = auto_review
         self.recording_id: str | None = None
 
     def open(
@@ -67,7 +70,17 @@ class EventRecorder:
         )
         if self.pet_identifier and analysis:
             self.pet_identifier.record_analysis(event_id, capture_path, species.value, analysis)
+        self._maybe_auto_review(event_id, analysis)
         return event_id
+
+    def _maybe_auto_review(self, event_id: str, analysis: PetAnalysis | None) -> None:
+        if not self.auto_review or not analysis or not analysis.match:
+            return
+        scores = sorted((candidate["confidence"] for candidate in analysis.scores), reverse=True)
+        runner_up = scores[1] if len(scores) > 1 else 0.0
+        margin = analysis.match.confidence - runner_up
+        if self.auto_review.should_confirm(analysis.match.pet_id, analysis.match.confidence, margin):
+            self.auto_review.confirm(event_id, analysis.match.pet_id)
 
     def close(self, event_id: str, transition: PresenceTransition, now_utc: datetime) -> None:
         ended_at = now_utc - timedelta(seconds=transition.seconds_since_seen)

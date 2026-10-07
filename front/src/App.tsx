@@ -52,11 +52,7 @@ export default function App() {
       </aside>
       <div className="main-shell">
         <header className="topbar">
-          <div>
-            <span>Minha casa</span>
-            <span className="breadcrumb">/</span>
-            <strong>{viewLabels[view]}</strong>
-          </div>
+          <strong>{viewLabels[view]}</strong>
           <JobBanner refresh={refresh} />
         </header>
         <main className="content">
