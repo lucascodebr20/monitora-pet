@@ -1,7 +1,7 @@
 param(
-    [string]$PackageIdentityName = $env:VIGIAPET_STORE_IDENTITY_NAME,
-    [string]$Publisher = $env:VIGIAPET_STORE_PUBLISHER,
-    [string]$PublisherDisplayName = $env:VIGIAPET_STORE_PUBLISHER_DISPLAY_NAME,
+    [string]$PackageIdentityName = $env:MONITORAPET_STORE_IDENTITY_NAME,
+    [string]$Publisher = $env:MONITORAPET_STORE_PUBLISHER,
+    [string]$PublisherDisplayName = $env:MONITORAPET_STORE_PUBLISHER_DISPLAY_NAME,
     [string]$WebView2Version = "154.0.4258.62",
     [switch]$SkipAppBuild
 )
@@ -76,7 +76,7 @@ if (-not $SkipAppBuild) {
         Remove-Item -LiteralPath $RuntimeExtractDir -Recurse -Force
     }
 
-    $TauriOverride = Join-Path ([System.IO.Path]::GetTempPath()) ("vigiapet-msix-{0}.json" -f [guid]::NewGuid().ToString("N"))
+    $TauriOverride = Join-Path ([System.IO.Path]::GetTempPath()) ("monitorapet-msix-{0}.json" -f [guid]::NewGuid().ToString("N"))
     $OverrideJson = @{
         bundle = @{
             windows = @{
@@ -103,8 +103,8 @@ if (-not $SkipAppBuild) {
     }
 }
 
-$DesktopExecutable = Join-Path $ReleaseDir "vigiapet-desktop.exe"
-$BackendExecutable = Join-Path $ReleaseDir "vigiapet-backend.exe"
+$DesktopExecutable = Join-Path $ReleaseDir "monitorapet-desktop.exe"
+$BackendExecutable = Join-Path $ReleaseDir "monitorapet-backend.exe"
 foreach ($RequiredFile in @($DesktopExecutable, $BackendExecutable)) {
     if (-not (Test-Path -LiteralPath $RequiredFile)) {
         throw "Arquivo necessário não encontrado: $RequiredFile"
@@ -149,7 +149,7 @@ if (Test-Path -LiteralPath $StageDir) {
 $AssetsDir = Join-Path $StageDir "Assets"
 New-Item -ItemType Directory -Force -Path $AssetsDir, $OutputDir | Out-Null
 Copy-Item -LiteralPath $DesktopExecutable -Destination (Join-Path $StageDir "MonitoraPet.exe")
-Copy-Item -LiteralPath $BackendExecutable -Destination (Join-Path $StageDir "vigiapet-backend.exe")
+Copy-Item -LiteralPath $BackendExecutable -Destination (Join-Path $StageDir "monitorapet-backend.exe")
 Copy-Item -LiteralPath $RuntimeBuildDir -Destination (Join-Path $StageDir "WebView2Runtime") -Recurse
 
 $IconDir = Join-Path $TauriDir "icons"

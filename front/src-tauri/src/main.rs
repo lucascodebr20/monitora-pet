@@ -17,8 +17,8 @@ struct BackendProcess(Mutex<Option<CommandChild>>);
 struct JobRunning(AtomicBool);
 struct HiddenToTray(AtomicBool);
 
-const JOB_MARKER: &str = "VIGIAPET_JOB=";
-const READY_MARKER: &str = "VIGIAPET_READY=";
+const JOB_MARKER: &str = "MONITORAPET_JOB=";
+const READY_MARKER: &str = "MONITORAPET_READY=";
 
 fn stop_backend(app: &tauri::AppHandle) {
     let state = app.state::<BackendProcess>();
@@ -121,7 +121,7 @@ fn main() {
         .setup(|app| {
             let sidecar = app
                 .shell()
-                .sidecar("vigiapet-backend")?
+                .sidecar("monitorapet-backend")?
                 .args(["--no-window"]);
             let (mut events, child) = sidecar.spawn()?;
             app.manage(BackendProcess(Mutex::new(Some(child))));

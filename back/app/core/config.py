@@ -9,12 +9,22 @@ APP_NAME = "Monitora Pet"
 APP_VERSION = "0.2.0"
 BACK_DIR = Path(__file__).resolve().parents[2]
 PROJECT_DIR = BACK_DIR.parent
-DATABASE_FILENAME = "vigiapet.sqlite3"
-LEGACY_DATABASE_FILENAMES = ("monitorapet.sqlite3",)
+DATABASE_FILENAME = "monitorapet.sqlite3"
+# O banco ja se chamou assim; migrate_legacy_database renomeia na subida.
+LEGACY_DATABASE_FILENAMES = ("vigiapet.sqlite3",)
+
+
+def env(name: str, default: str = "") -> str:
+    """Le MONITORAPET_<name>, caindo para o VIGIAPET_<name> antigo.
+
+    O projeto ja usou o prefixo VIGIAPET_; o fallback existe para que um
+    ambiente configurado antes do rename continue funcionando.
+    """
+    return os.getenv(f"MONITORAPET_{name}") or os.getenv(f"VIGIAPET_{name}") or default
 
 
 def _path_from_env(name: str, default: Path) -> Path:
-    configured = os.getenv(name)
+    configured = env(name)
     return Path(configured).expanduser().resolve() if configured else default
 
 
@@ -26,8 +36,8 @@ class Settings:
     @classmethod
     def from_env(cls) -> Settings:
         return cls(
-            data_dir=_path_from_env("VIGIAPET_DATA_DIR", BACK_DIR / "app-data"),
-            frontend_dist=_path_from_env("VIGIAPET_FRONTEND_DIST", PROJECT_DIR / "front" / "dist"),
+            data_dir=_path_from_env("DATA_DIR", BACK_DIR / "app-data"),
+            frontend_dist=_path_from_env("FRONTEND_DIST", PROJECT_DIR / "front" / "dist"),
         )
 
     @property

@@ -459,34 +459,7 @@ export default function ReviewsView({ pets, reloadToken, refresh }: Props) {
           <Empty title="Tudo revisado">Novos registros aparecerão aqui quando uma visita for detectada.</Empty>
         </section>
       ) : (
-        <div className="review-layout">
-          <aside className="review-queue panel" aria-label="Fila de revisão">
-            <h2>Fila</h2>
-            <ol>
-              {events.map((event, index) => (
-                <li key={event.id}>
-                  <button
-                    type="button"
-                    className={event.id === current.id ? 'selected' : ''}
-                    aria-current={event.id === current.id ? 'true' : undefined}
-                    onClick={() => setCurrentId(event.id)}
-                  >
-                    <span className="review-queue-index">{index + 1}</span>
-                    <span>
-                      <strong>
-                        <Icon name={zoneIcon(event.zone_type)} /> {zoneLabels[event.zone_type]}
-                      </strong>
-                      <small>
-                        {event.camera_name} · {formatDateTime(event.started_at)}
-                      </small>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          </aside>
-          <ReviewWizard key={current.id} event={current} pets={pets} onSaved={onSaved} />
-        </div>
+        <ReviewWizard key={current.id} event={current} pets={pets} onSaved={onSaved} />
       )}
     </>
   )

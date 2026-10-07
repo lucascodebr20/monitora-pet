@@ -75,11 +75,11 @@ export default function JobBanner({ refresh }: Props) {
       window.clearTimeout(timer)
       void tick()
     }
-    window.addEventListener('vigiapet:job-started', wake)
+    window.addEventListener('monitorapet:job-started', wake)
     return () => {
       active = false
       window.clearTimeout(timer)
-      window.removeEventListener('vigiapet:job-started', wake)
+      window.removeEventListener('monitorapet:job-started', wake)
     }
   }, [refresh, showToast])
 
@@ -99,7 +99,9 @@ export default function JobBanner({ refresh }: Props) {
       {running ? (
         <span className="job-spinner" aria-hidden="true" />
       ) : (
-        <span className="job-result-icon" aria-hidden="true">{state.error ? '!' : '✓'}</span>
+        <span className="job-result-icon" aria-hidden="true">
+          {state.error ? '!' : '✓'}
+        </span>
       )}
       <span className="job-text">
         {running ? stageLabel(state) : state.error ? `Falha no download: ${state.error}` : message}
