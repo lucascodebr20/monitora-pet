@@ -1,8 +1,8 @@
 import { createContext } from 'react'
-import type { PetSpecies, Zone } from '../api'
+import type { HouseholdSpecies, PetSpecies, Zone } from '../api'
 import type { IconName } from '../components/Icon'
 
-export type Household = 'CAT' | 'DOG' | 'BOTH'
+export type Household = HouseholdSpecies
 
 export const householdOptions: { value: Household; title: string; description: string; emoji: string }[] = [
   { value: 'CAT', title: 'Gatos', description: 'Áreas de água, comida e caixa de areia.', emoji: '🐈' },

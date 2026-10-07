@@ -53,7 +53,7 @@ exe = EXE(
     a.datas,
     [],
     name="MonitoraPet",
-    icon=str(ROOT / "desktop" / "vigiapet.ico"),
+    icon=str(ROOT / "desktop" / "monitorapet.ico"),
     console=True,
     upx=False,
     bootloader_ignore_signals=False,

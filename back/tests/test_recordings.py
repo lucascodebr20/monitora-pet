@@ -19,6 +19,7 @@ from tests.test_monitoring import (
     FakeCameraManager,
     FakeClipStore,
     FakeSnapshotStore,
+    FailingDetector,
     SequenceClock,
     TogglingCameraManager,
     build_repositories,
@@ -96,6 +97,7 @@ class RecordingAnalyzerTests(unittest.TestCase):
         self.detector = MarkerDetector()
         self.snapshot_store = FakeSnapshotStore()
         self.clip_store = FakeClipStore()
+        self.purge = EventPurgeService(self.event_repository, self.recordings, MediaCleanup(Path(self.directory.name)))
         ScriptedReader.scenes = {}
 
     def tearDown(self):
@@ -104,7 +106,7 @@ class RecordingAnalyzerTests(unittest.TestCase):
     def _analyzer(self, gate_factory=AlwaysMoving):
         return RecordingAnalyzer(
             self.detector, self.zone_repository, self.event_repository, self.snapshot_store, self.clip_store,
-            self.sessions, self.recordings, reader_factory=ScriptedReader, motion_gate_factory=gate_factory,
+            self.sessions, self.recordings, self.purge, reader_factory=ScriptedReader, motion_gate_factory=gate_factory,
         )
 
     def _recording(self, name, start_seconds, duration, present):
@@ -225,6 +227,20 @@ class RecordingAnalyzerTests(unittest.TestCase):
         self.assertTrue(result.interrupted)
         self.assertEqual(self.recordings.get(recording["id"])["status"], "PENDING")
 
+    def test_retry_after_stop_replaces_partial_events(self):
+        recording = self._recording("a.mp4", 0, 10, lambda offset: True)
+        ticks = iter(range(100))
+
+        self._analyzer().analyze_camera(
+            self.camera["id"], [recording], should_stop=lambda: next(ticks) > 5
+        )
+        self.assertEqual(self.recordings.get(recording["id"])["processed_seconds"], 0)
+        self._analyzer().analyze_camera(self.camera["id"], [self.recordings.get(recording["id"])])
+
+        events = self.event_repository.list(camera_id=self.camera["id"])
+        self.assertEqual(len(events), 1)
+        self.assertEqual((events[0]["started_at"], events[0]["ended_at"]), (at(0), at(9.5)))
+
     def test_live_restart_does_not_close_recording_events(self):
         self.event_repository.create_detected_event(
             self.camera["id"], self.zone_repository.list()[0]["id"], at(0), at(1), 0.9, None, "CAT", None,
@@ -297,6 +313,21 @@ class RecordingImportTests(unittest.TestCase):
 
 
 class CoverageAndPurgeTests(unittest.TestCase):
+    def test_failed_live_analysis_is_not_recorded_as_coverage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database, camera_repository, zone_repository, event_repository = build_repositories(directory)
+            sessions = MonitoringSessionRepository(database)
+            camera = camera_repository.create({"name": "Sala", "ip": "192.168.1.10"})
+            service = MonitoringService(
+                FakeCameraManager(), zone_repository, event_repository, FakeSnapshotStore(), FakeClipStore(),
+                FailingDetector(), clock=SequenceClock([10]), session_repository=sessions,
+            )
+
+            service._process_camera(camera["id"])
+
+            epoch = SequenceClock([0]).now().utc
+            self.assertEqual(sessions.covered_intervals(camera["id"], epoch, epoch + timedelta(hours=1)), [])
+
     def test_live_monitoring_records_coverage_sessions(self):
         with tempfile.TemporaryDirectory() as directory:
             database, camera_repository, zone_repository, event_repository = build_repositories(directory)

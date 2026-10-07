@@ -24,6 +24,7 @@ from app.infra.repositories.pet_identification_repository import PetIdentificati
 from app.infra.repositories.pet_repository import PetRepository
 from app.infra.repositories.recording_repository import RecordingRepository
 from app.infra.repositories.settings_repository import SettingsRepository
+from app.services.event.auto_review import AutoReviewService
 from app.infra.repositories.watched_folder_repository import WatchedFolderRepository
 from app.infra.repositories.zone_repository import ZoneRepository
 from app.infra.security.credential_store import CredentialStore
@@ -71,6 +72,7 @@ class Container:
     health_service: HealthService
     retention_service: MediaRetentionService
     household_service: HouseholdService
+    auto_review_service: AutoReviewService
     recording_import_service: RecordingImportService
     recording_analyzer: RecordingAnalyzer | None
     camera_recording_sync: CameraRecordingSync
@@ -100,6 +102,7 @@ def build_container(settings: Settings, on_job_state: Callable[[str], None] | No
     media_cleanup = MediaCleanup(settings.data_dir)
     purge_service = EventPurgeService(event_repository, recording_repository, media_cleanup)
     retention_service = MediaRetentionService(settings_repository, event_repository, recording_repository, media_cleanup)
+    auto_review_service = AutoReviewService(settings_repository, event_repository, pet_identification_repository)
 
     pet_identifier = PetIdentifier(
         pet_repository, pet_image_store, pet_identification_repository, settings.embedding_model_path
@@ -121,6 +124,7 @@ def build_container(settings: Settings, on_job_state: Callable[[str], None] | No
         pet_image_store,
         pet_identifier,
         session_repository=session_repository,
+        auto_review=auto_review_service,
     )
     recording_analyzer = (
         RecordingAnalyzer(
@@ -131,8 +135,10 @@ def build_container(settings: Settings, on_job_state: Callable[[str], None] | No
             clip_store,
             session_repository,
             recording_repository,
+            purge_service,
             pet_image_store,
             pet_identifier,
+            auto_review=auto_review_service,
         )
         if detector
         else None
@@ -169,6 +175,7 @@ def build_container(settings: Settings, on_job_state: Callable[[str], None] | No
         health_service=HealthService(camera_service, event_query_service, event_repository, monitoring_service),
         retention_service=retention_service,
         household_service=HouseholdService(settings_repository),
+        auto_review_service=auto_review_service,
         recording_import_service=recording_import_service,
         recording_analyzer=recording_analyzer,
         camera_recording_sync=camera_recording_sync,

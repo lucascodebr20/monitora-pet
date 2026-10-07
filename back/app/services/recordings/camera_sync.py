@@ -71,7 +71,13 @@ class CameraRecordingSync:
         since = since or self._default_since(camera, until)
         offset = timedelta(seconds=float(camera["clock_offset_seconds"] or 0.0))
         result = CameraSyncResult()
-        spans = self._find_recordings(services["search"], since + offset, until + offset, username, password)
+        try:
+            spans = self._find_recordings(services["search"], since + offset, until + offset, username, password)
+        except onvif.RecordingSearchError as error:
+            raise OperationFailedError(
+                "A câmera respondeu, mas não permitiu consultar as gravações. "
+                "Verifique se o acesso ONVIF às gravações está habilitado no aparelho."
+            ) from error
         for span in spans:
             uri = self._replay_uri(services["replay"], span.token, camera["ip"], username, password)
             if not uri:
@@ -79,7 +85,8 @@ class CameraRecordingSync:
                 continue
             for chunk_start, chunk_end in self._chunks(camera_id, span.start - offset, span.end - offset, result):
                 self._download_chunk(camera, username, password, uri, chunk_start, chunk_end, offset, result)
-        self.camera_repository.mark_synced(camera_id, until.isoformat())
+        if not result.errors:
+            self.camera_repository.mark_synced(camera_id, until.isoformat())
         return result
 
     def _default_since(self, camera: dict[str, Any], until: datetime) -> datetime:

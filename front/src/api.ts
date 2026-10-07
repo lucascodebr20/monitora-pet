@@ -16,6 +16,7 @@ export type Camera = {
   status: ConnectionStatus
   source_kind: 'NETWORK' | 'MANUAL'
   recording_support: 'UNKNOWN' | 'NONE' | 'ONVIF_REPLAY'
+  credentials_saved: boolean
   clock_offset_seconds: number
   last_synced_at: string | null
 }
@@ -155,6 +156,7 @@ export type Event = {
   clip_path: string | null
   pet_id: string | null
   pet_name: string | null
+  pet_names: string | null
   automatically_identified_pet_id: string | null
   pet_identification_confidence: number | null
   pet_identification_method: string | null
@@ -325,17 +327,33 @@ export const getEventPage = (
   petId: string,
   zoneType: Zone['type'] | '',
   pageSize = 10,
-  date = '',
+  startDate = '',
+  endDate = '',
   highlightedOnly = false,
 ) => {
   const query = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
   if (petId) query.set('pet_id', petId)
   if (zoneType) query.set('zone_type', zoneType)
-  if (date) query.set('date', date)
+  if (startDate) query.set('start_date', startDate)
+  if (endDate) query.set('end_date', endDate)
   if (highlightedOnly) query.set('highlighted', 'true')
   return request<EventPage>(`/api/events?${query.toString()}`)
 }
 export const setEventHighlighted = (id: string, highlighted: boolean) =>
   request<Event>(`/api/events/${id}/highlight`, json('PUT', { highlighted }))
-export const reviewEvent = (id: string, decision: string, pet_id: string | null, zone_type?: Zone['type']) =>
-  request<unknown>(`/api/events/${id}/reviews`, json('POST', { decision, pet_id, ...(zone_type ? { zone_type } : {}) }))
+export const reviewEvent = (
+  id: string,
+  decision: string,
+  pet_id: string | null,
+  zone_type?: Zone['type'],
+  pet_ids?: string[],
+) =>
+  request<unknown>(
+    `/api/events/${id}/reviews`,
+    json('POST', {
+      decision,
+      pet_id,
+      ...(zone_type ? { zone_type } : {}),
+      ...(pet_ids?.length ? { pet_ids } : {}),
+    }),
+  )

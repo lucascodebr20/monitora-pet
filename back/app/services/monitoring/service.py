@@ -7,6 +7,7 @@ from typing import Any
 
 from app.domain.clock import Clock, Moment, SystemClock
 from app.infra.ai.pet_identifier import PetIdentifier
+from app.services.event.auto_review import AutoReviewService
 from app.infra.camera.manager import CameraManager
 from app.infra.media.clip_store import ClipStore
 from app.infra.media.pet_image_store import PetImageStore
@@ -41,6 +42,7 @@ class MonitoringService:
         pet_identifier: PetIdentifier | None = None,
         clock: Clock | None = None,
         session_repository: MonitoringSessionRepository | None = None,
+        auto_review: AutoReviewService | None = None,
     ) -> None:
         self.camera_manager = camera_manager
         self.coverage = CoverageRecorder(session_repository) if session_repository else None
@@ -48,7 +50,8 @@ class MonitoringService:
         self.model_error = model_error
         self.clock = clock or SystemClock()
         self.events = EventRecorder(
-            event_repository, snapshot_store, StreamSnapshotSource(camera_manager), pet_image_store, pet_identifier
+            event_repository, snapshot_store, StreamSnapshotSource(camera_manager), pet_image_store, pet_identifier,
+            auto_review=auto_review,
         )
         self.tracker = ZoneTracker(ClipRecorder(clip_store, event_repository), self.events, pet_image_store)
         self.analyzer = FrameAnalyzer(detector, zone_repository, self.tracker) if detector else None
@@ -111,14 +114,16 @@ class MonitoringService:
                 self.coverage.close(camera_id)
             self._process_offline_camera(camera_id, moment)
             return
-        if self.coverage:
-            self.coverage.observe(camera_id, moment.utc)
         try:
             analysis = self.analyzer.analyze(camera_id, frame, moment)
+            if self.coverage:
+                self.coverage.observe(camera_id, moment.utc)
             self._last_error = None
             detections = [detection.as_dict() for detection in analysis.detections]
             self._publish(camera_id, "running", moment, detections=detections, zones=analysis.zones)
         except Exception as error:
+            if self.coverage:
+                self.coverage.close(camera_id)
             if str(error) != self._last_error:
                 logger.exception("Falha no ciclo de inferência da câmera %s", camera_id)
             self._last_error = str(error)

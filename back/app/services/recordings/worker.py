@@ -93,8 +93,7 @@ class ImportWorker:
         return self._enqueue(Job("import", camera_id))
 
     def request_sync(self, camera_id: str) -> dict[str, Any]:
-        self._enqueue(Job("sync", camera_id))
-        return self._enqueue(Job("import", camera_id))
+        return self._enqueue(Job("sync", camera_id))
 
     def cancel(self) -> dict[str, Any]:
         with self._lock:
@@ -175,6 +174,7 @@ class ImportWorker:
         try:
             if job.kind == "sync" and job.camera_id:
                 result = self.sync.sync(job.camera_id)
+                self._import(job.camera_id)
                 self._update(last_result={"kind": "sync", "downloaded": len(result.downloaded), "errors": result.errors})
             else:
                 self._import(job.camera_id)

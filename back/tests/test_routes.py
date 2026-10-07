@@ -44,7 +44,7 @@ class RouteTests(unittest.TestCase):
         dashboard = self.client.get("/api/dashboard").json()
         self.assertEqual(dashboard["events_today"], 0)
         self.assertEqual(dashboard["pending_reviews"], 0)
-        self.assertTrue((self.settings.log_dir / "vigiapet.log").exists())
+        self.assertTrue((self.settings.log_dir / "monitorapet.log").exists())
 
     def test_domain_errors_become_http_statuses(self):
         self.assertEqual(self.client.get("/api/pets/nao-existe/photo").status_code, 404)
@@ -96,15 +96,17 @@ class RouteTests(unittest.TestCase):
     def test_empty_collections_and_spa_without_build(self):
         self.assertEqual(self.client.get("/api/events").json()["total"], 0)
         self.assertEqual(self.client.get("/api/identification/logs").json()["analyses"], [])
-        self.assertEqual(
-            self.client.get("/api/settings").json(), {"retention_days": 7, "household_species": None}
-        )
+        settings = self.client.get("/api/settings").json()
+        self.assertEqual(settings["retention_days"], 7)
+        self.assertFalse(settings["auto_review_enabled"])
+        self.assertIsNone(settings["auto_review_minimum_similarity"])
+        self.assertIsNone(settings["household_species"])
 
     def test_household_species_is_saved_separately_from_retention(self):
-        saved = self.client.put("/api/settings", json={"household_species": "DOG"})
-        self.assertEqual(saved.json(), {"retention_days": 7, "household_species": "DOG"})
-        retention = self.client.put("/api/settings", json={"retention_days": 30})
-        self.assertEqual(retention.json(), {"retention_days": 30, "household_species": "DOG"})
+        saved = self.client.put("/api/settings", json={"household_species": "DOG"}).json()
+        self.assertEqual((saved["retention_days"], saved["household_species"]), (7, "DOG"))
+        retention = self.client.put("/api/settings", json={"retention_days": 30}).json()
+        self.assertEqual((retention["retention_days"], retention["household_species"]), (30, "DOG"))
         self.assertEqual(self.client.put("/api/settings", json={}).status_code, 422)
         self.assertEqual(self.client.put("/api/settings", json={"household_species": "BIRD"}).status_code, 422)
         self.assertEqual(self.client.get("/").status_code, 503)

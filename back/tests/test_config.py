@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from app.core.config import BACK_DIR, FRONTEND_DIST, PROJECT_DIR, Settings
+from app.core.config import BACK_DIR, FRONTEND_DIST, LEGACY_DATABASE_FILENAMES, PROJECT_DIR, Settings
 
 
 class PathConfigurationTests(unittest.TestCase):
@@ -15,7 +15,7 @@ class PathConfigurationTests(unittest.TestCase):
     def test_settings_derive_paths_from_data_dir(self):
         settings = Settings(data_dir=Path("C:/dados"), frontend_dist=Path("C:/front"))
 
-        self.assertEqual(settings.database_path, Path("C:/dados/vigiapet.sqlite3"))
+        self.assertEqual(settings.database_path, Path("C:/dados/monitorapet.sqlite3"))
         self.assertEqual(settings.model_path, Path("C:/dados/models/yolox_tiny.onnx"))
         self.assertEqual(settings.clip_dir, Path("C:/dados/clips"))
         self.assertEqual(settings.log_dir, Path("C:/dados/logs"))
@@ -25,7 +25,7 @@ class PathConfigurationTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             settings = Settings(data_dir=Path(directory), frontend_dist=Path(directory))
-            legacy = settings.data_dir / "monitorapet.sqlite3"
+            legacy = settings.data_dir / LEGACY_DATABASE_FILENAMES[0]
             legacy.write_bytes(b"dados antigos")
             settings.ensure_directories()
             self.assertFalse(legacy.exists())

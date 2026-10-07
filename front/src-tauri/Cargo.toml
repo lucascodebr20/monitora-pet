@@ -1,6 +1,6 @@
 [package]
-name = "vigiapet-desktop"
-version = "0.2.0"
+name = "monitorapet-desktop"
+version = "0.3.0"
 description = "Aplicativo desktop local para monitoramento de pets"
 authors = ["Monitora Pet"]
 edition = "2021"

@@ -196,7 +196,7 @@ class _RtspConnection:
 
     def _send(self, method: str, url: str, headers: dict[str, str]) -> tuple[int, dict[str, str], bytes]:
         self.cseq += 1
-        lines = [f"{method} {url} RTSP/1.0", f"CSeq: {self.cseq}", "User-Agent: VigiaPet"]
+        lines = [f"{method} {url} RTSP/1.0", f"CSeq: {self.cseq}", "User-Agent: MonitoraPet"]
         if self.session:
             lines.append(f"Session: {self.session}")
         if self._auth is not None:

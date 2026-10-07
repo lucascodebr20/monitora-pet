@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import BrandMark from './components/BrandMark'
 import Icon from './components/Icon'
 import JobBanner from './components/JobBanner'
 import PetManager from './components/PetManager'
@@ -46,39 +47,20 @@ export default function App() {
             }}
           >
             <span className="brand-mark">
-              <Icon name="pets" />
+              <BrandMark />
             </span>
             <strong>
-              vigia<span>pet</span>
+              Monitora <span>Pet</span>
             </strong>
           </a>
           <p className="nav-caption">ACOMPANHAMENTO</p>
           <nav>{navItems(primaryViews)}</nav>
           <p className="nav-caption second">MONITORAMENTO</p>
           <nav>{navItems(monitoringViews)}</nav>
-          <div className="sidebar-bottom">
-            <div className="local-note">
-              <Icon name="shield" />
-              <div>
-                <strong>Todos os dados são armazenados localmente</strong>
-              </div>
-            </div>
-            <div className="workspace-avatar">
-              <span>VP</span>
-              <div>
-                <strong>Minha casa</strong>
-                <small>Monitoramento local</small>
-              </div>
-            </div>
-          </div>
         </aside>
         <div className="main-shell">
           <header className="topbar">
-            <div>
-              <span>Minha casa</span>
-              <span className="breadcrumb">/</span>
-              <strong>{viewLabels[view]}</strong>
-            </div>
+            <strong>{viewLabels[view]}</strong>
             <JobBanner refresh={refresh} />
           </header>
           <main className="content">

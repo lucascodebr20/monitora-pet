@@ -113,12 +113,12 @@ def main() -> int:
     root = bundle_root()
 
 
-    os.environ.setdefault("VIGIAPET_DATA_DIR", str(default_data_dir()))
-    os.environ.setdefault("VIGIAPET_FRONTEND_DIST", str(root / "front" / "dist"))
-    token = os.environ.get("VIGIAPET_API_TOKEN") or secrets.token_urlsafe(32)
-    os.environ["VIGIAPET_API_TOKEN"] = token
+    os.environ.setdefault("MONITORAPET_DATA_DIR", str(default_data_dir()))
+    os.environ.setdefault("MONITORAPET_FRONTEND_DIST", str(root / "front" / "dist"))
+    token = os.environ.get("MONITORAPET_API_TOKEN") or secrets.token_urlsafe(32)
+    os.environ["MONITORAPET_API_TOKEN"] = token
 
-    print(f"Monitora Pet · dados em {os.environ['VIGIAPET_DATA_DIR']}")
+    print(f"Monitora Pet · dados em {os.environ['MONITORAPET_DATA_DIR']}")
 
     try:
         print("Preparando os modelos de inteligência artificial...", flush=True)
@@ -134,7 +134,7 @@ def main() -> int:
     port = args.port or free_port()
     base_url = f"http://127.0.0.1:{port}"
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
-    thread = threading.Thread(target=server.run, name="vigiapet-server", daemon=True)
+    thread = threading.Thread(target=server.run, name="monitorapet-server", daemon=True)
     thread.start()
 
     if not wait_until_ready(f"{base_url}/api/session", token):
@@ -145,7 +145,7 @@ def main() -> int:
     print(f"Monitora Pet pronto em {base_url}", flush=True)
     start_url = f"{base_url}/?token={token}"
     if args.no_window:
-        print(f"VIGIAPET_READY={start_url}", flush=True)
+        print(f"MONITORAPET_READY={start_url}", flush=True)
         keep_serving(thread)
         server.should_exit = True
         thread.join(timeout=15)

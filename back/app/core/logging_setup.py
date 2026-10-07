@@ -12,22 +12,22 @@ BACKUP_COUNT = 3
 
 def configure_logging(log_dir: Path, level: int = logging.INFO) -> Path:
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / "vigiapet.log"
+    log_file = log_dir / "monitorapet.log"
     root = logging.getLogger()
     root.setLevel(level)
     formatter = logging.Formatter(LOG_FORMAT)
 
-    if not any(getattr(handler, "_vigiapet_file", False) for handler in root.handlers):
+    if not any(getattr(handler, "_monitorapet_file", False) for handler in root.handlers):
         file_handler = RotatingFileHandler(log_file, maxBytes=MAX_BYTES, backupCount=BACKUP_COUNT, encoding="utf-8")
         file_handler.setFormatter(formatter)
-        file_handler._vigiapet_file = True  # type: ignore[attr-defined]
+        file_handler._monitorapet_file = True  # type: ignore[attr-defined]
         root.addHandler(file_handler)
 
-    if not any(getattr(handler, "_vigiapet_console", False) for handler in root.handlers):
+    if not any(getattr(handler, "_monitorapet_console", False) for handler in root.handlers):
         console = logging.StreamHandler(sys.stderr)
         console.setFormatter(formatter)
         console.setLevel(logging.WARNING)
-        console._vigiapet_console = True  # type: ignore[attr-defined]
+        console._monitorapet_console = True  # type: ignore[attr-defined]
         root.addHandler(console)
 
 
@@ -39,6 +39,6 @@ def configure_logging(log_dir: Path, level: int = logging.INFO) -> Path:
 def reset_logging() -> None:
     root = logging.getLogger()
     for handler in list(root.handlers):
-        if getattr(handler, "_vigiapet_file", False) or getattr(handler, "_vigiapet_console", False):
+        if getattr(handler, "_monitorapet_file", False) or getattr(handler, "_monitorapet_console", False):
             root.removeHandler(handler)
             handler.close()

@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import * as api from '../api'
 import type { AppSettings, HouseholdSpecies, IdentificationLogs } from '../api'
+import BrandMark from '../components/BrandMark'
 import Icon from '../components/Icon'
 import { errorMessage } from '../lib/errors'
 import { formatDateTime, identificationDecisionLabels } from '../lib/labels'
@@ -21,29 +22,17 @@ export default function SettingsView({ version, settings: appSettings, onSetting
   const [logPage, setLogPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
-  const [settings, setSettings] = useState<AppSettings | null>(null)
   const [retention, setRetention] = useState('7')
   const [savingRetention, setSavingRetention] = useState(false)
   const [retentionMessage, setRetentionMessage] = useState('')
   const [savingHousehold, setSavingHousehold] = useState(false)
   const [householdMessage, setHouseholdMessage] = useState('')
 
+  const retentionDays = appSettings?.retention_days
+
   useEffect(() => {
-    let active = true
-    void api
-      .getSettings()
-      .then(value => {
-        if (!active) return
-        setSettings(value)
-        setRetention(String(value.retention_days))
-      })
-      .catch(() => {
-        if (active) setRetentionMessage('Não foi possível carregar a retenção.')
-      })
-    return () => {
-      active = false
-    }
-  }, [])
+    if (retentionDays !== undefined) setRetention(String(retentionDays))
+  }, [retentionDays])
 
   async function saveRetention(event: FormEvent) {
     event.preventDefault()
@@ -56,7 +45,6 @@ export default function SettingsView({ version, settings: appSettings, onSetting
     setRetentionMessage('')
     try {
       const saved = await api.updateSettings({ retention_days: days })
-      setSettings(saved)
       onSettings(saved)
       setRetentionMessage('Retenção salva.')
     } catch (reason) {
@@ -72,7 +60,6 @@ export default function SettingsView({ version, settings: appSettings, onSetting
     setHouseholdMessage('')
     try {
       const saved = await api.updateSettings({ household_species: value })
-      setSettings(saved)
       onSettings(saved)
       setHouseholdMessage('Preferência salva. A interface já foi adaptada.')
     } catch (reason) {
@@ -128,64 +115,110 @@ export default function SettingsView({ version, settings: appSettings, onSetting
         </button>
       </nav>
       {section === 'general' ? (
-        <section className="panel settings">
-          <h2>Quem mora com você</h2>
-          <p>Define as áreas, os nomes e o cadastro de pets que a interface mostra.</p>
-          <fieldset className="household-options compact" disabled={savingHousehold || appSettings === null}>
-            <legend className="sr-only">Espécies da casa</legend>
-            {householdOptions.map(option => (
-              <label
-                className={`household-option ${appSettings?.household_species === option.value ? 'chosen' : ''}`}
-                key={option.value}
-              >
+        <div className="settings-panels">
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>Quem mora com você</h2>
+                <p>Define as áreas, os nomes e o cadastro de pets que a interface mostra.</p>
+              </div>
+            </div>
+            <fieldset className="household-options compact" disabled={savingHousehold || appSettings === null}>
+              <legend className="sr-only">Espécies da casa</legend>
+              {householdOptions.map(option => (
+                <label
+                  className={`household-option ${appSettings?.household_species === option.value ? 'chosen' : ''}`}
+                  key={option.value}
+                >
+                  <input
+                    type="radio"
+                    name="settings-household"
+                    value={option.value}
+                    checked={appSettings?.household_species === option.value}
+                    onChange={() => void saveHousehold(option.value)}
+                  />
+                  <span className="household-emoji" aria-hidden="true">
+                    {option.emoji}
+                  </span>
+                  <span>
+                    <strong>{option.title}</strong>
+                    <small>{option.description}</small>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+            {householdMessage && (
+              <small className="muted" aria-live="polite">
+                {householdMessage}
+              </small>
+            )}
+          </section>
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>Privacidade</h2>
+                <p>Onde ficam as imagens, os vídeos e o histórico das visitas.</p>
+              </div>
+            </div>
+            <div className="settings-highlight">
+              <Icon name="shield" />
+              <div>
+                <strong>Todos os dados são armazenados localmente</strong>
+                <p>Nada é enviado para servidores externos: tudo permanece neste computador.</p>
+              </div>
+            </div>
+          </section>
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>Retenção de vídeos e imagens</h2>
+                <p>
+                  Gravações baixadas, fotos e vídeos dos eventos mais antigos que o prazo abaixo são apagados
+                  automaticamente. O histórico das visitas é mantido, e registros favoritados com a estrela preservam a
+                  mídia.
+                </p>
+              </div>
+            </div>
+            <form className="retention-form" onSubmit={saveRetention}>
+              <label htmlFor="retention-days">Guardar por</label>
+              <div className="retention-input">
                 <input
-                  type="radio"
-                  name="settings-household"
-                  value={option.value}
-                  checked={appSettings?.household_species === option.value}
-                  onChange={() => void saveHousehold(option.value)}
-                />
-                <span className="household-emoji" aria-hidden="true">
-                  {option.emoji}
-                </span>
-                <span>
-                  <strong>{option.title}</strong>
-                  <small>{option.description}</small>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          {householdMessage && <small className="muted">{householdMessage}</small>}
-          <h2>Privacidade</h2>
-          <p>Todos os dados são armazenados localmente.</p>
-          <h2>Retenção de vídeos e imagens</h2>
-          <form className="retention-form" onSubmit={saveRetention}>
-            <label>
-              Guardar por
-              <span className="retention-input">
-                <input
+                  id="retention-days"
                   type="number"
                   min="1"
                   max="365"
                   value={retention}
                   onChange={event => setRetention(event.target.value)}
-                  disabled={settings === null}
+                  disabled={appSettings === null}
                 />
-                dias
-              </span>
-              <small>
-                Gravações baixadas, fotos e vídeos dos eventos mais antigos que isso são apagados automaticamente. O
-                histórico das visitas é mantido, e registros favoritados com a estrela preservam a mídia.
-              </small>
-            </label>
-            <button className="secondary" type="submit" disabled={savingRetention || settings === null}>
-              {savingRetention ? 'Salvando…' : 'Salvar'}
-            </button>
-            {retentionMessage && <small className="muted">{retentionMessage}</small>}
-          </form>
-          <h2>Versão</h2>
-          <p>Monitora Pet {version}</p>
-        </section>
+                <span>dias</span>
+                <button className="secondary" type="submit" disabled={savingRetention || appSettings === null}>
+                  {savingRetention ? 'Salvando…' : 'Salvar'}
+                </button>
+              </div>
+              {retentionMessage && (
+                <small className="muted" aria-live="polite">
+                  {retentionMessage}
+                </small>
+              )}
+            </form>
+          </section>
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>Sobre</h2>
+                <p>Versão instalada do aplicativo.</p>
+              </div>
+            </div>
+            <div className="settings-about">
+              <BrandMark size={44} />
+              <div>
+                <strong>Monitora Pet</strong>
+                <span>{version ? `Versão ${version}` : 'Versão indisponível'}</span>
+              </div>
+            </div>
+          </section>
+        </div>
       ) : (
         <>
           <section className="identification-summary">

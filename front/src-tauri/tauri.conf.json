@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Monitora Pet",
-  "version": "0.2.0",
-  "identifier": "br.com.lucascode.vigiapet",
+  "version": "0.3.0",
+  "identifier": "br.com.lucascode.monitorapet",
   "build": {
     "beforeBuildCommand": "powershell -NoProfile -ExecutionPolicy Bypass -File ../desktop/prepare_tauri_sidecar.ps1",
     "frontendDist": "../dist"
@@ -18,23 +18,12 @@
         "minWidth": 960,
         "minHeight": 640,
         "center": true,
+        "maximized": true,
         "resizable": true
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:",
-      "dangerousRemoteDomainIpcAccess": [
-        {
-          "scheme": "http",
-          "domain": "127.0.0.1",
-          "windows": [
-            "main"
-          ],
-          "plugins": [
-            "dialog"
-          ]
-        }
-      ]
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
     }
   },
   "bundle": {
@@ -47,10 +36,10 @@
     "shortDescription": "Monitoramento local de pets com câmeras IP",
     "longDescription": "O Monitora Pet monitora localmente visitas de gatos às áreas de alimentação, água e caixa de areia usando câmeras IP.",
     "externalBin": [
-      "binaries/vigiapet-backend"
+      "binaries/monitorapet-backend"
     ],
     "icon": [
-      "../../desktop/vigiapet.ico"
+      "../../desktop/monitorapet.ico"
     ],
     "windows": {
       "webviewInstallMode": {

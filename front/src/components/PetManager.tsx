@@ -221,21 +221,23 @@ export default function PetManager({ pets, refresh }: Props) {
             placeholder="Ex.: Mingau"
           />
         </label>
-        <fieldset className="species-options" hidden={!(hasCats && hasDogs)}>
-          <legend>Espécie</legend>
-          {SPECIES.map(species => (
-            <label className={form.species === species ? 'chosen' : ''} key={species}>
-              <input
-                type="radio"
-                name={`pet-species-${mode}`}
-                value={species}
-                checked={form.species === species}
-                onChange={() => setForm({ ...form, species })}
-              />
-              {speciesLabels[species]}
-            </label>
-          ))}
-        </fieldset>
+        {hasCats && hasDogs && (
+          <fieldset className="species-options">
+            <legend>Espécie</legend>
+            {SPECIES.map(species => (
+              <label className={form.species === species ? 'chosen' : ''} key={species}>
+                <input
+                  type="radio"
+                  name={`pet-species-${mode}`}
+                  value={species}
+                  checked={form.species === species}
+                  onChange={() => setForm({ ...form, species })}
+                />
+                {speciesLabels[species]}
+              </label>
+            ))}
+          </fieldset>
+        )}
         <label>
           Características visuais
           <textarea
