@@ -34,19 +34,19 @@ class FakeLearningRepository:
         self.reviewed = 0
         self.calibrations = []
 
-    def current_calibration(self, method=None):
+    def current_calibration(self, method=None, species=None):
         if self.calibrations:
             return self.calibrations[-1]
         return {"minimum_similarity": 0.72, "minimum_margin": 0.08, "interaction_count": 0, "accuracy": None}
 
     def mark_review(self, event_id, pet_id):
         self.reviewed += 1
-        return True
+        return "CAT"
 
-    def reviewed_count(self, method=None):
+    def reviewed_count(self, method=None, species=None):
         return self.reviewed
 
-    def reviewed_samples(self, method=None):
+    def reviewed_samples(self, method=None, species=None):
         return [
             {
                 "selected_pet_id": "mingau",
@@ -59,7 +59,7 @@ class FakeLearningRepository:
             for _ in range(self.reviewed)
         ]
 
-    def create_calibration(self, minimum_similarity, minimum_margin, interaction_count, accuracy, method=None):
+    def create_calibration(self, minimum_similarity, minimum_margin, interaction_count, accuracy, method=None, species=None):
         self.calibrations.append({
             "minimum_similarity": minimum_similarity,
             "minimum_margin": minimum_margin,

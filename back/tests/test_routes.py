@@ -99,7 +99,8 @@ class RouteTests(unittest.TestCase):
         settings = self.client.get("/api/settings").json()
         self.assertEqual(settings["retention_days"], 7)
         self.assertFalse(settings["auto_review_enabled"])
-        self.assertIsNone(settings["auto_review_minimum_similarity"])
+        self.assertIsNone(settings["auto_review_species"]["CAT"]["minimum_similarity"])
+        self.assertIsNone(settings["auto_review_species"]["DOG"]["minimum_similarity"])
         self.assertIsNone(settings["household_species"])
 
     def test_household_species_is_saved_separately_from_retention(self):

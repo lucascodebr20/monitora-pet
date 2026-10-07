@@ -14,11 +14,12 @@ class PetIdentificationRepository:
     def __init__(self, database: Database) -> None:
         self.database = database
 
-    def current_calibration(self, method: str | None = None) -> dict[str, Any]:
+    def current_calibration(self, method: str | None = None, species: str | None = None) -> dict[str, Any]:
         calibration = self.database.one(
             """SELECT * FROM pet_identification_calibrations
-               WHERE method = COALESCE(?, method) ORDER BY id DESC LIMIT 1""",
-            (method,),
+               WHERE method = COALESCE(?, method) AND species = COALESCE(?, species)
+               ORDER BY id DESC LIMIT 1""",
+            (method, species),
         )
         return calibration or {
             "id": 0,
@@ -28,6 +29,7 @@ class PetIdentificationRepository:
             "accuracy": None,
             "created_at": None,
             "method": method,
+            "species": species,
         }
 
     def create_analysis(
@@ -65,36 +67,38 @@ class PetIdentificationRepository:
                 ],
             )
 
-    def mark_review(self, event_id: str, pet_id: str) -> bool:
+    def mark_review(self, event_id: str, pet_id: str) -> str | None:
         analysis = self.database.one(
-            "SELECT selected_pet_id FROM pet_identification_analyses WHERE event_id = ?",
+            "SELECT selected_pet_id, species FROM pet_identification_analyses WHERE event_id = ?",
             (event_id,),
         )
         if not analysis:
-            return False
+            return None
         self.database.execute(
             """UPDATE pet_identification_analyses
                SET reviewed_pet_id = ?, reviewed_at = ?, was_correct = ?
                WHERE event_id = ?""",
             (pet_id, utc_now(), int(analysis["selected_pet_id"] == pet_id), event_id),
         )
-        return True
+        return str(analysis["species"])
 
-    def reviewed_count(self, method: str | None = None) -> int:
+    def reviewed_count(self, method: str | None = None, species: str | None = None) -> int:
         row = self.database.one(
             """SELECT COUNT(*) AS total FROM pet_identification_analyses
-               WHERE reviewed_pet_id IS NOT NULL AND method = COALESCE(?, method)""",
-            (method,),
+               WHERE reviewed_pet_id IS NOT NULL AND method = COALESCE(?, method)
+               AND species = COALESCE(?, species)""",
+            (method, species),
         )
         return int(row["total"]) if row else 0
 
-    def reviewed_samples(self, method: str | None = None) -> list[dict[str, Any]]:
+    def reviewed_samples(self, method: str | None = None, species: str | None = None) -> list[dict[str, Any]]:
         analyses = self.database.all(
-            """SELECT id, selected_pet_id, reviewed_pet_id
+            """SELECT id, selected_pet_id, reviewed_pet_id, species
                FROM pet_identification_analyses
                WHERE reviewed_pet_id IS NOT NULL AND method = COALESCE(?, method)
+               AND species = COALESCE(?, species)
                ORDER BY reviewed_at""",
-            (method,),
+            (method, species),
         )
         for analysis in analyses:
             analysis["scores"] = self.database.all(
@@ -110,12 +114,13 @@ class PetIdentificationRepository:
         interaction_count: int,
         accuracy: float,
         method: str = "appearance-histogram-v1",
+        species: str = "CAT",
     ) -> None:
         self.database.execute(
             """INSERT INTO pet_identification_calibrations
-               (minimum_similarity, minimum_margin, interaction_count, accuracy, created_at, method)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (minimum_similarity, minimum_margin, interaction_count, accuracy, utc_now(), method),
+               (minimum_similarity, minimum_margin, interaction_count, accuracy, created_at, method, species)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (minimum_similarity, minimum_margin, interaction_count, accuracy, utc_now(), method, species),
         )
 
     def performance_metrics(self, method: str) -> dict[str, Any]:

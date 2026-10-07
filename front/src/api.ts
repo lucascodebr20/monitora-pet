@@ -204,13 +204,15 @@ export type IdentificationLogs = {
   total: number
   page: number
   page_size: number
-  calibration: {
-    minimum_similarity: number
-    minimum_margin: number
-    interaction_count: number
-    accuracy: number | null
-    created_at: string | null
-  }
+  calibrations: Record<PetSpecies, IdentificationCalibration>
+}
+
+export type IdentificationCalibration = {
+  minimum_similarity: number
+  minimum_margin: number
+  interaction_count: number
+  accuracy: number | null
+  created_at: string | null
   interactions_until_calibration: number
 }
 

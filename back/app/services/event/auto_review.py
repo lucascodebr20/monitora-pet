@@ -5,7 +5,7 @@ from typing import Any
 from uuid import uuid4
 
 from app.domain.clock import utc_now
-from app.domain.enums import ReviewDecision
+from app.domain.enums import PetSpecies, ReviewDecision
 from app.domain.errors import InvalidDomainValueError
 from app.infra.ai.identification_calibration import METHOD, Sample, search_thresholds
 from app.infra.repositories.event_repository import EventRepository
@@ -71,12 +71,12 @@ class AutoReviewService:
         if enabled is not None:
             self.settings.set(ENABLED_KEY, bool(enabled))
 
-    def samples(self) -> list[Sample]:
-        """(confianca, margem sobre o segundo, acertou) de cada revisão humana."""
+    def samples(self, species: str) -> list[Sample]:
+        """(confianca, margem sobre o segundo, acertou) de cada revisão humana da espécie."""
         if not self.identification_repository:
             return []
         collected: list[Sample] = []
-        for sample in self.identification_repository.reviewed_samples(METHOD):
+        for sample in self.identification_repository.reviewed_samples(METHOD, species):
             scores = sorted(
                 (float(score["confidence"]) for score in sample["scores"]), reverse=True
             )
@@ -91,17 +91,19 @@ class AutoReviewService:
             collected.append((scores[0], scores[0] - runner_up, top[0][0] == sample["reviewed_pet_id"]))
         return collected
 
-    def thresholds(self) -> tuple[float, float] | None:
-        """Limiares que sustentam a precisão-alvo, ou None se ainda não dá."""
-        collected = self.samples()
+    def thresholds(self, species: str) -> tuple[float, float] | None:
+        """Limiares que sustentam a precisão-alvo para a espécie, ou None se ainda não dá."""
+        collected = self.samples(species)
         if len(collected) < MINIMUM_SAMPLES:
             return None
         return search_thresholds(collected, self.target_precision())
 
-    def should_confirm(self, pet_id: str | None, confidence: float | None, margin: float | None) -> bool:
+    def should_confirm(
+        self, species: str, pet_id: str | None, confidence: float | None, margin: float | None
+    ) -> bool:
         if not self.enabled() or not pet_id or confidence is None or margin is None:
             return False
-        thresholds = self.thresholds()
+        thresholds = self.thresholds(species)
         if thresholds is None:
             return False
         minimum_similarity, minimum_margin = thresholds
@@ -127,17 +129,22 @@ class AutoReviewService:
             logger.exception("Não foi possível concluir a revisão automática do evento %s", event_id)
 
     def view(self) -> dict[str, Any]:
-        collected = self.samples()
-        thresholds = self.thresholds()
-        payload: dict[str, Any] = {
+        return {
             "auto_review_enabled": self.enabled(),
             "auto_review_target_precision": self.target_precision(),
-            "auto_review_sample_count": len(collected),
             "auto_review_minimum_samples": MINIMUM_SAMPLES,
-            "auto_review_minimum_similarity": None,
-            "auto_review_minimum_margin": None,
-            "auto_review_expected_coverage": None,
-            "auto_review_expected_precision": None,
+            "auto_review_species": {species.value: self._species_view(species.value) for species in PetSpecies},
+        }
+
+    def _species_view(self, species: str) -> dict[str, Any]:
+        collected = self.samples(species)
+        thresholds = self.thresholds(species)
+        payload: dict[str, Any] = {
+            "sample_count": len(collected),
+            "minimum_similarity": None,
+            "minimum_margin": None,
+            "expected_coverage": None,
+            "expected_precision": None,
         }
         if thresholds is None:
             return payload
@@ -147,9 +154,9 @@ class AutoReviewService:
             for confidence, margin, correct in collected
             if confidence >= minimum_similarity and margin >= minimum_margin
         ]
-        payload["auto_review_minimum_similarity"] = minimum_similarity
-        payload["auto_review_minimum_margin"] = minimum_margin
+        payload["minimum_similarity"] = minimum_similarity
+        payload["minimum_margin"] = minimum_margin
         if accepted:
-            payload["auto_review_expected_coverage"] = round(len(accepted) / len(collected), 4)
-            payload["auto_review_expected_precision"] = round(sum(accepted) / len(accepted), 4)
+            payload["expected_coverage"] = round(len(accepted) / len(collected), 4)
+            payload["expected_precision"] = round(sum(accepted) / len(accepted), 4)
         return payload

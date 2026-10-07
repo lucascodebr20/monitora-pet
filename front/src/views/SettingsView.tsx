@@ -1,12 +1,13 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import * as api from '../api'
-import type { AppSettings, HouseholdSpecies, IdentificationLogs } from '../api'
+import type { AppSettings, HouseholdSpecies, IdentificationLogs, PetSpecies } from '../api'
 import BrandMark from '../components/BrandMark'
 import Icon from '../components/Icon'
 import { errorMessage } from '../lib/errors'
 import { formatDateTime, identificationDecisionLabels } from '../lib/labels'
 import { householdOptions } from '../lib/household'
 import { pageWindow } from '../lib/pagination'
+import { useHousehold } from '../lib/useHousehold'
 
 type Section = 'general' | 'identification'
 
@@ -17,6 +18,7 @@ const DEFAULT_MARGIN = 0.08
 type Props = { version: string; settings: AppSettings | null; onSettings: (settings: AppSettings) => void }
 
 export default function SettingsView({ version, settings: appSettings, onSettings }: Props) {
+  const { hasCats, hasDogs } = useHousehold()
   const [section, setSection] = useState<Section>('general')
   const [logs, setLogs] = useState<IdentificationLogs | null>(null)
   const [logPage, setLogPage] = useState(1)
@@ -86,8 +88,7 @@ export default function SettingsView({ version, settings: appSettings, onSetting
     if (section === 'identification' && logs === null) void loadLogs(1)
   }, [section, logs, loadLogs])
 
-  const calibration = logs?.calibration
-  const progress = logs ? CALIBRATION_INTERVAL - logs.interactions_until_calibration : 0
+  const speciesInHousehold = (['CAT', 'DOG'] as PetSpecies[]).filter(species => (species === 'CAT' ? hasCats : hasDogs))
   const logTotal = logs?.total ?? 0
   const logPageSize = logs?.page_size ?? 10
   const logPageCount = Math.max(1, Math.ceil(logTotal / logPageSize))
@@ -221,40 +222,47 @@ export default function SettingsView({ version, settings: appSettings, onSetting
         </div>
       ) : (
         <>
-          <section className="identification-summary">
-            <article className="panel">
-              <span>Similaridade mínima</span>
-              <strong>{Math.round((calibration?.minimum_similarity ?? DEFAULT_SIMILARITY) * 100)}%</strong>
-              <small>Confiança mínima para sugerir um pet.</small>
-            </article>
-            <article className="panel">
-              <span>Separação mínima</span>
-              <strong>{Math.round((calibration?.minimum_margin ?? DEFAULT_MARGIN) * 100)}%</strong>
-              <small>Diferença exigida para o segundo candidato.</small>
-            </article>
-            <article className="panel">
-              <span>Próxima calibração</span>
-              <strong>
-                {progress}/{CALIBRATION_INTERVAL}
-              </strong>
-              <small>
-                {logs?.interactions_until_calibration ?? CALIBRATION_INTERVAL} revisões confirmadas restantes.
-              </small>
-            </article>
-            <article className="panel">
-              <span>Acerto após revisão</span>
-              <strong>
-                {calibration?.accuracy !== null && calibration?.accuracy !== undefined
-                  ? `${Math.round(calibration.accuracy * 100)}%`
-                  : '—'}
-              </strong>
-              <small>
-                {calibration?.created_at
-                  ? `Calibrado em ${formatDateTime(calibration.created_at)}`
-                  : 'Aguardando a primeira calibração.'}
-              </small>
-            </article>
-          </section>
+          {speciesInHousehold.map(species => {
+            const calibration = logs?.calibrations[species]
+            const remaining = calibration?.interactions_until_calibration ?? CALIBRATION_INTERVAL
+            return (
+              <div className="identification-species" key={species}>
+                <h2>{species === 'CAT' ? 'Gatos' : 'Cães'}</h2>
+                <section className="identification-summary">
+                  <article className="panel">
+                    <span>Similaridade mínima</span>
+                    <strong>{Math.round((calibration?.minimum_similarity ?? DEFAULT_SIMILARITY) * 100)}%</strong>
+                    <small>Confiança mínima para sugerir um pet.</small>
+                  </article>
+                  <article className="panel">
+                    <span>Separação mínima</span>
+                    <strong>{Math.round((calibration?.minimum_margin ?? DEFAULT_MARGIN) * 100)}%</strong>
+                    <small>Diferença exigida para o segundo candidato.</small>
+                  </article>
+                  <article className="panel">
+                    <span>Próxima calibração</span>
+                    <strong>
+                      {CALIBRATION_INTERVAL - remaining}/{CALIBRATION_INTERVAL}
+                    </strong>
+                    <small>{remaining} revisões confirmadas restantes.</small>
+                  </article>
+                  <article className="panel">
+                    <span>Acerto após revisão</span>
+                    <strong>
+                      {calibration?.accuracy !== null && calibration?.accuracy !== undefined
+                        ? `${Math.round(calibration.accuracy * 100)}%`
+                        : '—'}
+                    </strong>
+                    <small>
+                      {calibration?.created_at
+                        ? `Calibrado em ${formatDateTime(calibration.created_at)}`
+                        : 'Aguardando a primeira calibração.'}
+                    </small>
+                  </article>
+                </section>
+              </div>
+            )
+          })}
           <section className="panel identification-log-panel">
             <div className="panel-head">
               <div>

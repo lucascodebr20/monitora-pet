@@ -27,18 +27,20 @@ class AutoReviewTests(unittest.TestCase):
     def tearDown(self):
         self.directory.cleanup()
 
-    def _pet(self, name):
-        return self.pets.create(name, "CAT", "", None)
+    def _pet(self, name, species="CAT"):
+        return self.pets.create(name, species, "", None)
 
-    def _event(self, pet_id, confidence):
+    def _event(self, pet_id, confidence, species="CAT"):
         return self.event_repository.create_detected_event(
             self.camera["id"], self.zone["id"], "2026-10-10T12:00:00+00:00", "2026-10-10T12:01:00+00:00",
-            0.9, None, "CAT", None, pet_id, confidence, "mobilenet-embedding-v2",
+            0.9, None, species, None, pet_id, confidence, "mobilenet-embedding-v2",
         )
 
-    def _analysis(self, event_id, winner, winner_confidence, runner_up, runner_up_confidence, reviewed_pet_id):
+    def _analysis(
+        self, event_id, winner, winner_confidence, runner_up, runner_up_confidence, reviewed_pet_id, species="CAT"
+    ):
         self.identification.create_analysis(
-            event_id, "CAT", None, "MATCHED", winner, winner_confidence, 0.7, 0.0,
+            event_id, species, None, "MATCHED", winner, winner_confidence, 0.7, 0.0,
             [
                 {"pet_id": winner, "confidence": winner_confidence, "reference_count": 10},
                 {"pet_id": runner_up, "confidence": runner_up_confidence, "reference_count": 10},
@@ -47,13 +49,13 @@ class AutoReviewTests(unittest.TestCase):
         )
         self.identification.mark_review(event_id, reviewed_pet_id)
 
-    def _seed(self, count, winner_confidence=0.9, runner_up_confidence=0.5, correct=True):
-        first, second = self._pet("Tom"), self._pet("Ciri")
+    def _seed(self, count, winner_confidence=0.9, runner_up_confidence=0.5, correct=True, species="CAT"):
+        first, second = self._pet("Tom", species), self._pet("Ciri", species)
         for _ in range(count):
-            event_id = self._event(first["id"], winner_confidence)
+            event_id = self._event(first["id"], winner_confidence, species)
             self._analysis(
                 event_id, first["id"], winner_confidence, second["id"], runner_up_confidence,
-                first["id"] if correct else second["id"],
+                first["id"] if correct else second["id"], species,
             )
         return first, second
 
@@ -68,24 +70,33 @@ class AutoReviewTests(unittest.TestCase):
     def test_does_not_confirm_without_enough_reviewed_samples(self):
         self._seed(MINIMUM_SAMPLES - 1)
         self.service.update(True, 0.97)
-        self.assertIsNone(self.service.thresholds())
-        self.assertFalse(self.service.should_confirm("pet", 0.99, 0.5))
+        self.assertIsNone(self.service.thresholds("CAT"))
+        self.assertFalse(self.service.should_confirm("CAT", "pet", 0.99, 0.5))
 
     def test_confirms_once_samples_support_the_target(self):
         self._seed(MINIMUM_SAMPLES)
         self.service.update(True, 0.97)
-        self.assertIsNotNone(self.service.thresholds())
-        self.assertTrue(self.service.should_confirm("pet", 0.95, 0.4))
+        self.assertIsNotNone(self.service.thresholds("CAT"))
+        self.assertTrue(self.service.should_confirm("CAT", "pet", 0.95, 0.4))
+
+    def test_cat_reviews_do_not_unlock_automatic_review_for_dogs(self):
+        self._seed(MINIMUM_SAMPLES)
+        self.service.update(True, 0.97)
+        self.assertIsNone(self.service.thresholds("DOG"))
+        self.assertFalse(self.service.should_confirm("DOG", "pet", 0.99, 0.5))
+        view = self.service.view()
+        self.assertEqual(view["auto_review_species"]["CAT"]["sample_count"], MINIMUM_SAMPLES)
+        self.assertEqual(view["auto_review_species"]["DOG"]["sample_count"], 0)
 
     def test_never_confirms_while_disabled(self):
         self._seed(MINIMUM_SAMPLES)
         self.service.update(False, 0.97)
-        self.assertFalse(self.service.should_confirm("pet", 0.99, 0.5))
+        self.assertFalse(self.service.should_confirm("CAT", "pet", 0.99, 0.5))
 
     def test_does_not_confirm_when_the_data_never_reaches_the_target(self):
         self._seed(MINIMUM_SAMPLES, correct=False)
         self.service.update(True, 0.97)
-        self.assertIsNone(self.service.thresholds())
+        self.assertIsNone(self.service.thresholds("CAT"))
 
     def test_automatic_review_does_not_feed_the_calibration(self):
         """O ponto central: a revisão automática não pode treinar o identificador."""
@@ -114,9 +125,9 @@ class AutoReviewTests(unittest.TestCase):
 
     def test_view_reports_why_it_is_not_acting_yet(self):
         view = self.service.view()
-        self.assertEqual(view["auto_review_sample_count"], 0)
         self.assertEqual(view["auto_review_minimum_samples"], MINIMUM_SAMPLES)
-        self.assertIsNone(view["auto_review_expected_coverage"])
+        self.assertEqual(view["auto_review_species"]["CAT"]["sample_count"], 0)
+        self.assertIsNone(view["auto_review_species"]["CAT"]["expected_coverage"])
 
 
 if __name__ == "__main__":

@@ -20,31 +20,32 @@ class IdentificationCalibrator:
     def __init__(self, repository: PetIdentificationRepository | None) -> None:
         self.repository = repository
 
-    def thresholds(self) -> tuple[float, float]:
+    def thresholds(self, species: str) -> tuple[float, float]:
         if not self.repository:
             return MINIMUM_SIMILARITY, MINIMUM_MARGIN
-        calibration = self.repository.current_calibration(METHOD)
+        calibration = self.repository.current_calibration(METHOD, species)
         if not calibration.get("created_at"):
             return MINIMUM_SIMILARITY, MINIMUM_MARGIN
         return float(calibration["minimum_similarity"]), float(calibration["minimum_margin"])
 
-    def interactions_until_next(self) -> int:
+    def interactions_until_next(self, species: str) -> int:
         if not self.repository:
             return CALIBRATION_INTERVAL
-        calibration = self.repository.current_calibration(METHOD)
-        progress = self.repository.reviewed_count(METHOD) - int(calibration["interaction_count"])
+        calibration = self.repository.current_calibration(METHOD, species)
+        progress = self.repository.reviewed_count(METHOD, species) - int(calibration["interaction_count"])
         return max(0, CALIBRATION_INTERVAL - progress)
 
     def learn_from_review(self, event_id: str, pet_id: str) -> None:
-        if not self.repository or not self.repository.mark_review(event_id, pet_id):
+        species = self.repository.mark_review(event_id, pet_id) if self.repository else None
+        if not species:
             return
-        reviewed_count = self.repository.reviewed_count(METHOD)
-        current = self.repository.current_calibration(METHOD)
+        reviewed_count = self.repository.reviewed_count(METHOD, species)
+        current = self.repository.current_calibration(METHOD, species)
         if reviewed_count - int(current["interaction_count"]) < CALIBRATION_INTERVAL:
             return
         samples: list[Sample] = []
         top1_correct = 0
-        for sample in self.repository.reviewed_samples(METHOD):
+        for sample in self.repository.reviewed_samples(METHOD, species):
             scores = sorted(
                 ((score["pet_id"], float(score["confidence"])) for score in sample["scores"]),
                 key=lambda item: item[1], reverse=True,
@@ -59,7 +60,7 @@ class IdentificationCalibrator:
             return
         minimum_similarity, minimum_margin = self.choose_thresholds(samples)
         self.repository.create_calibration(
-            minimum_similarity, minimum_margin, reviewed_count, round(top1_correct / len(samples), 4), METHOD,
+            minimum_similarity, minimum_margin, reviewed_count, round(top1_correct / len(samples), 4), METHOD, species,
         )
 
     @staticmethod
