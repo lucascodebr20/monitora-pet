@@ -95,6 +95,25 @@ nav {
   display: grid;
   gap: 5px;
 }
+.menu-toggle,
+.menu-backdrop {
+  display: none;
+}
+.retention-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #43585b;
+  cursor: pointer;
+}
+.retention-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+}
 nav button {
   position: relative;
   width: 100%;
@@ -2234,56 +2253,91 @@ h1 {
     display: block;
   }
   .sidebar {
-    position: static;
+    position: sticky;
+    top: 0;
+    z-index: 40;
     height: auto;
     width: 100%;
-    padding: 15px 17px 0;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 17px;
     background: #fff;
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
   .brand {
     display: flex;
-    padding: 0 0 15px;
+    padding: 0;
     justify-content: flex-start;
   }
   .brand strong {
-    font-size: 22px;
+    font-size: 20px;
   }
-  .sidebar nav {
-    display: flex;
-    overflow-x: auto;
-    justify-content: flex-start;
-    height: auto;
-    gap: 6px;
-    scrollbar-width: none;
-    padding-bottom: 8px;
+  .menu-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    color: #43585b;
+    cursor: pointer;
   }
-  .sidebar nav button {
-    width: auto;
-    flex: none;
-    font-size: 13px;
-    white-space: nowrap;
-    padding: 10px;
-    gap: 7px;
+  .menu-toggle svg {
+    width: 22px;
+    height: 22px;
+  }
+  .menu-toggle b {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 20px;
+    padding: 2px 6px;
+    border-radius: 99px;
+    background: var(--opposition);
+    color: #fff;
+    font-size: 10px;
+    text-align: center;
+  }
+  .sidebar-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    padding: 6px 17px 18px;
+    background: #fff;
+    border-bottom: 1px solid var(--line);
+    box-shadow: 0 18px 30px rgba(20, 40, 35, 0.12);
+  }
+  .sidebar-menu.open {
+    display: block;
   }
   .sidebar .nav-caption {
-    display: none;
+    margin: 14px 12px 8px;
   }
-  .sidebar nav + nav {
-    margin-top: 0;
+  .sidebar .nav-caption.second {
+    margin-top: 18px;
   }
-  .sidebar nav:nth-of-type(2) {
-    padding-top: 0;
-    border-top: 1px solid #eef2f2;
+  .sidebar nav {
+    display: grid;
+    gap: 4px;
   }
-  .sidebar nav:nth-of-type(2) button {
-    font-size: 12px;
-    padding: 8px 10px;
+  .sidebar nav button {
+    width: 100%;
+    padding: 13px 12px;
+    font-size: 15px;
   }
-  .sidebar nav:nth-of-type(2) svg {
-    width: 15px;
-    height: 15px;
+  .menu-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgba(20, 40, 35, 0.3);
   }
   .topbar {
     height: 49px;

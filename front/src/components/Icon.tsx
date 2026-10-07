@@ -20,6 +20,8 @@ const paths = {
   accept: 'M5 12l4 4L19 6',
   correct: 'M4 7h10 M4 17h16 M14 4v6 M9 14v6',
   reject: 'M6 6l12 12 M18 6 6 18',
+  menu: 'M4 7h16 M4 12h16 M4 17h16',
+  close: 'M6 6l12 12 M18 6 6 18',
   star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z',
   noaction: 'M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18 M5.6 5.6l12.8 12.8',
 } as const
