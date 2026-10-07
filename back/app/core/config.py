@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 APP_NAME = "Monitora Pet"
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.3.0"
 BACK_DIR = Path(__file__).resolve().parents[2]
 PROJECT_DIR = BACK_DIR.parent
 DATABASE_FILENAME = "monitorapet.sqlite3"
