@@ -4,5 +4,3 @@ CREATE TABLE event_highlights (
     note TEXT,
     created_at TEXT NOT NULL
 );
-
-CREATE INDEX idx_event_highlights_created ON event_highlights(created_at DESC);

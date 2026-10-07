@@ -10,14 +10,26 @@ import { correctableZoneTypes, formatDateTime } from '../lib/labels'
 import { useHousehold } from '../lib/useHousehold'
 
 type Props = { pets: Pet[]; reloadToken: number; refresh: () => Promise<void> }
-type Decision = 'accept' | 'reject' | 'correct'
-type Stage = 'validate' | 'type' | 'pet'
+type Decision = 'accept' | 'reject' | 'correct' | 'noaction' | 'multiple'
+type Stage = 'validate' | 'type' | 'pet' | 'pets'
 
 const PENDING_LIMIT = 500
 const UNKNOWN_PET = 'unknown'
 
 const decisionOptions: { value: Decision; icon: IconName; title: string; description: (zone: string) => string }[] = [
   { value: 'accept', icon: 'accept', title: 'Aceitar', description: zone => `É uma visita à área de ${zone}.` },
+  {
+    value: 'noaction',
+    icon: 'noaction',
+    title: 'Não usou a área',
+    description: zone => `O gato esteve ali, mas não usou a área de ${zone}.`,
+  },
+  {
+    value: 'multiple',
+    icon: 'pets',
+    title: 'Vários gatos',
+    description: () => 'Mais de um animal aparece na imagem.',
+  },
   {
     value: 'correct',
     icon: 'correct',
@@ -36,6 +48,7 @@ function ReviewWizard({ event, pets, onSaved, onChange }: WizardProps) {
   const [stage, setStage] = useState<Stage>('validate')
   const [correctedType, setCorrectedType] = useState<Zone['type'] | ''>('')
   const [petId, setPetId] = useState(event.pet_id ?? '')
+  const [petIds, setPetIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const stageHeading = useRef<HTMLHeadingElement>(null)
@@ -46,14 +59,28 @@ function ReviewWizard({ event, pets, onSaved, onChange }: WizardProps) {
 
   const validPet = petId === UNKNOWN_PET || pets.some(p => p.id === petId)
   const typeChanged = !!correctedType && correctedType !== event.zone_type
-  const canSave = decision === 'reject' || (stage === 'pet' && validPet && (decision !== 'correct' || typeChanged))
+  // "Não usou a área" exige dizer qual gato era: é essa afirmação que ensina o
+  // identificador, mesmo sem ter havido a ação.
+  const namedPet = pets.some(p => p.id === petId)
+  const canSave =
+    decision === 'reject' ||
+    (decision === 'multiple' && petIds.length >= 2) ||
+    (decision === 'noaction' && stage === 'pet' && namedPet) ||
+    (stage === 'pet' && decision !== 'noaction' && validPet && (decision !== 'correct' || typeChanged))
   const effectiveType = decision === 'correct' && correctedType ? correctedType : event.zone_type
   const chosenPet = pets.find(p => p.id === petId)
 
   function chooseDecision(value: Decision) {
     setDecision(value)
     setError('')
-    setStage(value === 'accept' ? 'pet' : value === 'correct' ? 'type' : 'validate')
+    if (value === 'accept' || value === 'noaction') setStage('pet')
+    else if (value === 'correct') setStage('type')
+    else if (value === 'multiple') setStage('pets')
+    else setStage('validate')
+  }
+
+  function togglePet(id: string) {
+    setPetIds(current => (current.includes(id) ? current.filter(value => value !== id) : [...current, id]))
   }
 
   async function saveReview() {
@@ -61,20 +88,35 @@ function ReviewWizard({ event, pets, onSaved, onChange }: WizardProps) {
     setSaving(true)
     setError('')
     try {
-      const apiDecision = decision === 'reject' ? 'FALSE_POSITIVE' : decision === 'correct' ? 'CORRECTED' : 'CONFIRMED'
+      const apiDecision =
+        decision === 'reject'
+          ? 'FALSE_POSITIVE'
+          : decision === 'correct'
+            ? 'CORRECTED'
+            : decision === 'noaction'
+              ? 'NO_ACTION'
+              : decision === 'multiple'
+                ? 'MULTIPLE_PETS'
+                : 'CONFIRMED'
+      const singlePet = decision === 'reject' || decision === 'multiple' || petId === UNKNOWN_PET ? null : petId || null
       await api.reviewEvent(
         event.id,
         apiDecision,
-        decision === 'reject' || petId === UNKNOWN_PET ? null : petId || null,
+        singlePet,
         decision === 'correct' && correctedType ? correctedType : undefined,
+        decision === 'multiple' ? petIds : undefined,
       )
       await onSaved()
       showToast(
         decision === 'reject'
           ? 'Evidência recusada.'
-          : decision === 'correct' && correctedType
-            ? `Tipo corrigido para ${zoneLabels[correctedType].toLowerCase()}.`
-            : 'Evidência aceita.',
+          : decision === 'noaction'
+            ? 'Registrado: esteve na área, mas não usou.'
+            : decision === 'multiple'
+              ? `Registrado com ${petIds.length} gatos.`
+              : decision === 'correct' && correctedType
+                ? `Tipo corrigido para ${zoneLabels[correctedType].toLowerCase()}.`
+                : 'Evidência aceita.',
       )
     } catch (reason) {
       setError(errorMessage(reason, 'Não foi possível salvar. Tente novamente.'))
@@ -83,7 +125,7 @@ function ReviewWizard({ event, pets, onSaved, onChange }: WizardProps) {
     }
   }
 
-  const stepNumber = stage === 'validate' ? 2 : stage === 'type' || decision === 'accept' ? 3 : 4
+  const stepNumber = stage === 'validate' ? 2 : stage === 'type' || decision === 'accept' || stage === 'pets' ? 3 : 4
 
   return (
     <section className="review-card review-flow">
@@ -129,7 +171,9 @@ function ReviewWizard({ event, pets, onSaved, onChange }: WizardProps) {
               ? 'A evidência está correta?'
               : stage === 'type'
                 ? 'Qual é o tipo correto?'
-                : 'Qual animal aparece?'}
+                : stage === 'pets'
+                  ? 'Quais gatos aparecem?'
+                  : 'Qual animal aparece?'}
           </h2>
         </div>
         {stage === 'validate' && (
@@ -216,11 +260,70 @@ function ReviewWizard({ event, pets, onSaved, onChange }: WizardProps) {
             </div>
           </>
         )}
+        {stage === 'pets' && (
+          <>
+            <p className="wizard-context">
+              Visita à área de <strong>{zoneLabels[event.zone_type].toLowerCase()}</strong>
+            </p>
+            <p className="auto-identification-note">
+              <Icon name="pets" />
+              <span>
+                Com mais de um gato, a visita entra no histórico de todos eles, mas nenhum é usado para treinar a
+                identificação — a imagem tem mais de um animal.
+              </span>
+            </p>
+            <fieldset className="review-pet-options" disabled={saving}>
+              <legend className="sr-only">Selecionar os animais presentes</legend>
+              {pets.map(pet => (
+                <label key={pet.id} className={`review-choice ${petIds.includes(pet.id) ? 'chosen' : ''}`}>
+                  <input type="checkbox" checked={petIds.includes(pet.id)} onChange={() => togglePet(pet.id)} />
+                  {pet.photo_path ? (
+                    <img src={`/api/pets/${pet.id}/photo`} alt="" />
+                  ) : (
+                    <span className="review-pet-letter">{pet.name[0]}</span>
+                  )}
+                  <span className="review-choice-copy">
+                    <strong>{pet.name}</strong>
+                    <small>{pet.description}</small>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+            <div className="review-save">
+              <p className="review-save-hint">
+                {petIds.length >= 2
+                  ? `A visita será registrada com ${petIds.length} gatos.`
+                  : 'Selecione pelo menos dois gatos.'}
+              </p>
+              {error && (
+                <p className="form-error" role="alert">
+                  {error}
+                </p>
+              )}
+              <button className="primary full" disabled={!canSave || saving} onClick={() => void saveReview()}>
+                {saving ? 'Salvando…' : 'Concluir revisão'}
+              </button>
+              <button
+                className="tertiary full"
+                disabled={saving}
+                onClick={() => {
+                  setStage('validate')
+                  setDecision('')
+                  setPetIds([])
+                }}
+              >
+                Voltar
+              </button>
+            </div>
+          </>
+        )}
         {stage === 'pet' && (
           <>
             <p className="wizard-context">
-              Visita à área de <strong>{zoneLabels[effectiveType].toLowerCase()}</strong>
+              {decision === 'noaction' ? 'Esteve na área de ' : 'Visita à área de '}
+              <strong>{zoneLabels[effectiveType].toLowerCase()}</strong>
               {decision === 'correct' && ' · tipo corrigido'}
+              {decision === 'noaction' && ' · sem uso'}
             </p>
             {event.automatically_identified_pet_id && (
               <p className="auto-identification-note">
@@ -254,26 +357,32 @@ function ReviewWizard({ event, pets, onSaved, onChange }: WizardProps) {
                   </span>
                 </label>
               ))}
-              <label className={`review-choice ${petId === UNKNOWN_PET ? 'chosen' : ''}`}>
-                <input
-                  type="radio"
-                  name="evidence-pet"
-                  checked={petId === UNKNOWN_PET}
-                  onChange={() => setPetId(UNKNOWN_PET)}
-                />
-                <span className="review-choice-copy">
-                  <strong>Não consigo identificar</strong>
-                  <small>Salvar a visita sem atribuir a um animal.</small>
-                </span>
-              </label>
+              {decision !== 'noaction' && (
+                <label className={`review-choice ${petId === UNKNOWN_PET ? 'chosen' : ''}`}>
+                  <input
+                    type="radio"
+                    name="evidence-pet"
+                    checked={petId === UNKNOWN_PET}
+                    onChange={() => setPetId(UNKNOWN_PET)}
+                  />
+                  <span className="review-choice-copy">
+                    <strong>Não consigo identificar</strong>
+                    <small>Salvar a visita sem atribuir a um animal.</small>
+                  </span>
+                </label>
+              )}
             </fieldset>
             <div className="review-save">
               <p className="review-save-hint">
-                {petId === UNKNOWN_PET
-                  ? 'A visita será salva sem identificar o animal.'
-                  : chosenPet
-                    ? `A visita será atribuída a ${chosenPet.name}.`
-                    : 'Selecione o animal para concluir a revisão.'}
+                {decision === 'noaction'
+                  ? chosenPet
+                    ? `${chosenPet.name} esteve na área sem usá-la. Não entra no resumo de visitas, mas confirma a identificação.`
+                    : 'Selecione qual gato esteve na área.'
+                  : petId === UNKNOWN_PET
+                    ? 'A visita será salva sem identificar o animal.'
+                    : chosenPet
+                      ? `A visita será atribuída a ${chosenPet.name}.`
+                      : 'Selecione o animal para concluir a revisão.'}
               </p>
               {error && (
                 <p className="form-error" role="alert">
@@ -302,7 +411,6 @@ function ReviewWizard({ event, pets, onSaved, onChange }: WizardProps) {
 }
 
 export default function ReviewsView({ pets, reloadToken, refresh }: Props) {
-  const { zoneLabels, zoneIcon } = useHousehold()
   const [events, setEvents] = useState<Event[]>([])
   const [currentId, setCurrentId] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -361,39 +469,7 @@ export default function ReviewsView({ pets, reloadToken, refresh }: Props) {
           <Empty title="Tudo revisado">Novos registros aparecerão aqui quando uma visita for detectada.</Empty>
         </section>
       ) : (
-        <div className="review-layout">
-          <aside className="review-queue panel" aria-label="Fila de revisão">
-            <h2>Fila</h2>
-            <ol>
-              {events.map((event, index) => (
-                <li key={event.id}>
-                  <button
-                    type="button"
-                    className={event.id === current.id ? 'selected' : ''}
-                    aria-current={event.id === current.id ? 'true' : undefined}
-                    onClick={() => setCurrentId(event.id)}
-                  >
-                    <span className="review-queue-index">{index + 1}</span>
-                    <span>
-                      <strong>
-                        <Icon name={zoneIcon(event.zone_type)} /> {zoneLabels[event.zone_type]}
-                        {event.highlighted_at && (
-                          <span className="queue-star" aria-label="Favorito">
-                            <Icon name="star" filled />
-                          </span>
-                        )}
-                      </strong>
-                      <small>
-                        {event.camera_name} · {formatDateTime(event.started_at)}
-                      </small>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          </aside>
-          <ReviewWizard key={current.id} event={current} pets={pets} onSaved={onSaved} onChange={replaceEvent} />
-        </div>
+        <ReviewWizard key={current.id} event={current} pets={pets} onSaved={onSaved} onChange={replaceEvent} />
       )}
     </>
   )

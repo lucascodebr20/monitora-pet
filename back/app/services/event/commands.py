@@ -10,3 +10,4 @@ class ReviewEventCommand:
     pet_id: str | None
     notes: str | None
     zone_type: ZoneType | None = None
+    pet_ids: tuple[str, ...] = ()

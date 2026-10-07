@@ -37,21 +37,21 @@ finally {
 & $Python -m PyInstaller --noconfirm --clean `
     --distpath (Join-Path $ProjectRoot "desktop\dist-tauri") `
     --workpath (Join-Path $ProjectRoot "desktop\build-tauri") `
-    (Join-Path $ProjectRoot "desktop\vigiapet-backend.spec")
+    (Join-Path $ProjectRoot "desktop\monitorapet-backend.spec")
 if ($LASTEXITCODE -ne 0) { throw "Falha ao gerar o sidecar do backend." }
 
 New-Item -ItemType Directory -Force -Path $TauriBinDir | Out-Null
-$Source = Join-Path $ProjectRoot "desktop\dist-tauri\vigiapet-backend.exe"
-$Destination = Join-Path $TauriBinDir "vigiapet-backend-$TargetTriple.exe"
+$Source = Join-Path $ProjectRoot "desktop\dist-tauri\monitorapet-backend.exe"
+$Destination = Join-Path $TauriBinDir "monitorapet-backend-$TargetTriple.exe"
 Copy-Item -LiteralPath $Source -Destination $Destination -Force
 
-if ($env:VIGIAPET_CERTIFICATE_THUMBPRINT) {
+if ($env:MONITORAPET_CERTIFICATE_THUMBPRINT) {
     $SignTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
         Sort-Object FullName -Descending |
         Select-Object -First 1 -ExpandProperty FullName
     if (-not $SignTool) { throw "signtool.exe não encontrado no Windows SDK." }
-    $TimestampUrl = if ($env:VIGIAPET_TIMESTAMP_URL) { $env:VIGIAPET_TIMESTAMP_URL } else { "http://timestamp.digicert.com" }
-    & $SignTool sign /sha1 $env:VIGIAPET_CERTIFICATE_THUMBPRINT /fd SHA256 /tr $TimestampUrl /td SHA256 $Destination
+    $TimestampUrl = if ($env:MONITORAPET_TIMESTAMP_URL) { $env:MONITORAPET_TIMESTAMP_URL } else { "http://timestamp.digicert.com" }
+    & $SignTool sign /sha1 $env:MONITORAPET_CERTIFICATE_THUMBPRINT /fd SHA256 /tr $TimestampUrl /td SHA256 $Destination
     if ($LASTEXITCODE -ne 0) { throw "Falha ao assinar o sidecar do backend." }
 }
 else {

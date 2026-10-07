@@ -1,27 +1,6 @@
-import type { PetSpecies, Recording, Zone } from '../api'
-import type { IconName } from '../components/Icon'
-
-export const zoneLabels: Record<Zone['type'], string> = {
-  FOOD: 'Comida',
-  WATER: 'Água',
-  LITTER: 'Caixa de areia',
-  CUSTOM: 'Personalizada',
-}
+import type { PetSpecies, Recording } from '../api'
 
 export const correctableZoneTypes = ['WATER', 'FOOD', 'LITTER'] as const
-
-export function zoneIcon(type: string): IconName {
-  switch (type) {
-    case 'WATER':
-      return 'water'
-    case 'FOOD':
-      return 'food'
-    case 'LITTER':
-      return 'litter'
-    default:
-      return 'zones'
-  }
-}
 
 export const speciesLabels: Record<PetSpecies, string> = { CAT: 'Gato', DOG: 'Cão' }
 

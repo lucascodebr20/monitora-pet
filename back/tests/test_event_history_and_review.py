@@ -1,10 +1,11 @@
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from app.domain.enums import ReviewDecision, ZoneType
 from app.domain.errors import EntityNotFoundError, InvalidDomainValueError
-from app.domain.clock import local_today, utc_now
+from app.domain.clock import local_today, utc_bounds_for_local_date, utc_now
 from app.infra.database.database import Database
 from app.infra.repositories.event_highlight_repository import EventHighlightRepository
 from app.infra.repositories.event_repository import EventRepository
@@ -15,7 +16,7 @@ from app.services.event import EventHighlightService, EventQueryService, EventRe
 from app.infra.ai.identification_calibration import IdentificationCalibrator
 
 
-class EventHistoryAndReviewTests(unittest.TestCase):
+class ReviewTestBase(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.database = Database(Path(self.temp_dir.name) / "test.sqlite3")
@@ -53,6 +54,16 @@ class EventHistoryAndReviewTests(unittest.TestCase):
             (event_id, "camera-1", zone_id, f"{self.today}T12:00:00+00:00", capture_path, utc_now()),
         )
 
+    def create_event_on_date(self, event_id, value):
+        start, end = utc_bounds_for_local_date(value)
+        instant = datetime.fromisoformat(start) + (datetime.fromisoformat(end) - datetime.fromisoformat(start)) / 2
+        self.database.execute(
+            """INSERT INTO events
+               (id, camera_id, zone_id, started_at, detected_species, created_at)
+               VALUES (?, 'camera-1', 'water-zone', ?, 'CAT', ?)""",
+            (event_id, instant.isoformat(), utc_now()),
+        )
+
     def review(self, event_id, decision, pet_id=None, zone_type=None):
         return self.service.review(
             event_id,
@@ -65,6 +76,8 @@ class EventHistoryAndReviewTests(unittest.TestCase):
             ),
         )
 
+
+class EventHistoryAndReviewTests(ReviewTestBase):
     def test_search_returns_real_pages_and_total_for_filters(self):
         for index in range(23):
             self.create_event(f"water-{index}")
@@ -78,6 +91,21 @@ class EventHistoryAndReviewTests(unittest.TestCase):
         self.assertEqual(first["total"], 23)
         self.assertEqual([len(first["events"]), len(second["events"]), len(third["events"])], [10, 10, 3])
         self.assertTrue(all(event["zone_type"] == "WATER" for event in second["events"]))
+
+    def test_search_filters_inclusive_local_date_range(self):
+        today = local_today()
+        dates = [(today - timedelta(days=2)).isoformat(), (today - timedelta(days=1)).isoformat(), today.isoformat()]
+        for index, value in enumerate(dates):
+            self.create_event_on_date(f"range-{index}", value)
+
+        result = self.queries.search(1, 10, start_date=dates[1], end_date=dates[2])
+
+        self.assertEqual(result["total"], 2)
+        self.assertEqual({event["id"] for event in result["events"]}, {"range-1", "range-2"})
+
+    def test_search_rejects_reversed_date_range(self):
+        with self.assertRaises(InvalidDomainValueError):
+            self.queries.search(1, 10, start_date="2026-10-06", end_date="2026-10-05")
 
     def test_corrected_type_is_saved_on_event_and_not_zone(self):
         self.create_event("correct-me", capture_path="pets/captures/cat.jpg")
@@ -223,3 +251,81 @@ class EventHistoryAndReviewTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NoActionAndMultiplePetsTests(ReviewTestBase):
+    """Desfechos para 'o gato certo nao usou a area' e 'mais de um gato'."""
+
+    def review_pets(self, event_id, pet_ids):
+        return self.service.review(
+            event_id,
+            ReviewEventCommand(
+                decision=ReviewDecision.MULTIPLE_PETS,
+                corrected_activity=None,
+                pet_id=None,
+                notes=None,
+                zone_type=None,
+                pet_ids=tuple(pet_ids),
+            ),
+        )
+
+    def test_no_action_keeps_the_pet_and_trains_the_identifier(self):
+        """O gato estava certo: a identificacao precisa contar como acerto."""
+        self.create_event("event-1", capture_path="pets/captures/a.jpg")
+        self.review("event-1", ReviewDecision.NO_ACTION, pet_id=self.pet["id"])
+
+        event = self.events.get("event-1")
+        self.assertEqual(event["pet_id"], self.pet["id"])
+        row = self.database.one("SELECT decision FROM human_reviews WHERE event_id = ?", ("event-1",))
+        self.assertEqual(row["decision"], "NO_ACTION")
+
+    def test_no_action_requires_a_pet(self):
+        self.create_event("event-2")
+        with self.assertRaises(InvalidDomainValueError):
+            self.review("event-2", ReviewDecision.NO_ACTION)
+
+    def test_no_action_leaves_the_visit_out_of_the_counters(self):
+        """Mesma contagem de antes: voce recusava esses eventos."""
+        self.create_event("event-3")
+        self.review("event-3", ReviewDecision.NO_ACTION, pet_id=self.pet["id"])
+        self.assertEqual(self.events.count_on_date(self.today), 0)
+
+    def test_multiple_pets_records_every_cat_without_choosing_one(self):
+        other = self.pets.create("Amora", "CAT", "", None)
+        self.create_event("event-4", capture_path="pets/captures/b.jpg")
+
+        self.review_pets("event-4", [self.pet["id"], other["id"]])
+
+        event = self.events.get("event-4")
+        self.assertIsNone(event["pet_id"])
+        rows = self.database.all("SELECT pet_id FROM event_pets WHERE event_id = ?", ("event-4",))
+        self.assertEqual({row["pet_id"] for row in rows}, {self.pet["id"], other["id"]})
+
+    def test_multiple_pets_never_becomes_a_reference_image(self):
+        """A captura tem dois gatos: promove-la contaminaria a galeria."""
+        other = self.pets.create("Amora", "CAT", "", None)
+        self.create_event("event-5", capture_path="pets/captures/c.jpg")
+        self.review_pets("event-5", [self.pet["id"], other["id"]])
+        row = self.database.one("SELECT COUNT(*) AS total FROM pet_reference_images")
+        self.assertEqual(int(row["total"]), 0)
+
+    def test_multiple_pets_still_counts_as_a_visit(self):
+        other = self.pets.create("Amora", "CAT", "", None)
+        self.create_event("event-6")
+        self.review_pets("event-6", [self.pet["id"], other["id"]])
+        self.assertEqual(self.events.count_on_date(self.today), 1)
+
+    def test_multiple_pets_requires_at_least_two(self):
+        self.create_event("event-7")
+        with self.assertRaises(InvalidDomainValueError):
+            self.review_pets("event-7", [self.pet["id"]])
+
+    def test_history_filter_finds_events_with_several_cats(self):
+        other = self.pets.create("Amora", "CAT", "", None)
+        self.create_event("event-8")
+        self.review_pets("event-8", [self.pet["id"], other["id"]])
+
+        result = self.queries.search(page=1, page_size=10, pet_id=other["id"])
+
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(result["events"][0]["pet_names"], "Amora, Mingau")

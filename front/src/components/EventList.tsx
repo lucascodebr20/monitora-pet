@@ -10,6 +10,8 @@ import StarButton from './StarButton'
 function reviewLabel(decision: string | null): string {
   if (decision === 'FALSE_POSITIVE') return 'Descartado'
   if (decision === 'INCONCLUSIVE') return 'Inconclusivo'
+  if (decision === 'NO_ACTION') return 'Sem uso'
+  if (decision === 'MULTIPLE_PETS') return 'Vários gatos'
   return decision ? 'Revisado' : 'A revisar'
 }
 
@@ -90,9 +92,9 @@ type Props = { events: Event[]; onChange: (event: Event) => void }
 
 export default function EventList({ events, onChange }: Props) {
   const { zoneLabels, zoneIcon } = useHousehold()
-  const [detailId, setDetailId] = useState<string | null>(null)
-  const detail = events.find(event => event.id === detailId) ?? null
-  const close = useCallback(() => setDetailId(null), [])
+  const [snapshot, setSnapshot] = useState<Event | null>(null)
+  const detail = snapshot ? (events.find(event => event.id === snapshot.id) ?? snapshot) : null
+  const close = useCallback(() => setSnapshot(null), [])
   useEscape(close, detail !== null)
 
   if (!events.length)
@@ -106,13 +108,17 @@ export default function EventList({ events, onChange }: Props) {
       <div className="event-list">
         {events.map(event => (
           <div className={`event-row ${event.highlighted_at ? 'highlighted' : ''}`} key={event.id}>
-            <button className="event-open" onClick={() => setDetailId(event.id)}>
+            <button className="event-open" onClick={() => setSnapshot(event)}>
               <div className={`event-kind ${event.zone_type.toLowerCase()}`}>
                 <Icon name={zoneIcon(event.zone_type)} />
               </div>
               <div>
                 <strong>
-                  {event.pet_name ? `${event.pet_name} · ` : 'Pet não identificado · '}
+                  {event.pet_names
+                    ? `${event.pet_names} · `
+                    : event.pet_name
+                      ? `${event.pet_name} · `
+                      : 'Pet não identificado · '}
                   {zoneLabels[event.zone_type] ?? event.zone_name}
                 </strong>
                 <span>
@@ -128,7 +134,16 @@ export default function EventList({ events, onChange }: Props) {
           </div>
         ))}
       </div>
-      {detail && <EventDetail event={detail} onClose={close} onChange={onChange} />}
+      {detail && (
+        <EventDetail
+          event={detail}
+          onClose={close}
+          onChange={updated => {
+            setSnapshot(updated)
+            onChange(updated)
+          }}
+        />
+      )}
     </>
   )
 }

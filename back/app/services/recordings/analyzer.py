@@ -13,6 +13,7 @@ from app.domain.detection import Detection
 from app.domain.intervals import contains, subtract_intervals
 from app.infra.ai.motion_gate import MotionGate
 from app.infra.ai.pet_identifier import PetIdentifier
+from app.services.event.auto_review import AutoReviewService
 from app.infra.media.clip_store import ClipStore
 from app.infra.media.pet_image_store import PetImageStore
 from app.infra.media.recording_reader import RecordingReader
@@ -21,6 +22,7 @@ from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.monitoring_session_repository import MonitoringSessionRepository
 from app.infra.repositories.recording_repository import RecordingRepository
 from app.infra.repositories.zone_repository import ZoneRepository
+from app.services.event.purge import EventPurgeService
 from app.services.monitoring.analysis import Detector, FrameAnalyzer
 from app.services.monitoring.clips import ClipRecorder
 from app.services.monitoring.events import EventRecorder
@@ -65,8 +67,10 @@ class RecordingAnalyzer:
         clip_store: ClipStore,
         session_repository: MonitoringSessionRepository,
         recording_repository: RecordingRepository,
+        purge: EventPurgeService,
         pet_image_store: PetImageStore | None = None,
         pet_identifier: PetIdentifier | None = None,
+        auto_review: AutoReviewService | None = None,
         reader_factory: Callable[[Path], Any] = RecordingReader,
         motion_gate_factory: Callable[[], Any] = MotionGate,
         sample_fps: float = SAMPLE_FPS,
@@ -78,8 +82,10 @@ class RecordingAnalyzer:
         self.clip_store = clip_store
         self.session_repository = session_repository
         self.recording_repository = recording_repository
+        self.purge = purge
         self.pet_image_store = pet_image_store
         self.pet_identifier = pet_identifier
+        self.auto_review = auto_review
         self.reader_factory = reader_factory
         self.motion_gate_factory = motion_gate_factory
         self.sample_fps = sample_fps
@@ -99,6 +105,7 @@ class RecordingAnalyzer:
             self.pet_image_store,
             self.pet_identifier,
             source=SOURCE_RECORDING,
+            auto_review=self.auto_review,
         )
         tracker = ZoneTracker(ClipRecorder(self.clip_store, self.event_repository), events, self.pet_image_store)
         analyzer = FrameAnalyzer(self.detector, self.zone_repository, tracker)
@@ -123,7 +130,8 @@ class RecordingAnalyzer:
                 self._analyze_recording(analyzer, camera_id, recording, start, windows, result, should_stop, on_progress)
             except ImportInterrupted:
                 self._settle(analyzer, camera_id, end)
-                self.recording_repository.set_status(recording["id"], "PENDING")
+                self.purge.purge_recording(recording["id"])
+                self.recording_repository.reset(recording["id"])
                 result.interrupted = True
                 break
             except Exception as error:

@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import * as api from '../api'
 import type { Camera, Recording, WatchedFolder } from '../api'
-import { isDesktopApp, pickFolder } from '../lib/desktop'
+import { pickFolder } from '../lib/desktop'
 import { errorMessage } from '../lib/errors'
 import { useEscape } from '../lib/hooks'
 import {
@@ -50,7 +50,14 @@ export default function RecordingsPanel({ camera, onClose, reloadToken }: Props)
 
   async function choose() {
     const selected = await pickFolder()
-    if (selected) setPath(selected)
+    if (selected === undefined) {
+      setError('A seleção de pastas está disponível no aplicativo desktop do Monitora Pet.')
+      return
+    }
+    if (selected) {
+      setPath(selected)
+      setError('')
+    }
   }
 
   async function importNow(event: FormEvent) {
@@ -158,28 +165,21 @@ export default function RecordingsPanel({ camera, onClose, reloadToken }: Props)
           <div>
             <p className="eyebrow">GRAVAÇÕES DO CARTÃO</p>
             <h2>{camera.name}</h2>
-            <p>Copie os vídeos do cartão de memória para uma pasta do computador e importe aqui.</p>
           </div>
           <button type="button" className="close" aria-label="Fechar" onClick={onClose}>
             ×
           </button>
         </div>
         <form className="recording-import" onSubmit={importNow}>
-          <label className="wide">
-            Pasta ou arquivo de vídeo
-            <div className="recording-path">
-              <input
-                value={path}
-                onChange={event => setPath(event.target.value)}
-                placeholder={isDesktopApp() ? 'Escolha uma pasta…' : 'C:\\Users\\voce\\Videos\\camera'}
-              />
-              {isDesktopApp() && (
-                <button type="button" className="secondary" onClick={() => void choose()}>
-                  Escolher pasta
-                </button>
-              )}
+          <div className="wide recording-folder-field">
+            <span className="recording-folder-label">Pasta com as gravações</span>
+            <div className="recording-folder-picker">
+              <input value={path} readOnly placeholder="Nenhuma pasta selecionada" title={path || undefined} />
+              <button type="button" className="secondary" disabled={busy} onClick={() => void choose()}>
+                Selecionar pasta
+              </button>
             </div>
-          </label>
+          </div>
           <div className="recording-import-actions">
             <button className="primary" type="submit" disabled={busy || !path.trim()}>
               {busy ? 'Importando…' : 'Importar agora'}
