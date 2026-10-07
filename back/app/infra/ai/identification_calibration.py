@@ -64,19 +64,36 @@ class IdentificationCalibrator:
 
     @staticmethod
     def choose_thresholds(samples: list[Sample]) -> tuple[float, float]:
-        similarities = sorted({MINIMUM_SIMILARITY, *(round(item[0], 3) for item in samples)})
-        margins = sorted({MINIMUM_MARGIN, *(round(max(0.0, item[1]), 3) for item in samples)})
-        best: tuple[float, float, float, float] | None = None
-        for similarity in similarities:
-            for margin in margins:
-                accepted = [item for item in samples if item[0] >= similarity and item[1] >= margin]
-                if not accepted:
-                    continue
-                precision = sum(item[2] for item in accepted) / len(accepted)
-                coverage = len(accepted) / len(samples)
-                candidate = (coverage, precision, -similarity, -margin)
-                if precision >= TARGET_PRECISION and (best is None or candidate > best):
-                    best = candidate
+        best = search_thresholds(samples, TARGET_PRECISION)
         if best is None:
             return MINIMUM_SIMILARITY, MINIMUM_MARGIN
-        return round(-best[2], 4), round(-best[3], 4)
+        return best
+
+
+def search_thresholds(samples: list[Sample], target_precision: float) -> tuple[float, float] | None:
+    """Menor par (similaridade, margem) que atinge a precisao pedida.
+
+    Varre os limiares observados nas proprias amostras revisadas e escolhe o
+    par que aceita o maior numero delas sem cair abaixo de `target_precision`.
+    Devolve None quando nenhum par alcanca o alvo — o chamador decide se cai
+    para um padrao ou se simplesmente nao age.
+    """
+    if not samples:
+        return None
+    similarities = sorted({MINIMUM_SIMILARITY, *(round(item[0], 3) for item in samples)})
+    margins = sorted({MINIMUM_MARGIN, *(round(max(0.0, item[1]), 3) for item in samples)})
+    best: tuple[float, float, float, float] | None = None
+    for similarity in similarities:
+        for margin in margins:
+            accepted = [item for item in samples if item[0] >= similarity and item[1] >= margin]
+            if not accepted:
+                continue
+            precision = sum(item[2] for item in accepted) / len(accepted)
+            if precision < target_precision:
+                continue
+            candidate = (len(accepted) / len(samples), precision, -similarity, -margin)
+            if best is None or candidate > best:
+                best = candidate
+    if best is None:
+        return None
+    return round(-best[2], 4), round(-best[3], 4)

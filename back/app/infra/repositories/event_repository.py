@@ -127,6 +127,25 @@ class EventRepository:
             (event_id,),
         )
 
+    def complete_automatic_review(self, review: dict[str, Any], pet_id: str) -> None:
+        """Conclui uma revisão feita pelo sistema, sem supervisão humana.
+
+        Diferente de complete_review, nao cria imagem de referencia para o pet:
+        a captura veio de um palpite que ninguem conferiu, e promove-la a
+        referencia faria um erro contaminar as comparacoes seguintes.
+        """
+        with self.database.connect() as connection:
+            connection.execute(
+                """INSERT INTO human_reviews
+                   (id, event_id, decision, corrected_activity, cat_name, notes, created_at, pet_id, automatic)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)""",
+                tuple(
+                    review.get(key)
+                    for key in ("id", "event_id", "decision", "corrected_activity", "cat_name", "notes", "created_at", "pet_id")
+                ),
+            )
+            connection.execute("UPDATE events SET pet_id = ? WHERE id = ?", (pet_id, review["event_id"]))
+
     def complete_review(self, review: dict[str, Any], pet_id: str | None, corrected_zone_type: str | None) -> None:
         zone_type = corrected_zone_type
         with self.database.connect() as connection:

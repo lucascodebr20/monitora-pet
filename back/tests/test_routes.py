@@ -96,7 +96,10 @@ class RouteTests(unittest.TestCase):
     def test_empty_collections_and_spa_without_build(self):
         self.assertEqual(self.client.get("/api/events").json()["total"], 0)
         self.assertEqual(self.client.get("/api/identification/logs").json()["analyses"], [])
-        self.assertEqual(self.client.get("/api/settings").json(), {"retention_days": 7})
+        settings = self.client.get("/api/settings").json()
+        self.assertEqual(settings["retention_days"], 7)
+        self.assertFalse(settings["auto_review_enabled"])
+        self.assertIsNone(settings["auto_review_minimum_similarity"])
         self.assertEqual(self.client.get("/").status_code, 503)
         self.assertEqual(self.client.get("/api/nao-existe").status_code, 404)
 

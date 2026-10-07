@@ -13,6 +13,7 @@ from app.domain.detection import Detection
 from app.domain.intervals import contains, subtract_intervals
 from app.infra.ai.motion_gate import MotionGate
 from app.infra.ai.pet_identifier import PetIdentifier
+from app.services.event.auto_review import AutoReviewService
 from app.infra.media.clip_store import ClipStore
 from app.infra.media.pet_image_store import PetImageStore
 from app.infra.media.recording_reader import RecordingReader
@@ -69,6 +70,7 @@ class RecordingAnalyzer:
         purge: EventPurgeService,
         pet_image_store: PetImageStore | None = None,
         pet_identifier: PetIdentifier | None = None,
+        auto_review: AutoReviewService | None = None,
         reader_factory: Callable[[Path], Any] = RecordingReader,
         motion_gate_factory: Callable[[], Any] = MotionGate,
         sample_fps: float = SAMPLE_FPS,
@@ -83,6 +85,7 @@ class RecordingAnalyzer:
         self.purge = purge
         self.pet_image_store = pet_image_store
         self.pet_identifier = pet_identifier
+        self.auto_review = auto_review
         self.reader_factory = reader_factory
         self.motion_gate_factory = motion_gate_factory
         self.sample_fps = sample_fps
@@ -102,6 +105,7 @@ class RecordingAnalyzer:
             self.pet_image_store,
             self.pet_identifier,
             source=SOURCE_RECORDING,
+            auto_review=self.auto_review,
         )
         tracker = ZoneTracker(ClipRecorder(self.clip_store, self.event_repository), events, self.pet_image_store)
         analyzer = FrameAnalyzer(self.detector, self.zone_repository, tracker)

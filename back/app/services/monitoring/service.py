@@ -7,6 +7,7 @@ from typing import Any
 
 from app.domain.clock import Clock, Moment, SystemClock
 from app.infra.ai.pet_identifier import PetIdentifier
+from app.services.event.auto_review import AutoReviewService
 from app.infra.camera.manager import CameraManager
 from app.infra.media.clip_store import ClipStore
 from app.infra.media.pet_image_store import PetImageStore
@@ -41,6 +42,7 @@ class MonitoringService:
         pet_identifier: PetIdentifier | None = None,
         clock: Clock | None = None,
         session_repository: MonitoringSessionRepository | None = None,
+        auto_review: AutoReviewService | None = None,
     ) -> None:
         self.camera_manager = camera_manager
         self.coverage = CoverageRecorder(session_repository) if session_repository else None
@@ -48,7 +50,8 @@ class MonitoringService:
         self.model_error = model_error
         self.clock = clock or SystemClock()
         self.events = EventRecorder(
-            event_repository, snapshot_store, StreamSnapshotSource(camera_manager), pet_image_store, pet_identifier
+            event_repository, snapshot_store, StreamSnapshotSource(camera_manager), pet_image_store, pet_identifier,
+            auto_review=auto_review,
         )
         self.tracker = ZoneTracker(ClipRecorder(clip_store, event_repository), self.events, pet_image_store)
         self.analyzer = FrameAnalyzer(detector, zone_repository, self.tracker) if detector else None

@@ -1244,17 +1244,9 @@ nav button b {
   font-size: 14px;
   color: #7b8a91;
 }
-.topbar > div {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
 .topbar strong {
   font-weight: 550;
   color: #43585b;
-}
-.breadcrumb {
-  color: #c2ced2;
 }
 .content {
   width: 100%;
@@ -2139,9 +2131,6 @@ h1 {
     height: 49px;
     padding: 0 18px;
     font-size: 12px;
-  }
-  .topbar > div {
-    gap: 9px;
   }
   .content {
     padding: 27px 17px 30px;
