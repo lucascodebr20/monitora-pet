@@ -26,7 +26,7 @@ class MigrationTests(unittest.TestCase):
                     ).fetchall()
                 }
 
-            self.assertEqual(versions, [(1,), (2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (11,)])
+            self.assertEqual(versions, [(version,) for version in range(1, 13)])
             self.assertTrue({"cameras", "zones", "events", "human_reviews"} <= tables)
             with closing(sqlite3.connect(database.path)) as connection:
                 event_columns = {

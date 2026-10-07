@@ -12,7 +12,10 @@ EVENT_PROJECTION = """
            COALESCE(e.corrected_zone_type, z.type) AS zone_type,
            (SELECT decision FROM human_reviews r WHERE r.event_id = e.id
             ORDER BY created_at DESC LIMIT 1) AS review_decision,
-           p.name AS pet_name
+           p.name AS pet_name,
+           (SELECT GROUP_CONCAT(name, ', ') FROM
+              (SELECT mp.name FROM event_pets ep JOIN pets mp ON mp.id = ep.pet_id
+               WHERE ep.event_id = e.id ORDER BY mp.name)) AS pet_names
     FROM events e JOIN cameras c ON c.id = e.camera_id JOIN zones z ON z.id = e.zone_id
     LEFT JOIN pets p ON p.id = e.pet_id
 """
@@ -85,8 +88,11 @@ class EventRepository:
         filters: list[str] = []
         parameters: list[Any] = []
         if pet_id:
-            filters.append("e.pet_id = ?")
-            parameters.append(pet_id)
+            filters.append(
+                "(e.pet_id = ? OR EXISTS (SELECT 1 FROM event_pets ep "
+                "WHERE ep.event_id = e.id AND ep.pet_id = ?))"
+            )
+            parameters.extend((pet_id, pet_id))
         if zone_type:
             filters.append("COALESCE(e.corrected_zone_type, z.type) = ?")
             parameters.append(zone_type)
@@ -126,6 +132,29 @@ class EventRepository:
                FROM events e JOIN zones z ON z.id = e.zone_id WHERE e.id = ?""",
             (event_id,),
         )
+
+    def complete_multiple_pets_review(self, review: dict[str, Any], pet_ids: list[str]) -> None:
+        """Conclui um evento com mais de um gato no quadro.
+
+        Nao define events.pet_id — nenhuma atribuicao unica seria verdadeira — e
+        nao cria imagem de referencia, porque a captura tem mais de um animal e
+        contaminaria a galeria usada nas comparacoes.
+        """
+        with self.database.connect() as connection:
+            connection.execute(
+                """INSERT INTO human_reviews
+                   (id, event_id, decision, corrected_activity, cat_name, notes, created_at, pet_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, NULL)""",
+                tuple(
+                    review.get(key)
+                    for key in ("id", "event_id", "decision", "corrected_activity", "cat_name", "notes", "created_at")
+                ),
+            )
+            connection.execute("UPDATE events SET pet_id = NULL WHERE id = ?", (review["event_id"],))
+            connection.executemany(
+                "INSERT OR IGNORE INTO event_pets (event_id, pet_id) VALUES (?, ?)",
+                [(review["event_id"], pet_id) for pet_id in dict.fromkeys(pet_ids)],
+            )
 
     def complete_automatic_review(self, review: dict[str, Any], pet_id: str) -> None:
         """Conclui uma revisão feita pelo sistema, sem supervisão humana.
@@ -272,7 +301,7 @@ class EventRepository:
             """SELECT COUNT(*) AS total FROM events e
                WHERE e.started_at >= ? AND e.started_at < ?
                AND NOT EXISTS (SELECT 1 FROM human_reviews r
-                               WHERE r.event_id = e.id AND r.decision = 'FALSE_POSITIVE')""",
+                               WHERE r.event_id = e.id AND r.decision IN ('FALSE_POSITIVE', 'NO_ACTION'))""",
             (start, end),
         )
         return int(row["total"]) if row else 0
@@ -292,7 +321,7 @@ class EventRepository:
                FROM zones z LEFT JOIN events e ON e.zone_id = z.id
                    AND e.started_at >= ? AND e.started_at < ?
                    AND NOT EXISTS (SELECT 1 FROM human_reviews r
-                                   WHERE r.event_id = e.id AND r.decision = 'FALSE_POSITIVE')
+                                   WHERE r.event_id = e.id AND r.decision IN ('FALSE_POSITIVE', 'NO_ACTION'))
                GROUP BY COALESCE(e.corrected_zone_type, z.type)""",
             (start, end),
         )

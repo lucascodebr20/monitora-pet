@@ -21,6 +21,10 @@ class ReviewDecision(StrEnum):
     CORRECTED = "CORRECTED"
     FALSE_POSITIVE = "FALSE_POSITIVE"
     INCONCLUSIVE = "INCONCLUSIVE"
+    # O gato certo esteve na area, mas nao comeu, bebeu nem usou a caixa.
+    NO_ACTION = "NO_ACTION"
+    # Mais de um gato no quadro: a visita vale, a identificacao individual nao.
+    MULTIPLE_PETS = "MULTIPLE_PETS"
 
 
 class PetSpecies(StrEnum):

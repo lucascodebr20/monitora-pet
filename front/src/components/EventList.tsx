@@ -8,6 +8,8 @@ import Icon from './Icon'
 function reviewLabel(decision: string | null): string {
   if (decision === 'FALSE_POSITIVE') return 'Descartado'
   if (decision === 'INCONCLUSIVE') return 'Inconclusivo'
+  if (decision === 'NO_ACTION') return 'Sem uso'
+  if (decision === 'MULTIPLE_PETS') return 'Vários gatos'
   return decision ? 'Revisado' : 'A revisar'
 }
 
@@ -94,7 +96,11 @@ export default function EventList({ events }: { events: Event[] }) {
             </div>
             <div>
               <strong>
-                {event.pet_name ? `${event.pet_name} · ` : 'Pet não identificado · '}
+                {event.pet_names
+                  ? `${event.pet_names} · `
+                  : event.pet_name
+                    ? `${event.pet_name} · `
+                    : 'Pet não identificado · '}
                 {zoneLabels[event.zone_type] ?? event.zone_name}
               </strong>
               <span>
