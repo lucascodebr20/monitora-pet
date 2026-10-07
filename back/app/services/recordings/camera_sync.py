@@ -79,7 +79,8 @@ class CameraRecordingSync:
                 continue
             for chunk_start, chunk_end in self._chunks(camera_id, span.start - offset, span.end - offset, result):
                 self._download_chunk(camera, username, password, uri, chunk_start, chunk_end, offset, result)
-        self.camera_repository.mark_synced(camera_id, until.isoformat())
+        if not result.errors:
+            self.camera_repository.mark_synced(camera_id, until.isoformat())
         return result
 
     def _default_since(self, camera: dict[str, Any], until: datetime) -> datetime:

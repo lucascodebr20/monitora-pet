@@ -191,6 +191,11 @@ class OnvifProfileGTests(unittest.TestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual((spans[0].token, spans[0].start, spans[0].end), ("r1", START, START + timedelta(minutes=30)))
 
+    @patch("app.infra.camera.onvif._call", side_effect=OSError("offline"))
+    def test_find_recordings_reports_search_failure(self, call):
+        with self.assertRaises(onvif.RecordingSearchError):
+            onvif.find_recordings("http://192.168.1.2/onvif/search", START, START + timedelta(hours=1))
+
     @patch("app.infra.camera.onvif._call")
     def test_device_clock_offset_reads_utc_time(self, call):
         call.return_value = ET.fromstring(
@@ -336,6 +341,19 @@ class CameraSyncTests(unittest.TestCase):
 
         with self.assertRaises(OperationFailedError):
             self.sync.sync(self.camera["id"])
+
+    def test_sync_does_not_advance_checkpoint_when_a_download_fails(self):
+        from app.infra.camera.rtsp_replay import ReplayError
+
+        def fail(*args, **kwargs):
+            raise ReplayError("offline")
+
+        self.downloader.download = fail
+
+        result = self.sync.sync(self.camera["id"], since=START, until=START + timedelta(hours=3))
+
+        self.assertTrue(result.errors)
+        self.assertIsNone(self.camera_repository.get(self.camera["id"])["last_synced_at"])
 
 
 class CameraProfileTests(unittest.TestCase):

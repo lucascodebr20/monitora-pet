@@ -21,6 +21,7 @@ from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.monitoring_session_repository import MonitoringSessionRepository
 from app.infra.repositories.recording_repository import RecordingRepository
 from app.infra.repositories.zone_repository import ZoneRepository
+from app.services.event.purge import EventPurgeService
 from app.services.monitoring.analysis import Detector, FrameAnalyzer
 from app.services.monitoring.clips import ClipRecorder
 from app.services.monitoring.events import EventRecorder
@@ -65,6 +66,7 @@ class RecordingAnalyzer:
         clip_store: ClipStore,
         session_repository: MonitoringSessionRepository,
         recording_repository: RecordingRepository,
+        purge: EventPurgeService,
         pet_image_store: PetImageStore | None = None,
         pet_identifier: PetIdentifier | None = None,
         reader_factory: Callable[[Path], Any] = RecordingReader,
@@ -78,6 +80,7 @@ class RecordingAnalyzer:
         self.clip_store = clip_store
         self.session_repository = session_repository
         self.recording_repository = recording_repository
+        self.purge = purge
         self.pet_image_store = pet_image_store
         self.pet_identifier = pet_identifier
         self.reader_factory = reader_factory
@@ -123,7 +126,8 @@ class RecordingAnalyzer:
                 self._analyze_recording(analyzer, camera_id, recording, start, windows, result, should_stop, on_progress)
             except ImportInterrupted:
                 self._settle(analyzer, camera_id, end)
-                self.recording_repository.set_status(recording["id"], "PENDING")
+                self.purge.purge_recording(recording["id"])
+                self.recording_repository.reset(recording["id"])
                 result.interrupted = True
                 break
             except Exception as error:
