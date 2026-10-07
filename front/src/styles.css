@@ -3669,6 +3669,13 @@ dialog.modal {
   background: #31443f;
   color: white;
 }
+.identification-species h2 {
+  font-size: 15px;
+  margin: 0 0 10px;
+}
+.identification-species + .identification-species {
+  margin-top: 6px;
+}
 .identification-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

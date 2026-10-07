@@ -194,10 +194,14 @@ class EventHistoryAndReviewTests(ReviewTestBase):
                 ),
             )
 
-        calibration = identifications.current_calibration()
+        calibration = identifications.current_calibration(PetIdentifier.METHOD, "CAT")
+        dog_calibration = identifications.current_calibration(PetIdentifier.METHOD, "DOG")
         logs = identifications.list_analyses()
         self.assertEqual(calibration["interaction_count"], 10)
         self.assertEqual(calibration["accuracy"], 1.0)
+        self.assertEqual(calibration["species"], "CAT")
+        self.assertEqual(dog_calibration["interaction_count"], 0)
+        self.assertIsNone(dog_calibration["created_at"])
         self.assertEqual(identifications.count_analyses(), 10)
         self.assertEqual(len(identifications.list_analyses(3, 2)), 3)
         self.assertEqual(logs[0]["scores"][0]["pet_name"], "Mingau")
