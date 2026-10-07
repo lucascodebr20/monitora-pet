@@ -49,15 +49,6 @@ export default function App() {
         <nav>{navItems(primaryViews)}</nav>
         <p className="nav-caption second">MONITORAMENTO</p>
         <nav>{navItems(monitoringViews)}</nav>
-        <div className="sidebar-bottom">
-          <div className="workspace-avatar">
-            <span>MP</span>
-            <div>
-              <strong>Minha casa</strong>
-              <small>Monitoramento local</small>
-            </div>
-          </div>
-        </div>
       </aside>
       <div className="main-shell">
         <header className="topbar">
