@@ -15,3 +15,7 @@ class ReviewCreateRequest(BaseModel):
     def to_command(self) -> ReviewEventCommand:
         values = self.model_dump()
         return ReviewEventCommand(**{**values, "pet_ids": tuple(values["pet_ids"])})
+
+
+class HighlightUpdateRequest(BaseModel):
+    highlighted: bool

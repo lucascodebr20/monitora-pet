@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import * as api from '../api'
-import type { EventPage, Pet, Zone } from '../api'
+import type { Event, EventPage, Pet, Zone } from '../api'
 import DateRangePicker from '../components/DateRangePicker'
+import Empty from '../components/Empty'
 import EventList from '../components/EventList'
 import Icon from '../components/Icon'
 import PetAvatar from '../components/PetAvatar'
 import { errorMessage } from '../lib/errors'
-import { zoneIcon, zoneLabels } from '../lib/labels'
+import { useHousehold } from '../lib/useHousehold'
 import { pageWindow } from '../lib/pagination'
 
 type Props = { pets: Pet[]; reloadToken: number }
@@ -14,11 +15,13 @@ type Props = { pets: Pet[]; reloadToken: number }
 const PAGE_SIZE = 10
 
 export default function HistoryView({ pets, reloadToken }: Props) {
+  const { zoneLabels, zoneIcon } = useHousehold()
   const [page, setPage] = useState(1)
   const [petId, setPetId] = useState('')
   const [zoneType, setZoneType] = useState<Zone['type'] | ''>('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [highlightedOnly, setHighlightedOnly] = useState(false)
   const [result, setResult] = useState<EventPage | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -27,7 +30,7 @@ export default function HistoryView({ pets, reloadToken }: Props) {
     let active = true
     setLoading(true)
     void api
-      .getEventPage(page, petId, zoneType, PAGE_SIZE, startDate, endDate)
+      .getEventPage(page, petId, zoneType, PAGE_SIZE, startDate, endDate, highlightedOnly)
       .then(data => {
         if (active) {
           setResult(data)
@@ -43,7 +46,7 @@ export default function HistoryView({ pets, reloadToken }: Props) {
     return () => {
       active = false
     }
-  }, [page, petId, zoneType, startDate, endDate, reloadToken])
+  }, [page, petId, zoneType, startDate, endDate, highlightedOnly, reloadToken])
 
   const total = result?.total ?? 0
   const pageSize = result?.page_size ?? PAGE_SIZE
@@ -66,6 +69,24 @@ export default function HistoryView({ pets, reloadToken }: Props) {
     setStartDate(start)
     setEndDate(end)
     setPage(1)
+  }
+
+  function chooseHighlighted(value: boolean) {
+    setHighlightedOnly(value)
+    setPage(1)
+  }
+
+  function replaceEvent(updated: Event) {
+    setResult(current => {
+      if (!current) return current
+      if (highlightedOnly && !updated.highlighted_at)
+        return {
+          ...current,
+          total: Math.max(0, current.total - 1),
+          events: current.events.filter(event => event.id !== updated.id),
+        }
+      return { ...current, events: current.events.map(event => (event.id === updated.id ? updated : event)) }
+    })
   }
 
   function periodLabel(): string {
@@ -135,6 +156,25 @@ export default function HistoryView({ pets, reloadToken }: Props) {
             )}
           </div>
         </div>
+        <div className="filter-chip-row">
+          <span className="filter-chip-label">Mostrar</span>
+          <div className="filter-chip-options" role="group" aria-label="Filtrar por favoritos">
+            <button
+              className={highlightedOnly ? '' : 'selected'}
+              aria-pressed={!highlightedOnly}
+              onClick={() => chooseHighlighted(false)}
+            >
+              Todos os registros
+            </button>
+            <button
+              className={`star-chip ${highlightedOnly ? 'selected' : ''}`}
+              aria-pressed={highlightedOnly}
+              onClick={() => chooseHighlighted(true)}
+            >
+              <Icon name="star" filled={highlightedOnly} /> Favoritos
+            </button>
+          </div>
+        </div>
       </section>
       <section className="panel">
         <div className="panel-head">
@@ -144,8 +184,10 @@ export default function HistoryView({ pets, reloadToken }: Props) {
         {error && <p className="form-error">{error}</p>}
         {loading && !result ? (
           <p className="loading">Carregando histórico…</p>
+        ) : highlightedOnly && result && !result.events.length ? (
+          <Empty title="Nenhum favorito">Toque na estrela de um registro para guardá-lo nos favoritos.</Empty>
         ) : (
-          <EventList events={result?.events ?? []} />
+          <EventList events={result?.events ?? []} onChange={replaceEvent} />
         )}
         {total > 0 && (
           <div className="history-pagination">

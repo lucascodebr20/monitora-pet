@@ -99,7 +99,17 @@ class RouteTests(unittest.TestCase):
         settings = self.client.get("/api/settings").json()
         self.assertEqual(settings["retention_days"], 7)
         self.assertFalse(settings["auto_review_enabled"])
-        self.assertIsNone(settings["auto_review_minimum_similarity"])
+        self.assertIsNone(settings["auto_review_species"]["CAT"]["minimum_similarity"])
+        self.assertIsNone(settings["auto_review_species"]["DOG"]["minimum_similarity"])
+        self.assertIsNone(settings["household_species"])
+
+    def test_household_species_is_saved_separately_from_retention(self):
+        saved = self.client.put("/api/settings", json={"household_species": "DOG"}).json()
+        self.assertEqual((saved["retention_days"], saved["household_species"]), (7, "DOG"))
+        retention = self.client.put("/api/settings", json={"retention_days": 30}).json()
+        self.assertEqual((retention["retention_days"], retention["household_species"]), (30, "DOG"))
+        self.assertEqual(self.client.put("/api/settings", json={}).status_code, 422)
+        self.assertEqual(self.client.put("/api/settings", json={"household_species": "BIRD"}).status_code, 422)
         self.assertEqual(self.client.get("/").status_code, 503)
         self.assertEqual(self.client.get("/api/nao-existe").status_code, 404)
 

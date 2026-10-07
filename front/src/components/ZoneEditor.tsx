@@ -2,7 +2,7 @@ import { FormEvent, MouseEvent, PointerEvent, memo, useEffect, useMemo, useRef, 
 import * as api from '../api'
 import type { Camera, MonitoringFeedback, Zone } from '../api'
 import { errorMessage } from '../lib/errors'
-import { zoneIcon, zoneLabels } from '../lib/labels'
+import { useHousehold } from '../lib/useHousehold'
 import Icon from './Icon'
 import { useToast } from './useToast'
 
@@ -41,6 +41,7 @@ const CameraVideo = memo(function CameraVideo({ cameraId, cameraName }: { camera
 })
 
 export default function ZoneEditor({ cameras, zones, refresh }: Props) {
+  const { zoneLabels, zoneIcon } = useHousehold()
   const showToast = useToast()
   const [cameraId, setCameraId] = useState('')
   const [saving, setSaving] = useState(false)

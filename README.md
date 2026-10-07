@@ -1,7 +1,7 @@
 # Monitora Pet
 
-Aplicação local e open source para acompanhar visitas de gatos às áreas de
-comida, água e caixa de areia usando câmeras IP existentes.
+Aplicação local e open source para acompanhar visitas de gatos e cães às áreas
+de comida, água e banheiro (caixa de areia ou tapete) usando câmeras IP existentes.
 
 O vídeo, o histórico e os dados de configuração permanecem no computador do
 usuário. O projeto não envia imagens ou credenciais para serviços externos.

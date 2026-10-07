@@ -1,11 +1,13 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import * as api from '../api'
-import type { AppSettings, IdentificationLogs } from '../api'
+import type { AppSettings, HouseholdSpecies, IdentificationLogs, PetSpecies } from '../api'
 import BrandMark from '../components/BrandMark'
 import Icon from '../components/Icon'
 import { errorMessage } from '../lib/errors'
 import { formatDateTime, identificationDecisionLabels } from '../lib/labels'
+import { householdOptions } from '../lib/household'
 import { pageWindow } from '../lib/pagination'
+import { useHousehold } from '../lib/useHousehold'
 
 type Section = 'general' | 'identification'
 
@@ -13,33 +15,26 @@ const CALIBRATION_INTERVAL = 10
 const DEFAULT_SIMILARITY = 0.72
 const DEFAULT_MARGIN = 0.08
 
-export default function SettingsView({ version }: { version: string }) {
+type Props = { version: string; settings: AppSettings | null; onSettings: (settings: AppSettings) => void }
+
+export default function SettingsView({ version, settings: appSettings, onSettings }: Props) {
+  const { hasCats, hasDogs } = useHousehold()
   const [section, setSection] = useState<Section>('general')
   const [logs, setLogs] = useState<IdentificationLogs | null>(null)
   const [logPage, setLogPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
-  const [settings, setSettings] = useState<AppSettings | null>(null)
   const [retention, setRetention] = useState('7')
   const [savingRetention, setSavingRetention] = useState(false)
   const [retentionMessage, setRetentionMessage] = useState('')
+  const [savingHousehold, setSavingHousehold] = useState(false)
+  const [householdMessage, setHouseholdMessage] = useState('')
+
+  const retentionDays = appSettings?.retention_days
 
   useEffect(() => {
-    let active = true
-    void api
-      .getSettings()
-      .then(value => {
-        if (!active) return
-        setSettings(value)
-        setRetention(String(value.retention_days))
-      })
-      .catch(() => {
-        if (active) setRetentionMessage('Não foi possível carregar a retenção.')
-      })
-    return () => {
-      active = false
-    }
-  }, [])
+    if (retentionDays !== undefined) setRetention(String(retentionDays))
+  }, [retentionDays])
 
   async function saveRetention(event: FormEvent) {
     event.preventDefault()
@@ -52,12 +47,27 @@ export default function SettingsView({ version }: { version: string }) {
     setRetentionMessage('')
     try {
       const saved = await api.updateSettings({ retention_days: days })
-      setSettings(saved)
+      onSettings(saved)
       setRetentionMessage('Retenção salva.')
     } catch (reason) {
       setRetentionMessage(errorMessage(reason, 'Não foi possível salvar.'))
     } finally {
       setSavingRetention(false)
+    }
+  }
+
+  async function saveHousehold(value: HouseholdSpecies) {
+    if (savingHousehold || value === appSettings?.household_species) return
+    setSavingHousehold(true)
+    setHouseholdMessage('')
+    try {
+      const saved = await api.updateSettings({ household_species: value })
+      onSettings(saved)
+      setHouseholdMessage('Preferência salva. A interface já foi adaptada.')
+    } catch (reason) {
+      setHouseholdMessage(errorMessage(reason, 'Não foi possível salvar.'))
+    } finally {
+      setSavingHousehold(false)
     }
   }
 
@@ -78,8 +88,7 @@ export default function SettingsView({ version }: { version: string }) {
     if (section === 'identification' && logs === null) void loadLogs(1)
   }, [section, logs, loadLogs])
 
-  const calibration = logs?.calibration
-  const progress = logs ? CALIBRATION_INTERVAL - logs.interactions_until_calibration : 0
+  const speciesInHousehold = (['CAT', 'DOG'] as PetSpecies[]).filter(species => (species === 'CAT' ? hasCats : hasDogs))
   const logTotal = logs?.total ?? 0
   const logPageSize = logs?.page_size ?? 10
   const logPageCount = Math.max(1, Math.ceil(logTotal / logPageSize))
@@ -111,6 +120,43 @@ export default function SettingsView({ version }: { version: string }) {
           <section className="panel">
             <div className="panel-head">
               <div>
+                <h2>Quem mora com você</h2>
+                <p>Define as áreas, os nomes e o cadastro de pets que a interface mostra.</p>
+              </div>
+            </div>
+            <fieldset className="household-options compact" disabled={savingHousehold || appSettings === null}>
+              <legend className="sr-only">Espécies da casa</legend>
+              {householdOptions.map(option => (
+                <label
+                  className={`household-option ${appSettings?.household_species === option.value ? 'chosen' : ''}`}
+                  key={option.value}
+                >
+                  <input
+                    type="radio"
+                    name="settings-household"
+                    value={option.value}
+                    checked={appSettings?.household_species === option.value}
+                    onChange={() => void saveHousehold(option.value)}
+                  />
+                  <span className="household-emoji" aria-hidden="true">
+                    {option.emoji}
+                  </span>
+                  <span>
+                    <strong>{option.title}</strong>
+                    <small>{option.description}</small>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+            {householdMessage && (
+              <small className="muted" aria-live="polite">
+                {householdMessage}
+              </small>
+            )}
+          </section>
+          <section className="panel">
+            <div className="panel-head">
+              <div>
                 <h2>Privacidade</h2>
                 <p>Onde ficam as imagens, os vídeos e o histórico das visitas.</p>
               </div>
@@ -129,7 +175,8 @@ export default function SettingsView({ version }: { version: string }) {
                 <h2>Retenção de vídeos e imagens</h2>
                 <p>
                   Gravações baixadas, fotos e vídeos dos eventos mais antigos que o prazo abaixo são apagados
-                  automaticamente. O histórico das visitas é mantido.
+                  automaticamente. O histórico das visitas é mantido, e registros favoritados com a estrela preservam a
+                  mídia.
                 </p>
               </div>
             </div>
@@ -143,10 +190,10 @@ export default function SettingsView({ version }: { version: string }) {
                   max="365"
                   value={retention}
                   onChange={event => setRetention(event.target.value)}
-                  disabled={settings === null}
+                  disabled={appSettings === null}
                 />
                 <span>dias</span>
-                <button className="secondary" type="submit" disabled={savingRetention || settings === null}>
+                <button className="secondary" type="submit" disabled={savingRetention || appSettings === null}>
                   {savingRetention ? 'Salvando…' : 'Salvar'}
                 </button>
               </div>
@@ -175,45 +222,52 @@ export default function SettingsView({ version }: { version: string }) {
         </div>
       ) : (
         <>
-          <section className="identification-summary">
-            <article className="panel">
-              <span>Similaridade mínima</span>
-              <strong>{Math.round((calibration?.minimum_similarity ?? DEFAULT_SIMILARITY) * 100)}%</strong>
-              <small>Confiança mínima para sugerir um gato.</small>
-            </article>
-            <article className="panel">
-              <span>Separação mínima</span>
-              <strong>{Math.round((calibration?.minimum_margin ?? DEFAULT_MARGIN) * 100)}%</strong>
-              <small>Diferença exigida para o segundo candidato.</small>
-            </article>
-            <article className="panel">
-              <span>Próxima calibração</span>
-              <strong>
-                {progress}/{CALIBRATION_INTERVAL}
-              </strong>
-              <small>
-                {logs?.interactions_until_calibration ?? CALIBRATION_INTERVAL} revisões confirmadas restantes.
-              </small>
-            </article>
-            <article className="panel">
-              <span>Acerto após revisão</span>
-              <strong>
-                {calibration?.accuracy !== null && calibration?.accuracy !== undefined
-                  ? `${Math.round(calibration.accuracy * 100)}%`
-                  : '—'}
-              </strong>
-              <small>
-                {calibration?.created_at
-                  ? `Calibrado em ${formatDateTime(calibration.created_at)}`
-                  : 'Aguardando a primeira calibração.'}
-              </small>
-            </article>
-          </section>
+          {speciesInHousehold.map(species => {
+            const calibration = logs?.calibrations[species]
+            const remaining = calibration?.interactions_until_calibration ?? CALIBRATION_INTERVAL
+            return (
+              <div className="identification-species" key={species}>
+                <h2>{species === 'CAT' ? 'Gatos' : 'Cães'}</h2>
+                <section className="identification-summary">
+                  <article className="panel">
+                    <span>Similaridade mínima</span>
+                    <strong>{Math.round((calibration?.minimum_similarity ?? DEFAULT_SIMILARITY) * 100)}%</strong>
+                    <small>Confiança mínima para sugerir um pet.</small>
+                  </article>
+                  <article className="panel">
+                    <span>Separação mínima</span>
+                    <strong>{Math.round((calibration?.minimum_margin ?? DEFAULT_MARGIN) * 100)}%</strong>
+                    <small>Diferença exigida para o segundo candidato.</small>
+                  </article>
+                  <article className="panel">
+                    <span>Próxima calibração</span>
+                    <strong>
+                      {CALIBRATION_INTERVAL - remaining}/{CALIBRATION_INTERVAL}
+                    </strong>
+                    <small>{remaining} revisões confirmadas restantes.</small>
+                  </article>
+                  <article className="panel">
+                    <span>Acerto após revisão</span>
+                    <strong>
+                      {calibration?.accuracy !== null && calibration?.accuracy !== undefined
+                        ? `${Math.round(calibration.accuracy * 100)}%`
+                        : '—'}
+                    </strong>
+                    <small>
+                      {calibration?.created_at
+                        ? `Calibrado em ${formatDateTime(calibration.created_at)}`
+                        : 'Aguardando a primeira calibração.'}
+                    </small>
+                  </article>
+                </section>
+              </div>
+            )
+          })}
           <section className="panel identification-log-panel">
             <div className="panel-head">
               <div>
                 <h2>Decisões da identificação</h2>
-                <p>Percentuais de todos os gatos avaliados em cada visita.</p>
+                <p>Percentuais de todos os pets avaliados em cada visita.</p>
               </div>
               <button className="tertiary" disabled={loading} onClick={() => void loadLogs(logPage)}>
                 {loading ? 'Atualizando…' : 'Atualizar'}
@@ -225,7 +279,7 @@ export default function SettingsView({ version }: { version: string }) {
             ) : !logs?.analyses.length ? (
               <div className="empty">
                 <h3>Nenhuma análise registrada</h3>
-                <p>Os resultados aparecerão quando uma nova visita de gato for detectada.</p>
+                <p>Os resultados aparecerão quando uma nova visita for analisada.</p>
               </div>
             ) : (
               <div className="identification-log-list">
@@ -236,7 +290,7 @@ export default function SettingsView({ version }: { version: string }) {
                         <span className={`identification-decision ${analysis.decision.toLowerCase()}`}>
                           {identificationDecisionLabels[analysis.decision]}
                         </span>
-                        <h3>{analysis.selected_pet_name ?? 'Nenhum gato atribuído'}</h3>
+                        <h3>{analysis.selected_pet_name ?? 'Nenhum pet atribuído'}</h3>
                         <p>
                           {analysis.camera_name} · {analysis.zone_name} · {formatDateTime(analysis.created_at)}
                         </p>

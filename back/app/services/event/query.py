@@ -34,6 +34,7 @@ class EventQueryService:
         date: str | None = None,
         start_date: str | None = None,
         end_date: str | None = None,
+        highlighted: bool = False,
     ) -> dict[str, Any]:
         try:
             parsed_start = Date.fromisoformat(start_date) if start_date else None
@@ -53,5 +54,6 @@ class EventQueryService:
             date=date,
             start_date=start_date,
             end_date=end_date,
+            highlighted=highlighted,
         )
         return {"events": events, "total": total, "page": page, "page_size": page_size}

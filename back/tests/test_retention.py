@@ -7,6 +7,7 @@ from pathlib import Path
 from app.domain.errors import InvalidDomainValueError
 from app.infra.media.media_cleanup import MediaCleanup
 from app.infra.media.recording_reader import index_path_for
+from app.infra.repositories.event_highlight_repository import EventHighlightRepository
 from app.infra.repositories.recording_repository import RecordingRepository
 from app.infra.repositories.settings_repository import SettingsRepository
 from app.services.event.retention import MediaRetentionService
@@ -80,6 +81,25 @@ class RetentionTests(unittest.TestCase):
         self.assertEqual(events[referenced]["pet_capture_path"], "pets/captures/ref.jpg")
         self.assertEqual(events[new_event]["snapshot_path"], "snapshots/new.jpg")
 
+    def test_highlighted_events_keep_media_past_retention(self):
+        starred_snapshot = self._file("snapshots/starred.jpg")
+        starred_clip = self._file("clips/starred.webm")
+        plain_snapshot = self._file("snapshots/plain.jpg")
+        starred = self._event(10, "snapshots/starred.jpg")
+        self.event_repository.attach_clip(starred, "clips/starred.webm")
+        plain = self._event(10, "snapshots/plain.jpg")
+        EventHighlightRepository(self.database).add(starred)
+
+        result = self.service.run()
+
+        self.assertEqual(result.media_removed, 1)
+        self.assertTrue(starred_snapshot.exists())
+        self.assertTrue(starred_clip.exists())
+        self.assertFalse(plain_snapshot.exists())
+        events = {event["id"]: event for event in self.event_repository.list(camera_id=self.camera["id"])}
+        self.assertEqual(events[starred]["clip_path"], "clips/starred.webm")
+        self.assertIsNone(events[plain]["snapshot_path"])
+
     def test_removes_only_app_owned_recording_files(self):
         owned = self._file("recordings/cam/old.h264")
         index_path_for(owned).write_text(json.dumps({"timestamps": []}))
@@ -111,7 +131,7 @@ class RetentionTests(unittest.TestCase):
     def test_pending_review_queue_is_chronological(self):
         for days_ago in (3, 1, 2):
             event_id = self._event(days_ago, None)
-            self.event_repository.finish_detected_event(event_id, (NOW - timedelta(days=days_ago)).isoformat(), 5, "CAT_LEFT_ZONE")
+            self.event_repository.finish_detected_event(event_id, (NOW - timedelta(days=days_ago)).isoformat(), 5, "PET_LEFT_ZONE")
 
         pending = self.event_repository.list(pending_review=True)
         history, _ = self.event_repository.search(1, 10)

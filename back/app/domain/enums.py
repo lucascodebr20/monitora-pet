@@ -27,6 +27,12 @@ class ReviewDecision(StrEnum):
     MULTIPLE_PETS = "MULTIPLE_PETS"
 
 
+class HouseholdSpecies(StrEnum):
+    CAT = "CAT"
+    DOG = "DOG"
+    BOTH = "BOTH"
+
+
 class PetSpecies(StrEnum):
     CAT = "CAT"
     DOG = "DOG"

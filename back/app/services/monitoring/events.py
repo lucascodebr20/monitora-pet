@@ -14,7 +14,7 @@ from app.infra.repositories.event_repository import EventRepository
 from app.services.event.auto_review import AutoReviewService
 from app.services.monitoring.snapshots import SnapshotSource
 
-END_REASON_LEFT_ZONE = "CAT_LEFT_ZONE"
+END_REASON_LEFT_ZONE = "PET_LEFT_ZONE"
 
 
 class EventRecorder:
@@ -70,16 +70,16 @@ class EventRecorder:
         )
         if self.pet_identifier and analysis:
             self.pet_identifier.record_analysis(event_id, capture_path, species.value, analysis)
-        self._maybe_auto_review(event_id, analysis)
+        self._maybe_auto_review(event_id, species, analysis)
         return event_id
 
-    def _maybe_auto_review(self, event_id: str, analysis: PetAnalysis | None) -> None:
+    def _maybe_auto_review(self, event_id: str, species: PetSpecies, analysis: PetAnalysis | None) -> None:
         if not self.auto_review or not analysis or not analysis.match:
             return
         scores = sorted((candidate["confidence"] for candidate in analysis.scores), reverse=True)
         runner_up = scores[1] if len(scores) > 1 else 0.0
         margin = analysis.match.confidence - runner_up
-        if self.auto_review.should_confirm(analysis.match.pet_id, analysis.match.confidence, margin):
+        if self.auto_review.should_confirm(species.value, analysis.match.pet_id, analysis.match.confidence, margin):
             self.auto_review.confirm(event_id, analysis.match.pet_id)
 
     def close(self, event_id: str, transition: PresenceTransition, now_utc: datetime) -> None:

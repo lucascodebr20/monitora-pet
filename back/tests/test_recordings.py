@@ -128,7 +128,7 @@ class RecordingAnalyzerTests(unittest.TestCase):
         self.assertEqual(events[0]["started_at"], at(2))
         self.assertEqual(events[0]["ended_at"], at(8))
         self.assertEqual(events[0]["duration_seconds"], 6)
-        self.assertEqual(events[0]["end_reason"], "CAT_LEFT_ZONE")
+        self.assertEqual(events[0]["end_reason"], "PET_LEFT_ZONE")
         self.assertEqual(events[0]["clip_path"], "clips/test.webm")
         self.assertEqual(self.snapshot_store.saved[0][0], b"frame-jpeg")
         self.assertEqual(self.recordings.get(recording["id"])["status"], "DONE")

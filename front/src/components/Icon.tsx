@@ -11,6 +11,7 @@ const paths = {
   water: 'M12 3C9 7 5 11 5 15a7 7 0 0 0 14 0c0-4-4-8-7-12Z M8 15c0 2 1 3 3 3',
   food: 'M3 11h18c0 6-3 9-9 9s-9-3-9-9Z M7 7V4 M12 7V3 M17 7V4',
   litter: 'M3 8h18l-2 12H5Z M7 8V4h10v4 M8 13h8',
+  pad: 'M3 6h18v12H3z M7 10h10 M7 14h6',
   activity: 'M2 12h4l3-8 5 16 3-8h5',
   calendar: 'M4 5h16v16H4z M8 2v6 M16 2v6 M4 10h16',
   clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18 M12 7v5l3 2',
@@ -19,18 +20,19 @@ const paths = {
   accept: 'M5 12l4 4L19 6',
   correct: 'M4 7h10 M4 17h16 M14 4v6 M9 14v6',
   reject: 'M6 6l12 12 M18 6 6 18',
+  star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z',
   noaction: 'M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18 M5.6 5.6l12.8 12.8',
 } as const
 
 export type IconName = keyof typeof paths
 
-export default function Icon({ name }: { name: IconName }) {
+export default function Icon({ name, filled = false }: { name: IconName; filled?: boolean }) {
   return (
     <svg
       width="22"
       height="22"
       viewBox="0 0 24 24"
-      fill="none"
+      fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
       strokeWidth="1.6"
       strokeLinecap="round"

@@ -4,14 +4,15 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from app.domain.enums import ReviewDecision, ZoneType
-from app.domain.errors import InvalidDomainValueError
+from app.domain.errors import EntityNotFoundError, InvalidDomainValueError
 from app.domain.clock import local_today, utc_bounds_for_local_date, utc_now
 from app.infra.database.database import Database
+from app.infra.repositories.event_highlight_repository import EventHighlightRepository
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.pet_repository import PetRepository
 from app.infra.repositories.pet_identification_repository import PetIdentificationRepository
 from app.infra.ai.pet_identifier import PetIdentifier
-from app.services.event import EventQueryService, EventReviewService, ReviewEventCommand
+from app.services.event import EventHighlightService, EventQueryService, EventReviewService, ReviewEventCommand
 from app.infra.ai.identification_calibration import IdentificationCalibrator
 
 
@@ -193,10 +194,14 @@ class EventHistoryAndReviewTests(ReviewTestBase):
                 ),
             )
 
-        calibration = identifications.current_calibration()
+        calibration = identifications.current_calibration(PetIdentifier.METHOD, "CAT")
+        dog_calibration = identifications.current_calibration(PetIdentifier.METHOD, "DOG")
         logs = identifications.list_analyses()
         self.assertEqual(calibration["interaction_count"], 10)
         self.assertEqual(calibration["accuracy"], 1.0)
+        self.assertEqual(calibration["species"], "CAT")
+        self.assertEqual(dog_calibration["interaction_count"], 0)
+        self.assertIsNone(dog_calibration["created_at"])
         self.assertEqual(identifications.count_analyses(), 10)
         self.assertEqual(len(identifications.list_analyses(3, 2)), 3)
         self.assertEqual(logs[0]["scores"][0]["pet_name"], "Mingau")
@@ -209,6 +214,33 @@ class EventHistoryAndReviewTests(ReviewTestBase):
 
         with self.assertRaises(InvalidDomainValueError):
             self.review("invalid-correction", ReviewDecision.CORRECTED, zone_type=ZoneType.WATER)
+
+    def test_highlight_records_when_it_was_marked_and_filters_history(self):
+        self.create_event("plain")
+        self.create_event("for-vet")
+        highlights = EventHighlightRepository(self.database)
+        service = EventHighlightService(self.events, highlights)
+
+        marked = service.set_highlighted("for-vet", True)
+        service.set_highlighted("for-vet", True)
+        highlighted_only = self.queries.search(1, 10, highlighted=True)
+
+        self.assertIsNotNone(marked["highlighted_at"])
+        self.assertEqual(marked["highlighted_at"], highlights.get("for-vet")["created_at"])
+        self.assertIsNone(marked["highlight_note"])
+        self.assertEqual(marked["camera_name"], "Sala")
+        self.assertEqual([event["id"] for event in highlighted_only["events"]], ["for-vet"])
+        self.assertEqual(highlighted_only["total"], 1)
+        self.assertEqual(self.queries.search(1, 10)["total"], 2)
+        self.assertIsNone(self.events.find("plain")["highlighted_at"])
+
+        unmarked = service.set_highlighted("for-vet", False)
+
+        self.assertIsNone(unmarked["highlighted_at"])
+        self.assertIsNone(highlights.get("for-vet"))
+        self.assertEqual(self.queries.search(1, 10, highlighted=True)["total"], 0)
+        with self.assertRaises(EntityNotFoundError):
+            service.set_highlighted("missing", True)
 
     def test_reference_image_can_be_removed_without_deleting_event(self):
         self.create_event("reference-event", capture_path="pets/captures/cat.jpg")

@@ -56,7 +56,9 @@ export type JobState = {
   error: string | null
 }
 
-export type AppSettings = { retention_days: number }
+export type HouseholdSpecies = 'CAT' | 'DOG' | 'BOTH'
+
+export type AppSettings = { retention_days: number; household_species: HouseholdSpecies | null }
 
 export type WatchedFolder = {
   id: string
@@ -160,6 +162,8 @@ export type Event = {
   pet_identification_method: string | null
   detected_species: PetSpecies
   review_decision: string | null
+  highlighted_at: string | null
+  highlight_note: string | null
 }
 
 export type EventPage = {
@@ -200,13 +204,15 @@ export type IdentificationLogs = {
   total: number
   page: number
   page_size: number
-  calibration: {
-    minimum_similarity: number
-    minimum_margin: number
-    interaction_count: number
-    accuracy: number | null
-    created_at: string | null
-  }
+  calibrations: Record<PetSpecies, IdentificationCalibration>
+}
+
+export type IdentificationCalibration = {
+  minimum_similarity: number
+  minimum_margin: number
+  interaction_count: number
+  accuracy: number | null
+  created_at: string | null
   interactions_until_calibration: number
 }
 
@@ -282,7 +288,8 @@ export const createWatchedFolder = (cameraId: string, path: string) =>
   request<WatchedFolder>('/api/recordings/folders', json('POST', { camera_id: cameraId, path }))
 export const deleteWatchedFolder = (id: string) => request<void>(`/api/recordings/folders/${id}`, { method: 'DELETE' })
 export const getSettings = () => request<AppSettings>('/api/settings')
-export const updateSettings = (payload: AppSettings) => request<AppSettings>('/api/settings', json('PUT', payload))
+export const updateSettings = (payload: Partial<AppSettings>) =>
+  request<AppSettings>('/api/settings', json('PUT', payload))
 export const getJobState = () => request<JobState>('/api/jobs')
 export const startImportJob = (cameraId?: string) =>
   request<JobState>(`/api/jobs/import${cameraId ? `?camera_id=${encodeURIComponent(cameraId)}` : ''}`, json('POST'))
@@ -324,14 +331,18 @@ export const getEventPage = (
   pageSize = 10,
   startDate = '',
   endDate = '',
+  highlightedOnly = false,
 ) => {
   const query = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
   if (petId) query.set('pet_id', petId)
   if (zoneType) query.set('zone_type', zoneType)
   if (startDate) query.set('start_date', startDate)
   if (endDate) query.set('end_date', endDate)
+  if (highlightedOnly) query.set('highlighted', 'true')
   return request<EventPage>(`/api/events?${query.toString()}`)
 }
+export const setEventHighlighted = (id: string, highlighted: boolean) =>
+  request<Event>(`/api/events/${id}/highlight`, json('PUT', { highlighted }))
 export const reviewEvent = (
   id: string,
   decision: string,
