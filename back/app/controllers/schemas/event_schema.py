@@ -10,6 +10,8 @@ class ReviewCreateRequest(BaseModel):
     pet_id: str | None = None
     zone_type: ZoneType | None = None
     notes: str | None = Field(default=None, max_length=500)
+    pet_ids: list[str] = Field(default_factory=list, max_length=12)
 
     def to_command(self) -> ReviewEventCommand:
-        return ReviewEventCommand(**self.model_dump())
+        values = self.model_dump()
+        return ReviewEventCommand(**{**values, "pet_ids": tuple(values["pet_ids"])})

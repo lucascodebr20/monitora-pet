@@ -15,7 +15,7 @@ from app.services.event import EventQueryService, EventReviewService, ReviewEven
 from app.infra.ai.identification_calibration import IdentificationCalibrator
 
 
-class EventHistoryAndReviewTests(unittest.TestCase):
+class ReviewTestBase(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.database = Database(Path(self.temp_dir.name) / "test.sqlite3")
@@ -75,6 +75,8 @@ class EventHistoryAndReviewTests(unittest.TestCase):
             ),
         )
 
+
+class EventHistoryAndReviewTests(ReviewTestBase):
     def test_search_returns_real_pages_and_total_for_filters(self):
         for index in range(23):
             self.create_event(f"water-{index}")
@@ -221,3 +223,81 @@ class EventHistoryAndReviewTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NoActionAndMultiplePetsTests(ReviewTestBase):
+    """Desfechos para 'o gato certo nao usou a area' e 'mais de um gato'."""
+
+    def review_pets(self, event_id, pet_ids):
+        return self.service.review(
+            event_id,
+            ReviewEventCommand(
+                decision=ReviewDecision.MULTIPLE_PETS,
+                corrected_activity=None,
+                pet_id=None,
+                notes=None,
+                zone_type=None,
+                pet_ids=tuple(pet_ids),
+            ),
+        )
+
+    def test_no_action_keeps_the_pet_and_trains_the_identifier(self):
+        """O gato estava certo: a identificacao precisa contar como acerto."""
+        self.create_event("event-1", capture_path="pets/captures/a.jpg")
+        self.review("event-1", ReviewDecision.NO_ACTION, pet_id=self.pet["id"])
+
+        event = self.events.get("event-1")
+        self.assertEqual(event["pet_id"], self.pet["id"])
+        row = self.database.one("SELECT decision FROM human_reviews WHERE event_id = ?", ("event-1",))
+        self.assertEqual(row["decision"], "NO_ACTION")
+
+    def test_no_action_requires_a_pet(self):
+        self.create_event("event-2")
+        with self.assertRaises(InvalidDomainValueError):
+            self.review("event-2", ReviewDecision.NO_ACTION)
+
+    def test_no_action_leaves_the_visit_out_of_the_counters(self):
+        """Mesma contagem de antes: voce recusava esses eventos."""
+        self.create_event("event-3")
+        self.review("event-3", ReviewDecision.NO_ACTION, pet_id=self.pet["id"])
+        self.assertEqual(self.events.count_on_date(self.today), 0)
+
+    def test_multiple_pets_records_every_cat_without_choosing_one(self):
+        other = self.pets.create("Amora", "CAT", "", None)
+        self.create_event("event-4", capture_path="pets/captures/b.jpg")
+
+        self.review_pets("event-4", [self.pet["id"], other["id"]])
+
+        event = self.events.get("event-4")
+        self.assertIsNone(event["pet_id"])
+        rows = self.database.all("SELECT pet_id FROM event_pets WHERE event_id = ?", ("event-4",))
+        self.assertEqual({row["pet_id"] for row in rows}, {self.pet["id"], other["id"]})
+
+    def test_multiple_pets_never_becomes_a_reference_image(self):
+        """A captura tem dois gatos: promove-la contaminaria a galeria."""
+        other = self.pets.create("Amora", "CAT", "", None)
+        self.create_event("event-5", capture_path="pets/captures/c.jpg")
+        self.review_pets("event-5", [self.pet["id"], other["id"]])
+        row = self.database.one("SELECT COUNT(*) AS total FROM pet_reference_images")
+        self.assertEqual(int(row["total"]), 0)
+
+    def test_multiple_pets_still_counts_as_a_visit(self):
+        other = self.pets.create("Amora", "CAT", "", None)
+        self.create_event("event-6")
+        self.review_pets("event-6", [self.pet["id"], other["id"]])
+        self.assertEqual(self.events.count_on_date(self.today), 1)
+
+    def test_multiple_pets_requires_at_least_two(self):
+        self.create_event("event-7")
+        with self.assertRaises(InvalidDomainValueError):
+            self.review_pets("event-7", [self.pet["id"]])
+
+    def test_history_filter_finds_events_with_several_cats(self):
+        other = self.pets.create("Amora", "CAT", "", None)
+        self.create_event("event-8")
+        self.review_pets("event-8", [self.pet["id"], other["id"]])
+
+        result = self.queries.search(page=1, page_size=10, pet_id=other["id"])
+
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(result["events"][0]["pet_names"], "Amora, Mingau")

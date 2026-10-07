@@ -154,6 +154,7 @@ export type Event = {
   clip_path: string | null
   pet_id: string | null
   pet_name: string | null
+  pet_names: string | null
   automatically_identified_pet_id: string | null
   pet_identification_confidence: number | null
   pet_identification_method: string | null
@@ -331,5 +332,19 @@ export const getEventPage = (
   if (endDate) query.set('end_date', endDate)
   return request<EventPage>(`/api/events?${query.toString()}`)
 }
-export const reviewEvent = (id: string, decision: string, pet_id: string | null, zone_type?: Zone['type']) =>
-  request<unknown>(`/api/events/${id}/reviews`, json('POST', { decision, pet_id, ...(zone_type ? { zone_type } : {}) }))
+export const reviewEvent = (
+  id: string,
+  decision: string,
+  pet_id: string | null,
+  zone_type?: Zone['type'],
+  pet_ids?: string[],
+) =>
+  request<unknown>(
+    `/api/events/${id}/reviews`,
+    json('POST', {
+      decision,
+      pet_id,
+      ...(zone_type ? { zone_type } : {}),
+      ...(pet_ids?.length ? { pet_ids } : {}),
+    }),
+  )

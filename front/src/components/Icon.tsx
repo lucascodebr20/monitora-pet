@@ -19,6 +19,7 @@ const paths = {
   accept: 'M5 12l4 4L19 6',
   correct: 'M4 7h10 M4 17h16 M14 4v6 M9 14v6',
   reject: 'M6 6l12 12 M18 6 6 18',
+  noaction: 'M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18 M5.6 5.6l12.8 12.8',
 } as const
 
 export type IconName = keyof typeof paths
