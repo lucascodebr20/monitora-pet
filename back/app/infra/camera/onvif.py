@@ -174,6 +174,10 @@ class RecordingSpan:
     end: datetime
 
 
+class RecordingSearchError(RuntimeError):
+    pass
+
+
 def _children(root: ET.Element, local_name: str) -> list[ET.Element]:
     return [element for element in root.iter() if element.tag.rsplit("}", 1)[-1] == local_name]
 
@@ -280,8 +284,8 @@ def find_recordings(
             timeout=15.0,
         )
     except (OSError, ET.ParseError) as error:
-        logger.info("ONVIF sem resultados de gravação em %s: %s", search_url, error)
-        return []
+        logger.warning("Falha ao consultar gravações ONVIF em %s: %s", search_url, error)
+        raise RecordingSearchError("Não foi possível consultar as gravações da câmera.") from error
     spans: list[RecordingSpan] = []
     for info in _children(results, "RecordingInformation"):
         recording_token = _child_text(info, "RecordingToken")

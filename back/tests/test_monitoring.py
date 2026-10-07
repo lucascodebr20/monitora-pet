@@ -89,6 +89,11 @@ class MutableDetector:
         return [self.detection] if self.detection else []
 
 
+class FailingDetector:
+    def detect(self, frame):
+        raise RuntimeError("inference failed")
+
+
 class FakeSnapshotStore:
     def __init__(self):
         self.saved = []

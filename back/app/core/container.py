@@ -125,6 +125,7 @@ def build_container(settings: Settings, on_job_state: Callable[[str], None] | No
             clip_store,
             session_repository,
             recording_repository,
+            purge_service,
             pet_image_store,
             pet_identifier,
         )

@@ -111,14 +111,16 @@ class MonitoringService:
                 self.coverage.close(camera_id)
             self._process_offline_camera(camera_id, moment)
             return
-        if self.coverage:
-            self.coverage.observe(camera_id, moment.utc)
         try:
             analysis = self.analyzer.analyze(camera_id, frame, moment)
+            if self.coverage:
+                self.coverage.observe(camera_id, moment.utc)
             self._last_error = None
             detections = [detection.as_dict() for detection in analysis.detections]
             self._publish(camera_id, "running", moment, detections=detections, zones=analysis.zones)
         except Exception as error:
+            if self.coverage:
+                self.coverage.close(camera_id)
             if str(error) != self._last_error:
                 logger.exception("Falha no ciclo de inferência da câmera %s", camera_id)
             self._last_error = str(error)
