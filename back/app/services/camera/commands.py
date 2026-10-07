@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True)
 class CreateCameraCommand:
     name: str
@@ -15,3 +16,12 @@ class CameraCredentialsCommand:
     username: str
     password: str
     rtsp_url: str | None
+
+
+@dataclass(frozen=True)
+class ConvertCameraCommand:
+    ip: str
+    username: str
+    password: str
+    rtsp_url: str | None
+    onvif_port: int

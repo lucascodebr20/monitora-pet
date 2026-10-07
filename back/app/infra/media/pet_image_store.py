@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import base64
 import binascii
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -36,9 +36,9 @@ class PetImageStore:
             raise ValueError("O arquivo enviado não é uma imagem compatível.")
         return self.save_image(image, "profiles")
 
-    def save_capture(self, frame: np.ndarray, detection: Detection) -> str | None:
+    def save_capture(self, frame: np.ndarray, detection: Detection, captured_at: datetime | None = None) -> str | None:
         crop = self.extract_capture(frame, detection)
-        return self.save_image(crop, "captures") if crop is not None else None
+        return self.save_image(crop, "captures", captured_at) if crop is not None else None
 
     @staticmethod
     def extract_capture(frame: np.ndarray, detection: Detection) -> np.ndarray | None:
@@ -52,11 +52,12 @@ class PetImageStore:
         crop = frame[y1:y2, x1:x2]
         return crop.copy() if crop.size else None
 
-    def save_capture_image(self, crop: np.ndarray) -> str | None:
-        return self.save_image(crop, "captures") if crop.size else None
+    def save_capture_image(self, crop: np.ndarray, captured_at: datetime | None = None) -> str | None:
+        return self.save_image(crop, "captures", captured_at) if crop.size else None
 
-    def save_image(self, image: np.ndarray, category: str) -> str:
-        directory = self.pet_image_dir / category / datetime.now().strftime("%Y/%m/%d")
+    def save_image(self, image: np.ndarray, category: str, captured_at: datetime | None = None) -> str:
+        stamp = captured_at or datetime.now(timezone.utc)
+        directory = self.pet_image_dir / category / stamp.strftime("%Y/%m/%d")
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / f"{uuid4()}.jpg"
         encoded, content = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])

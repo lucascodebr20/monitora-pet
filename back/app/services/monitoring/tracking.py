@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Iterator
 
 import numpy as np
 
+from app.domain.clock import Moment
 from app.domain.detection import Detection
 from app.domain.enums import PetSpecies
 from app.domain.zone_matching import assign_detections
@@ -50,9 +50,10 @@ class ZoneTracker:
         frame: np.ndarray | None,
         zones: list[dict[str, Any]],
         detections: list[Detection],
+        moment: Moment,
     ) -> list[dict[str, Any]]:
-        now = time.monotonic()
-        now_utc = datetime.now(timezone.utc)
+        now = moment.monotonic
+        now_utc = moment.utc
         runtimes = self.runtimes.setdefault(camera_id, {})
         polygons = {
             zone["id"]: [(float(point["x"]), float(point["y"])) for point in zone["polygon"]]

@@ -27,13 +27,19 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi"],
+    "targets": [
+      "msi"
+    ],
     "category": "Utility",
     "copyright": "Copyright © 2026 Monitora Pet",
     "shortDescription": "Monitoramento local de pets com câmeras IP",
     "longDescription": "O Monitora Pet monitora localmente visitas de gatos às áreas de alimentação, água e caixa de areia usando câmeras IP.",
-    "externalBin": ["binaries/vigiapet-backend"],
-    "icon": ["../../desktop/vigiapet.ico"],
+    "externalBin": [
+      "binaries/vigiapet-backend"
+    ],
+    "icon": [
+      "../../desktop/vigiapet.ico"
+    ],
     "windows": {
       "webviewInstallMode": {
         "type": "offlineInstaller",
