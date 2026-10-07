@@ -3,6 +3,7 @@ import * as api from '../api'
 import type { Camera, Dashboard, Event, Pet } from '../api'
 import EventList from '../components/EventList'
 import Icon, { IconName } from '../components/Icon'
+import PetAvatar from '../components/PetAvatar'
 import type { View } from '../lib/views'
 
 type Props = {
@@ -75,11 +76,7 @@ export default function DashboardView({ data, pets, cameras, reloadToken, onNavi
         </button>
         {pets.map(p => (
           <button className={petId === p.id ? 'selected' : ''} key={p.id} onClick={() => setPetId(p.id)}>
-            {p.photo_path ? (
-              <img src={`/api/pets/${p.id}/photo`} alt="" />
-            ) : (
-              <span className="pet-initial">{p.name[0]}</span>
-            )}
+            <PetAvatar pet={p} />
             {p.name}
           </button>
         ))}
@@ -144,23 +141,21 @@ export default function DashboardView({ data, pets, cameras, reloadToken, onNavi
               Horários apresentados no seu fuso local
             </div>
           </section>
-          <section className="review-banner">
-            <div className="review-banner-icon">
-              <Icon name="reviews" />
-            </div>
-            <div>
-              <h3>{data.pending_reviews ? 'Um olhar seu faz a diferença' : 'Tudo revisado por aqui'}</h3>
-              <p>
-                {data.pending_reviews
-                  ? `${data.pending_reviews} registros precisam de confirmação ou identificação do pet.`
-                  : 'As próximas detecções aparecerão aqui para você conferir.'}
-              </p>
-            </div>
-            <button className="secondary" onClick={() => onNavigate('reviews')}>
-              {data.pending_reviews ? 'Revisar registros' : 'Ver revisões'}
-              {data.pending_reviews > 0 && <b>{data.pending_reviews}</b>}
-            </button>
-          </section>
+          {data.pending_reviews > 0 && (
+            <section className="review-banner">
+              <div className="review-banner-icon">
+                <Icon name="reviews" />
+              </div>
+              <div>
+                <h3>Um olhar seu faz a diferença</h3>
+                <p>{data.pending_reviews} registros precisam de confirmação ou identificação do pet.</p>
+              </div>
+              <button className="secondary" onClick={() => onNavigate('reviews')}>
+                Revisar registros
+                <b>{data.pending_reviews}</b>
+              </button>
+            </section>
+          )}
         </div>
         <aside className="dashboard-aside">
           <section className="panel camera-summary">
@@ -204,13 +199,6 @@ export default function DashboardView({ data, pets, cameras, reloadToken, onNavi
               Abrir câmeras
             </button>
           </section>
-          <div className="privacy-card">
-            <Icon name="shield" />
-            <div>
-              <strong>Dentro de casa. Dentro da sua rede.</strong>
-              <p>Todos os dados são armazenados localmente.</p>
-            </div>
-          </div>
         </aside>
       </div>
     </>

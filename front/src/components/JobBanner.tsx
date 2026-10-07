@@ -36,7 +36,9 @@ function resultMessage(state: JobState): string | null {
 export default function JobBanner({ refresh }: Props) {
   const showToast = useToast()
   const [state, setState] = useState<JobState | null>(null)
+  const [showOutcome, setShowOutcome] = useState(false)
   const previous = useRef<JobState | null>(null)
+  const requested = useRef(false)
 
   useEffect(() => {
     let active = true
@@ -48,8 +50,16 @@ export default function JobBanner({ refresh }: Props) {
         const before = previous.current
         previous.current = next
         setState(next)
-        if (before?.status === 'running' && next.status === 'idle') {
+        if (next.status === 'running') setShowOutcome(false)
+        const completed =
+          next.status === 'idle' &&
+          Boolean(next.finished_at) &&
+          (before?.status === 'running' || requested.current) &&
+          next.finished_at !== before?.finished_at
+        if (completed) {
           const message = resultMessage(next)
+          setShowOutcome(Boolean(next.error || message))
+          requested.current = false
           if (next.error) showToast(next.error, 'error')
           else if (message) showToast(message)
           void refresh()
@@ -60,31 +70,53 @@ export default function JobBanner({ refresh }: Props) {
       }
     }
     void tick()
+    const wake = () => {
+      requested.current = true
+      window.clearTimeout(timer)
+      void tick()
+    }
+    window.addEventListener('vigiapet:job-started', wake)
     return () => {
       active = false
       window.clearTimeout(timer)
+      window.removeEventListener('vigiapet:job-started', wake)
     }
   }, [refresh, showToast])
 
-  if (!state || state.status !== 'running') return null
+  if (!state) return null
+  const running = state.status === 'running'
+  const message = resultMessage(state)
+  if (!running && (!showOutcome || (!state.error && !message))) return null
   const percent =
     state.total_seconds > 0 ? Math.min(100, Math.round((state.progress_seconds / state.total_seconds) * 100)) : null
 
   return (
-    <div className="job-banner" role="status" aria-live="polite">
-      <span className="job-spinner" aria-hidden="true" />
+    <div
+      className={`job-banner${running ? '' : state.error ? ' job-error' : ' job-success'}`}
+      role={state.error ? 'alert' : 'status'}
+      aria-live="polite"
+    >
+      {running ? (
+        <span className="job-spinner" aria-hidden="true" />
+      ) : (
+        <span className="job-result-icon" aria-hidden="true">{state.error ? '!' : '✓'}</span>
+      )}
       <span className="job-text">
-        {stageLabel(state)}
-        {percent !== null && <small> {percent}%</small>}
-        {state.pending_recordings > 0 && <small> · {state.pending_recordings} na fila</small>}
+        {running ? stageLabel(state) : state.error ? `Falha no download: ${state.error}` : message}
+        {running && percent !== null && <small> {percent}%</small>}
+        {running && state.pending_recordings > 0 && <small> · {state.pending_recordings} na fila</small>}
       </span>
-      {percent !== null && (
+      {running && percent !== null && (
         <span className="job-progress">
           <i style={{ width: `${percent}%` }} />
         </span>
       )}
-      <button className="tertiary" type="button" onClick={() => void api.cancelJobs()}>
-        Parar
+      <button
+        className="tertiary"
+        type="button"
+        onClick={() => (running ? void api.cancelJobs() : setShowOutcome(false))}
+      >
+        {running ? 'Parar' : 'Fechar'}
       </button>
     </div>
   )

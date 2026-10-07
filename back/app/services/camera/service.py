@@ -162,6 +162,7 @@ class CameraService:
     def _view(self, camera: dict[str, Any]) -> dict[str, Any]:
         result = dict(camera)
         result["enabled"] = bool(result["enabled"])
+        result["credentials_saved"] = bool(self.profile and self.profile.has_credentials(str(result["id"])))
         result.pop("credential_ref", None)
         if result.get("source_kind") == "MANUAL":
             result["ip"] = ""

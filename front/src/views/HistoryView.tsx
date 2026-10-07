@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import * as api from '../api'
 import type { EventPage, Pet, Zone } from '../api'
+import DateRangePicker from '../components/DateRangePicker'
 import EventList from '../components/EventList'
 import Icon from '../components/Icon'
+import PetAvatar from '../components/PetAvatar'
 import { errorMessage } from '../lib/errors'
 import { zoneIcon, zoneLabels } from '../lib/labels'
 import { pageWindow } from '../lib/pagination'
@@ -15,7 +17,8 @@ export default function HistoryView({ pets, reloadToken }: Props) {
   const [page, setPage] = useState(1)
   const [petId, setPetId] = useState('')
   const [zoneType, setZoneType] = useState<Zone['type'] | ''>('')
-  const [date, setDate] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [result, setResult] = useState<EventPage | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -24,7 +27,7 @@ export default function HistoryView({ pets, reloadToken }: Props) {
     let active = true
     setLoading(true)
     void api
-      .getEventPage(page, petId, zoneType, PAGE_SIZE, date)
+      .getEventPage(page, petId, zoneType, PAGE_SIZE, startDate, endDate)
       .then(data => {
         if (active) {
           setResult(data)
@@ -40,7 +43,7 @@ export default function HistoryView({ pets, reloadToken }: Props) {
     return () => {
       active = false
     }
-  }, [page, petId, zoneType, date, reloadToken])
+  }, [page, petId, zoneType, startDate, endDate, reloadToken])
 
   const total = result?.total ?? 0
   const pageSize = result?.page_size ?? PAGE_SIZE
@@ -59,15 +62,18 @@ export default function HistoryView({ pets, reloadToken }: Props) {
     setPage(1)
   }
 
-  function chooseDate(value: string) {
-    setDate(value)
+  function choosePeriod(start: string, end: string) {
+    setStartDate(start)
+    setEndDate(end)
     setPage(1)
   }
 
-  function shiftDate(days: number) {
-    const base = date ? new Date(`${date}T12:00:00`) : new Date()
-    base.setDate(base.getDate() + days)
-    chooseDate(base.toISOString().slice(0, 10))
+  function periodLabel(): string {
+    const format = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString('pt-BR')
+    if (startDate && endDate) return `${format(startDate)} – ${format(endDate)}`
+    if (startDate) return `A partir de ${format(startDate)}`
+    if (endDate) return `Até ${format(endDate)}`
+    return 'Todos os períodos'
   }
 
   return (
@@ -80,40 +86,36 @@ export default function HistoryView({ pets, reloadToken }: Props) {
         </div>
       </div>
       <section className="history-filter-panel" aria-label="Filtros do histórico">
-        <div className="filter-chip-row">
-          <span className="filter-chip-label">Pet</span>
-          <div className="filter-chip-options" role="group" aria-label="Filtrar por pet">
-            {[{ id: '', name: 'Todos os pets' }, ...pets].map(pet => (
+        <div className="history-primary-filters">
+          <div className="filter-chip-row">
+            <span className="filter-chip-label">Pet</span>
+            <div className="filter-chip-options pet-chip-options" role="group" aria-label="Filtrar por pet">
               <button
-                key={pet.id || 'all'}
-                className={petId === pet.id ? 'selected' : ''}
-                aria-pressed={petId === pet.id}
-                onClick={() => choosePet(pet.id)}
+                className={petId === '' ? 'selected' : ''}
+                aria-pressed={petId === ''}
+                onClick={() => choosePet('')}
               >
-                {pet.name}
+                <span className="all-pets pet-avatar">
+                  <Icon name="pets" />
+                </span>
+                Todos os pets
               </button>
-            ))}
+              {pets.map(pet => (
+                <button
+                  key={pet.id}
+                  className={petId === pet.id ? 'selected' : ''}
+                  aria-pressed={petId === pet.id}
+                  onClick={() => choosePet(pet.id)}
+                >
+                  <PetAvatar pet={pet} />
+                  {pet.name}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-        <div className="filter-chip-row">
-          <span className="filter-chip-label">Dia</span>
-          <div className="filter-chip-options history-date" role="group" aria-label="Filtrar por dia">
-            <button className={date ? '' : 'selected'} aria-pressed={!date} onClick={() => chooseDate('')}>
-              Todos os dias
-            </button>
-            <button type="button" aria-label="Dia anterior" onClick={() => shiftDate(-1)}>
-              ‹
-            </button>
-            <input
-              type="date"
-              value={date}
-              max={new Date().toISOString().slice(0, 10)}
-              onChange={event => chooseDate(event.target.value)}
-              aria-label="Escolher dia"
-            />
-            <button type="button" aria-label="Dia seguinte" disabled={!date} onClick={() => shiftDate(1)}>
-              ›
-            </button>
+          <div className="history-period-filter">
+            <span className="filter-chip-label">Período</span>
+            <DateRangePicker startDate={startDate} endDate={endDate} onChange={choosePeriod} />
           </div>
         </div>
         <div className="filter-chip-row">
@@ -137,9 +139,7 @@ export default function HistoryView({ pets, reloadToken }: Props) {
       <section className="panel">
         <div className="panel-head">
           <h2>{total} registros</h2>
-          <span className="muted">
-            {date ? new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR') : 'Todos os períodos'}
-          </span>
+          <span className="muted">{periodLabel()}</span>
         </div>
         {error && <p className="form-error">{error}</p>}
         {loading && !result ? (

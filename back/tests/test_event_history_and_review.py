@@ -1,10 +1,11 @@
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from app.domain.enums import ReviewDecision, ZoneType
 from app.domain.errors import InvalidDomainValueError
-from app.domain.clock import local_today, utc_now
+from app.domain.clock import local_today, utc_bounds_for_local_date, utc_now
 from app.infra.database.database import Database
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.pet_repository import PetRepository
@@ -52,6 +53,16 @@ class EventHistoryAndReviewTests(unittest.TestCase):
             (event_id, "camera-1", zone_id, f"{self.today}T12:00:00+00:00", capture_path, utc_now()),
         )
 
+    def create_event_on_date(self, event_id, value):
+        start, end = utc_bounds_for_local_date(value)
+        instant = datetime.fromisoformat(start) + (datetime.fromisoformat(end) - datetime.fromisoformat(start)) / 2
+        self.database.execute(
+            """INSERT INTO events
+               (id, camera_id, zone_id, started_at, detected_species, created_at)
+               VALUES (?, 'camera-1', 'water-zone', ?, 'CAT', ?)""",
+            (event_id, instant.isoformat(), utc_now()),
+        )
+
     def review(self, event_id, decision, pet_id=None, zone_type=None):
         return self.service.review(
             event_id,
@@ -77,6 +88,21 @@ class EventHistoryAndReviewTests(unittest.TestCase):
         self.assertEqual(first["total"], 23)
         self.assertEqual([len(first["events"]), len(second["events"]), len(third["events"])], [10, 10, 3])
         self.assertTrue(all(event["zone_type"] == "WATER" for event in second["events"]))
+
+    def test_search_filters_inclusive_local_date_range(self):
+        today = local_today()
+        dates = [(today - timedelta(days=2)).isoformat(), (today - timedelta(days=1)).isoformat(), today.isoformat()]
+        for index, value in enumerate(dates):
+            self.create_event_on_date(f"range-{index}", value)
+
+        result = self.queries.search(1, 10, start_date=dates[1], end_date=dates[2])
+
+        self.assertEqual(result["total"], 2)
+        self.assertEqual({event["id"] for event in result["events"]}, {"range-1", "range-2"})
+
+    def test_search_rejects_reversed_date_range(self):
+        with self.assertRaises(InvalidDomainValueError):
+            self.queries.search(1, 10, start_date="2026-10-06", end_date="2026-10-05")
 
     def test_corrected_type_is_saved_on_event_and_not_zone(self):
         self.create_event("correct-me", capture_path="pets/captures/cat.jpg")

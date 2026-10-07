@@ -355,6 +355,18 @@ class CameraSyncTests(unittest.TestCase):
         self.assertTrue(result.errors)
         self.assertIsNone(self.camera_repository.get(self.camera["id"])["last_synced_at"])
 
+    def test_sync_reports_recording_search_failure_as_domain_error(self):
+        from app.domain.errors import OperationFailedError
+
+        def fail(*args, **kwargs):
+            raise onvif.RecordingSearchError("Não foi possível consultar as gravações da câmera.")
+
+        self.sync._find_recordings = fail
+
+        with self.assertRaises(OperationFailedError):
+            self.sync.sync(self.camera["id"], since=START, until=START + timedelta(hours=3))
+        self.assertIsNone(self.camera_repository.get(self.camera["id"])["last_synced_at"])
+
 
 class CameraProfileTests(unittest.TestCase):
     def test_connect_remembers_credentials_and_probes_support(self):
@@ -367,8 +379,12 @@ class CameraProfileTests(unittest.TestCase):
                 recording_services=lambda ip, port, user, pw: {"search": "s", "replay": "r"} if pw == "secret" else {},
                 clock_offset=lambda ip, port, user, pw: 42.0,
             )
-            service = CameraService(camera_repository, FakeCameraManager(), None, profile)
+            manager = FakeCameraManager()
+            manager.status = lambda camera_id: {"connected": False}
+            service = CameraService(camera_repository, manager, None, profile)
             from app.services.camera import CameraCredentialsCommand
+
+            self.assertFalse(service.list()[0]["credentials_saved"])
 
             with patch("app.services.camera.service.resolve_connection_urls", return_value=["rtsp://x"]), patch.object(
                 FakeCameraManager, "connect", create=True, return_value=None
@@ -379,6 +395,7 @@ class CameraProfileTests(unittest.TestCase):
             self.assertEqual(stored["recording_support"], "ONVIF_REPLAY")
             self.assertEqual(stored["clock_offset_seconds"], 42.0)
             self.assertEqual(credentials.get(camera["id"]), ("admin", "secret"))
+            self.assertTrue(service.list()[0]["credentials_saved"])
 
 
 if __name__ == "__main__":
