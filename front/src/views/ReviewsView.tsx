@@ -3,9 +3,11 @@ import * as api from '../api'
 import type { Event, Pet, Zone } from '../api'
 import Empty from '../components/Empty'
 import Icon, { IconName } from '../components/Icon'
+import StarButton from '../components/StarButton'
 import { useToast } from '../components/useToast'
 import { errorMessage } from '../lib/errors'
-import { correctableZoneTypes, formatDateTime, zoneIcon, zoneLabels } from '../lib/labels'
+import { correctableZoneTypes, formatDateTime } from '../lib/labels'
+import { useHousehold } from '../lib/useHousehold'
 
 type Props = { pets: Pet[]; reloadToken: number; refresh: () => Promise<void> }
 type Decision = 'accept' | 'reject' | 'correct'
@@ -25,7 +27,10 @@ const decisionOptions: { value: Decision; icon: IconName; title: string; descrip
   { value: 'reject', icon: 'reject', title: 'Recusar', description: () => 'A imagem não comprova uma visita à área.' },
 ]
 
-function ReviewWizard({ event, pets, onSaved }: { event: Event; pets: Pet[]; onSaved: () => Promise<void> }) {
+type WizardProps = { event: Event; pets: Pet[]; onSaved: () => Promise<void>; onChange: (event: Event) => void }
+
+function ReviewWizard({ event, pets, onSaved, onChange }: WizardProps) {
+  const { zoneLabels, zoneIcon } = useHousehold()
   const showToast = useToast()
   const [decision, setDecision] = useState<Decision | ''>('')
   const [stage, setStage] = useState<Stage>('validate')
@@ -114,6 +119,7 @@ function ReviewWizard({ event, pets, onSaved }: { event: Event; pets: Pet[]; onS
           </div>
           <span>{event.duration_seconds ? `${Math.round(event.duration_seconds)}s na área` : 'Em andamento'}</span>
         </div>
+        <StarButton event={event} onChange={onChange} withLabel />
       </div>
       <div className="review-detail review-wizard">
         <div className="review-step-heading">
@@ -296,6 +302,7 @@ function ReviewWizard({ event, pets, onSaved }: { event: Event; pets: Pet[]; onS
 }
 
 export default function ReviewsView({ pets, reloadToken, refresh }: Props) {
+  const { zoneLabels, zoneIcon } = useHousehold()
   const [events, setEvents] = useState<Event[]>([])
   const [currentId, setCurrentId] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -323,6 +330,10 @@ export default function ReviewsView({ pets, reloadToken, refresh }: Props) {
   useEffect(() => {
     if (current && current.id !== currentId) setCurrentId(current.id)
   }, [current, currentId])
+
+  function replaceEvent(updated: Event) {
+    setEvents(current => current.map(event => (event.id === updated.id ? updated : event)))
+  }
 
   async function onSaved() {
     const index = events.findIndex(event => event.id === current?.id)
@@ -366,6 +377,11 @@ export default function ReviewsView({ pets, reloadToken, refresh }: Props) {
                     <span>
                       <strong>
                         <Icon name={zoneIcon(event.zone_type)} /> {zoneLabels[event.zone_type]}
+                        {event.highlighted_at && (
+                          <span className="queue-star" aria-label="Favorito">
+                            <Icon name="star" filled />
+                          </span>
+                        )}
                       </strong>
                       <small>
                         {event.camera_name} · {formatDateTime(event.started_at)}
@@ -376,7 +392,7 @@ export default function ReviewsView({ pets, reloadToken, refresh }: Props) {
               ))}
             </ol>
           </aside>
-          <ReviewWizard key={current.id} event={current} pets={pets} onSaved={onSaved} />
+          <ReviewWizard key={current.id} event={current} pets={pets} onSaved={onSaved} onChange={replaceEvent} />
         </div>
       )}
     </>

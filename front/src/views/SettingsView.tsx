@@ -1,9 +1,10 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import * as api from '../api'
-import type { AppSettings, IdentificationLogs } from '../api'
+import type { AppSettings, HouseholdSpecies, IdentificationLogs } from '../api'
 import Icon from '../components/Icon'
 import { errorMessage } from '../lib/errors'
 import { formatDateTime, identificationDecisionLabels } from '../lib/labels'
+import { householdOptions } from '../lib/household'
 import { pageWindow } from '../lib/pagination'
 
 type Section = 'general' | 'identification'
@@ -12,7 +13,9 @@ const CALIBRATION_INTERVAL = 10
 const DEFAULT_SIMILARITY = 0.72
 const DEFAULT_MARGIN = 0.08
 
-export default function SettingsView({ version }: { version: string }) {
+type Props = { version: string; settings: AppSettings | null; onSettings: (settings: AppSettings) => void }
+
+export default function SettingsView({ version, settings: appSettings, onSettings }: Props) {
   const [section, setSection] = useState<Section>('general')
   const [logs, setLogs] = useState<IdentificationLogs | null>(null)
   const [logPage, setLogPage] = useState(1)
@@ -22,6 +25,8 @@ export default function SettingsView({ version }: { version: string }) {
   const [retention, setRetention] = useState('7')
   const [savingRetention, setSavingRetention] = useState(false)
   const [retentionMessage, setRetentionMessage] = useState('')
+  const [savingHousehold, setSavingHousehold] = useState(false)
+  const [householdMessage, setHouseholdMessage] = useState('')
 
   useEffect(() => {
     let active = true
@@ -52,11 +57,28 @@ export default function SettingsView({ version }: { version: string }) {
     try {
       const saved = await api.updateSettings({ retention_days: days })
       setSettings(saved)
+      onSettings(saved)
       setRetentionMessage('Retenção salva.')
     } catch (reason) {
       setRetentionMessage(errorMessage(reason, 'Não foi possível salvar.'))
     } finally {
       setSavingRetention(false)
+    }
+  }
+
+  async function saveHousehold(value: HouseholdSpecies) {
+    if (savingHousehold || value === appSettings?.household_species) return
+    setSavingHousehold(true)
+    setHouseholdMessage('')
+    try {
+      const saved = await api.updateSettings({ household_species: value })
+      setSettings(saved)
+      onSettings(saved)
+      setHouseholdMessage('Preferência salva. A interface já foi adaptada.')
+    } catch (reason) {
+      setHouseholdMessage(errorMessage(reason, 'Não foi possível salvar.'))
+    } finally {
+      setSavingHousehold(false)
     }
   }
 
@@ -107,6 +129,33 @@ export default function SettingsView({ version }: { version: string }) {
       </nav>
       {section === 'general' ? (
         <section className="panel settings">
+          <h2>Quem mora com você</h2>
+          <p>Define as áreas, os nomes e o cadastro de pets que a interface mostra.</p>
+          <fieldset className="household-options compact" disabled={savingHousehold || appSettings === null}>
+            <legend className="sr-only">Espécies da casa</legend>
+            {householdOptions.map(option => (
+              <label
+                className={`household-option ${appSettings?.household_species === option.value ? 'chosen' : ''}`}
+                key={option.value}
+              >
+                <input
+                  type="radio"
+                  name="settings-household"
+                  value={option.value}
+                  checked={appSettings?.household_species === option.value}
+                  onChange={() => void saveHousehold(option.value)}
+                />
+                <span className="household-emoji" aria-hidden="true">
+                  {option.emoji}
+                </span>
+                <span>
+                  <strong>{option.title}</strong>
+                  <small>{option.description}</small>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+          {householdMessage && <small className="muted">{householdMessage}</small>}
           <h2>Privacidade</h2>
           <p>Todos os dados são armazenados localmente.</p>
           <h2>Retenção de vídeos e imagens</h2>
@@ -126,7 +175,7 @@ export default function SettingsView({ version }: { version: string }) {
               </span>
               <small>
                 Gravações baixadas, fotos e vídeos dos eventos mais antigos que isso são apagados automaticamente. O
-                histórico das visitas é mantido.
+                histórico das visitas é mantido, e registros favoritados com a estrela preservam a mídia.
               </small>
             </label>
             <button className="secondary" type="submit" disabled={savingRetention || settings === null}>
@@ -143,7 +192,7 @@ export default function SettingsView({ version }: { version: string }) {
             <article className="panel">
               <span>Similaridade mínima</span>
               <strong>{Math.round((calibration?.minimum_similarity ?? DEFAULT_SIMILARITY) * 100)}%</strong>
-              <small>Confiança mínima para sugerir um gato.</small>
+              <small>Confiança mínima para sugerir um pet.</small>
             </article>
             <article className="panel">
               <span>Separação mínima</span>
@@ -177,7 +226,7 @@ export default function SettingsView({ version }: { version: string }) {
             <div className="panel-head">
               <div>
                 <h2>Decisões da identificação</h2>
-                <p>Percentuais de todos os gatos avaliados em cada visita.</p>
+                <p>Percentuais de todos os pets avaliados em cada visita.</p>
               </div>
               <button className="tertiary" disabled={loading} onClick={() => void loadLogs(logPage)}>
                 {loading ? 'Atualizando…' : 'Atualizar'}
@@ -189,7 +238,7 @@ export default function SettingsView({ version }: { version: string }) {
             ) : !logs?.analyses.length ? (
               <div className="empty">
                 <h3>Nenhuma análise registrada</h3>
-                <p>Os resultados aparecerão quando uma nova visita de gato for detectada.</p>
+                <p>Os resultados aparecerão quando uma nova visita for analisada.</p>
               </div>
             ) : (
               <div className="identification-log-list">
@@ -200,7 +249,7 @@ export default function SettingsView({ version }: { version: string }) {
                         <span className={`identification-decision ${analysis.decision.toLowerCase()}`}>
                           {identificationDecisionLabels[analysis.decision]}
                         </span>
-                        <h3>{analysis.selected_pet_name ?? 'Nenhum gato atribuído'}</h3>
+                        <h3>{analysis.selected_pet_name ?? 'Nenhum pet atribuído'}</h3>
                         <p>
                           {analysis.camera_name} · {analysis.zone_name} · {formatDateTime(analysis.created_at)}
                         </p>

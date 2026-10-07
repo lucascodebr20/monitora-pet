@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import FileResponse
 
-from app.controllers.schemas.event_schema import ReviewCreateRequest
+from app.controllers.schemas.event_schema import HighlightUpdateRequest, ReviewCreateRequest
 from app.core.container import Container, get_container
 from app.domain.enums import ZoneType
 
@@ -17,6 +17,7 @@ def get_events(
     zone_id: str | None = None,
     date: str | None = None,
     pending_review: bool = False,
+    highlighted: bool = False,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=500),
     pet_id: str | None = None,
@@ -33,6 +34,7 @@ def get_events(
         camera_id,
         zone_id,
         date,
+        highlighted,
     )
 
 
@@ -41,6 +43,13 @@ def review_event(
     event_id: str, request: ReviewCreateRequest, container: Container = Depends(get_container)
 ) -> dict[str, Any]:
     return container.event_review_service.review(event_id, request.to_command())
+
+
+@router.put("/{event_id}/highlight")
+def highlight_event(
+    event_id: str, request: HighlightUpdateRequest, container: Container = Depends(get_container)
+) -> dict[str, Any]:
+    return container.event_highlight_service.set_highlighted(event_id, request.highlighted)
 
 
 @router.get("/{event_id}/snapshot")

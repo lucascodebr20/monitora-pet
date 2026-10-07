@@ -13,7 +13,7 @@ from app.infra.media.snapshot_store import SnapshotStore
 from app.infra.repositories.event_repository import EventRepository
 from app.services.monitoring.snapshots import SnapshotSource
 
-END_REASON_LEFT_ZONE = "CAT_LEFT_ZONE"
+END_REASON_LEFT_ZONE = "PET_LEFT_ZONE"
 
 
 class EventRecorder:

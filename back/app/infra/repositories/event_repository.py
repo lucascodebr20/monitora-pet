@@ -12,10 +12,12 @@ EVENT_PROJECTION = """
            COALESCE(e.corrected_zone_type, z.type) AS zone_type,
            (SELECT decision FROM human_reviews r WHERE r.event_id = e.id
             ORDER BY created_at DESC LIMIT 1) AS review_decision,
-           p.name AS pet_name
+           p.name AS pet_name, h.created_at AS highlighted_at, h.note AS highlight_note
     FROM events e JOIN cameras c ON c.id = e.camera_id JOIN zones z ON z.id = e.zone_id
     LEFT JOIN pets p ON p.id = e.pet_id
+    LEFT JOIN event_highlights h ON h.event_id = e.id
 """
+HIGHLIGHTED_FILTER = "EXISTS (SELECT 1 FROM event_highlights eh WHERE eh.event_id = e.id)"
 PENDING_REVIEW_FILTERS = (
     "NOT EXISTS (SELECT 1 FROM human_reviews hr WHERE hr.event_id = e.id)",
     "e.ended_at IS NOT NULL",
@@ -50,10 +52,11 @@ class EventRepository:
         camera_id: str | None = None,
         zone_id: str | None = None,
         date: str | None = None,
+        highlighted: bool = False,
     ) -> tuple[list[dict[str, Any]], int]:
         where, parameters = self._filters(
             camera_id=camera_id, zone_id=zone_id, date=date, pending_review=pending_review,
-            pet_id=pet_id, zone_type=zone_type,
+            pet_id=pet_id, zone_type=zone_type, highlighted=highlighted,
         )
         total_row = self.database.one(
             f"SELECT COUNT(*) AS total FROM events e JOIN zones z ON z.id = e.zone_id {where}", tuple(parameters)
@@ -77,6 +80,7 @@ class EventRepository:
         pending_review: bool = False,
         pet_id: str | None = None,
         zone_type: str | None = None,
+        highlighted: bool = False,
     ) -> tuple[str, list[Any]]:
         filters: list[str] = []
         parameters: list[Any] = []
@@ -98,6 +102,8 @@ class EventRepository:
             parameters.extend((start, end))
         if pending_review:
             filters.extend(PENDING_REVIEW_FILTERS)
+        if highlighted:
+            filters.append(HIGHLIGHTED_FILTER)
         where = f"WHERE {' AND '.join(filters)}" if filters else ""
         return where, parameters
 
@@ -106,6 +112,9 @@ class EventRepository:
 
     def has_review(self, event_id: str) -> bool:
         return self.database.one("SELECT id FROM human_reviews WHERE event_id = ? LIMIT 1", (event_id,)) is not None
+
+    def find(self, event_id: str) -> dict[str, Any] | None:
+        return self.database.one(f"{EVENT_PROJECTION} WHERE e.id = ?", (event_id,))
 
     def get(self, event_id: str) -> dict[str, Any] | None:
         return self.database.one(
@@ -209,13 +218,17 @@ class EventRepository:
         return [path for row in rows for path in row.values() if path]
 
     def expire_media(self, before: str) -> list[str]:
-        where = "WHERE e.started_at < ? AND (e.snapshot_path IS NOT NULL OR e.clip_path IS NOT NULL OR e.pet_capture_path IS NOT NULL)"
+        where = (
+            f"WHERE e.started_at < ? AND NOT {HIGHLIGHTED_FILTER} "
+            "AND (e.snapshot_path IS NOT NULL OR e.clip_path IS NOT NULL OR e.pet_capture_path IS NOT NULL)"
+        )
         paths = self.media_paths(where, (before,))
         self.database.execute(
             """UPDATE events SET snapshot_path = NULL, clip_path = NULL,
                pet_capture_path = CASE WHEN EXISTS (SELECT 1 FROM pet_reference_images r WHERE r.image_path = events.pet_capture_path)
                                        THEN pet_capture_path ELSE NULL END
-               WHERE started_at < ?""",
+               WHERE started_at < ?
+               AND NOT EXISTS (SELECT 1 FROM event_highlights eh WHERE eh.event_id = events.id)""",
             (before,),
         )
         return paths

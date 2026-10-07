@@ -96,7 +96,17 @@ class RouteTests(unittest.TestCase):
     def test_empty_collections_and_spa_without_build(self):
         self.assertEqual(self.client.get("/api/events").json()["total"], 0)
         self.assertEqual(self.client.get("/api/identification/logs").json()["analyses"], [])
-        self.assertEqual(self.client.get("/api/settings").json(), {"retention_days": 7})
+        self.assertEqual(
+            self.client.get("/api/settings").json(), {"retention_days": 7, "household_species": None}
+        )
+
+    def test_household_species_is_saved_separately_from_retention(self):
+        saved = self.client.put("/api/settings", json={"household_species": "DOG"})
+        self.assertEqual(saved.json(), {"retention_days": 7, "household_species": "DOG"})
+        retention = self.client.put("/api/settings", json={"retention_days": 30})
+        self.assertEqual(retention.json(), {"retention_days": 30, "household_species": "DOG"})
+        self.assertEqual(self.client.put("/api/settings", json={}).status_code, 422)
+        self.assertEqual(self.client.put("/api/settings", json={"household_species": "BIRD"}).status_code, 422)
         self.assertEqual(self.client.get("/").status_code, 503)
         self.assertEqual(self.client.get("/api/nao-existe").status_code, 404)
 

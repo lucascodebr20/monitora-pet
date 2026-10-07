@@ -30,9 +30,10 @@ class EventQueryService:
         camera_id: str | None = None,
         zone_id: str | None = None,
         date: str | None = None,
+        highlighted: bool = False,
     ) -> dict[str, Any]:
         events, total = self.repository.search(
             page, page_size, pet_id, zone_type.value if zone_type else None, pending_review,
-            camera_id, zone_id, date,
+            camera_id, zone_id, date, highlighted,
         )
         return {"events": events, "total": total, "page": page, "page_size": page_size}

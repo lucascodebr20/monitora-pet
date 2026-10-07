@@ -4,6 +4,7 @@ import type { Camera, Dashboard, Event, Pet } from '../api'
 import EventList from '../components/EventList'
 import Icon, { IconName } from '../components/Icon'
 import type { View } from '../lib/views'
+import { useHousehold } from '../lib/useHousehold'
 
 type Props = {
   data: Dashboard | null
@@ -13,17 +14,19 @@ type Props = {
   onNavigate: (view: View) => void
 }
 
-const metrics: { type: string; title: string; icon: IconName; className: string; sub: string }[] = [
-  { type: 'WATER', title: 'Água', icon: 'water', className: 'water', sub: 'visitas ao bebedouro' },
-  { type: 'FOOD', title: 'Comida', icon: 'food', className: 'food', sub: 'visitas ao comedouro' },
-  { type: 'LITTER', title: 'Caixa de areia', icon: 'litter', className: 'litter', sub: 'visitas à caixa' },
-]
+type Metric = { type: string; title: string; icon: IconName; className: string; sub: string }
 
 const RECENT_LIMIT = 5
 const DAY_LIMIT = 500
 
 export default function DashboardView({ data, pets, cameras, reloadToken, onNavigate }: Props) {
+  const { zoneLabels, zoneIcon, hygieneSummary } = useHousehold()
   const [petId, setPetId] = useState('')
+  const metrics: Metric[] = [
+    { type: 'WATER', title: zoneLabels.WATER, icon: 'water', className: 'water', sub: 'visitas ao bebedouro' },
+    { type: 'FOOD', title: zoneLabels.FOOD, icon: 'food', className: 'food', sub: 'visitas ao comedouro' },
+    { type: 'LITTER', title: zoneLabels.LITTER, icon: zoneIcon('LITTER'), className: 'litter', sub: hygieneSummary },
+  ]
   const [events, setEvents] = useState<Event[]>([])
   const date = data?.date
   const eventsToday = data?.events_today
@@ -124,7 +127,7 @@ export default function DashboardView({ data, pets, cameras, reloadToken, onNavi
       </section>
       <p className="observation-note">
         <Icon name="info" />
-        Uma visita à área não confirma ingestão de água, alimentação ou uso da caixa.
+        Uma visita à área não confirma ingestão de água, alimentação ou uso do banheiro.
       </p>
       <div className="dashboard-layout">
         <div className="dashboard-main">
@@ -138,7 +141,10 @@ export default function DashboardView({ data, pets, cameras, reloadToken, onNavi
                 Ver histórico
               </button>
             </div>
-            <EventList events={filtered.slice(0, RECENT_LIMIT)} />
+            <EventList
+              events={filtered.slice(0, RECENT_LIMIT)}
+              onChange={updated => setEvents(current => current.map(e => (e.id === updated.id ? updated : e)))}
+            />
             <div className="panel-foot">
               <Icon name="clock" />
               Horários apresentados no seu fuso local
