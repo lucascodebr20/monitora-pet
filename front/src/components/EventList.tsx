@@ -52,6 +52,12 @@ function EventDetail({ event, onClose, onChange }: DetailProps) {
         <p>
           {event.camera_name} · {formatDateTime(event.started_at)}
         </p>
+        {event.review_decision === 'NO_ACTION' && (
+          <p className="observation-note">
+            O pet esteve na área, mas não comeu, bebeu nem usou o banheiro. Este registro não entra nos totais de
+            atividade.
+          </p>
+        )}
         <div className="highlight-box">
           <StarButton event={event} onChange={onChange} withLabel />
           <small className="muted">
@@ -74,9 +80,11 @@ function EventDetail({ event, onClose, onChange }: DetailProps) {
             <strong>
               {event.review_decision === 'FALSE_POSITIVE'
                 ? 'Recusada'
-                : event.review_decision
-                  ? 'Concluída'
-                  : 'Pendente'}
+                : event.review_decision === 'NO_ACTION'
+                  ? 'Sem uso'
+                  : event.review_decision
+                    ? 'Concluída'
+                    : 'Pendente'}
             </strong>
           </div>
         </div>

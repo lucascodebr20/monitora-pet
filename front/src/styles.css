@@ -2733,7 +2733,8 @@ h1 {
   border-color: #399c84;
   background: #edf7f1;
 }
-.review-choice input[type='radio'] {
+.review-choice input[type='radio'],
+.review-choice input[type='checkbox'] {
   width: 17px;
   height: 17px;
   margin: 0;

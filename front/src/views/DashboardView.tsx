@@ -6,6 +6,7 @@ import Icon, { IconName } from '../components/Icon'
 import PetAvatar from '../components/PetAvatar'
 import type { View } from '../lib/views'
 import { useHousehold } from '../lib/useHousehold'
+import { activityEvents } from '../lib/eventActivity'
 
 type Props = {
   data: Dashboard | null
@@ -48,7 +49,7 @@ export default function DashboardView({ data, pets, cameras, reloadToken, onNavi
 
   if (!data) return <div className="loading">Carregando a rotina dos pets…</div>
 
-  const filtered = events.filter(e => e.review_decision !== 'FALSE_POSITIVE' && (!petId || e.pet_id === petId))
+  const filtered = activityEvents(events, petId)
   const selected = pets.find(p => p.id === petId)
   const byType: Record<string, number> = selected
     ? Object.fromEntries(metrics.map(m => [m.type, filtered.filter(e => e.zone_type === m.type).length]))

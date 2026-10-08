@@ -196,9 +196,10 @@ class EventRepository:
             )
             connection.execute(
                 """UPDATE events SET pet_id = ?,
-                   corrected_zone_type = COALESCE(?, corrected_zone_type)
+                   corrected_zone_type = COALESCE(?, corrected_zone_type),
+                   activity = CASE WHEN ? = 'NO_ACTION' THEN 'NEAR_ZONE' ELSE activity END
                    WHERE id = ?""",
-                (pet_id, zone_type, review["event_id"]),
+                (pet_id, zone_type, review["decision"], review["event_id"]),
             )
             if pet_id:
                 connection.execute(

@@ -280,6 +280,7 @@ class NoActionAndMultiplePetsTests(ReviewTestBase):
 
         event = self.events.get("event-1")
         self.assertEqual(event["pet_id"], self.pet["id"])
+        self.assertEqual(event["activity"], "NEAR_ZONE")
         row = self.database.one("SELECT decision FROM human_reviews WHERE event_id = ?", ("event-1",))
         self.assertEqual(row["decision"], "NO_ACTION")
 
@@ -287,6 +288,26 @@ class NoActionAndMultiplePetsTests(ReviewTestBase):
         self.create_event("event-2")
         with self.assertRaises(InvalidDomainValueError):
             self.review("event-2", ReviewDecision.NO_ACTION)
+
+    def test_backfill_normalizes_only_no_action_and_preserves_history_and_references(self):
+        self.create_event("no-use", "food-zone", capture_path="pets/captures/no-use.jpg")
+        self.create_event("used", "food-zone")
+        self.review("no-use", ReviewDecision.NO_ACTION, pet_id=self.pet["id"])
+        self.review("used", ReviewDecision.CONFIRMED, pet_id=self.pet["id"])
+        self.database.execute("UPDATE events SET activity = 'EATING' WHERE id IN ('no-use', 'used')")
+        self.database.execute("DELETE FROM schema_migrations WHERE version = 15")
+
+        self.database.migrate()
+        self.database.migrate()
+
+        self.assertEqual(self.events.get("no-use")["activity"], "NEAR_ZONE")
+        self.assertEqual(self.events.get("used")["activity"], "EATING")
+        self.assertEqual(self.events.find("no-use")["review_decision"], "NO_ACTION")
+        self.assertEqual(self.events.get("no-use")["pet_id"], self.pet["id"])
+        self.assertEqual(self.pets.list()[0]["reference_count"], 1)
+        self.assertEqual(self.queries.search(1, 10, pet_id=self.pet["id"])["total"], 2)
+        self.assertEqual(self.events.count_on_date(self.today), 1)
+        self.assertEqual(self.events.count_by_zone_type_on_date(self.today)["FOOD"], 1)
 
     def test_no_action_leaves_the_visit_out_of_the_counters(self):
         """Mesma contagem de antes: voce recusava esses eventos."""
