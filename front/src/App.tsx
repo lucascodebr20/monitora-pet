@@ -5,6 +5,9 @@ import JobBanner from './components/JobBanner'
 import PawTrail from './components/PawTrail'
 import PetManager from './components/PetManager'
 import ZoneEditor from './components/ZoneEditor'
+import Tutorial from './components/Tutorial'
+import { updateTutorial } from './api'
+import { errorMessage } from './lib/errors'
 import { useAppData } from './data/useAppData'
 import { useEscape } from './lib/hooks'
 import { HouseholdContext, describeHousehold } from './lib/household'
@@ -19,11 +22,15 @@ import SettingsView from './views/SettingsView'
 export default function App() {
   const [view, setView] = useState<View>('dashboard')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [openingTutorial, setOpeningTutorial] = useState(false)
+  const [tutorialError, setTutorialError] = useState('')
+  const [tutorialDismissed, setTutorialDismissed] = useState(false)
   const closeMenu = useCallback(() => setMenuOpen(false), [])
   useEscape(closeMenu, menuOpen)
   const { dashboard, cameras, zones, pets, settings, error, reloadToken, refresh, applySettings } = useAppData()
   const pendingReviews = dashboard?.pending_reviews ?? 0
   const household = settings?.household_species ?? null
+  const tutorialOpen = Boolean(settings && household && settings.tutorial.status === 'active' && !tutorialDismissed)
   const householdView = useMemo(() => describeHousehold(household ?? 'BOTH'), [household])
 
   // O item "Pets" do menu mostra o pet da casa: gato, cachorro ou a pata para os dois.
@@ -34,9 +41,28 @@ export default function App() {
     setMenuOpen(false)
   }
 
+  async function reopenTutorial() {
+    if (openingTutorial) return
+    setOpeningTutorial(true)
+    setTutorialError('')
+    try {
+      if (settings?.tutorial.status !== 'active') applySettings(await updateTutorial(0))
+      setTutorialDismissed(false)
+    } catch (reason) {
+      setTutorialError(errorMessage(reason, 'Não foi possível abrir o tutorial.'))
+    } finally {
+      setOpeningTutorial(false)
+    }
+  }
+
   function navItems(items: View[]) {
     return items.map(item => (
-      <button key={item} className={view === item ? 'active' : ''} onClick={() => navigate(item)}>
+      <button
+        key={item}
+        data-tutorial-view={item}
+        className={view === item ? 'active' : ''}
+        onClick={() => navigate(item)}
+      >
         <Icon name={item === 'pets' ? petsIcon : item} />
         {viewLabels[item]}
         {item === 'reviews' && pendingReviews > 0 && <b>{pendingReviews}</b>}
@@ -46,7 +72,7 @@ export default function App() {
 
   return (
     <HouseholdContext.Provider value={householdView}>
-      <div className="app-shell">
+      <div className="app-shell" inert={tutorialOpen || Boolean(settings && !household)}>
         <aside className="sidebar">
           <a
             className="brand"
@@ -92,9 +118,19 @@ export default function App() {
         <div className="main-shell">
           <header className="topbar">
             <strong>{viewLabels[view]}</strong>
+            {settings && household && !tutorialOpen && (
+              <button className="secondary" disabled={openingTutorial} onClick={() => void reopenTutorial()}>
+                {settings.tutorial.status === 'active' ? 'Continuar tutorial' : 'Tutorial'}
+              </button>
+            )}
             <JobBanner refresh={refresh} />
           </header>
           <main className="content">
+            {tutorialError && (
+              <p className="form-error" role="alert">
+                {tutorialError}
+              </p>
+            )}
             {error && (
               <div className="global-error">
                 {error}
@@ -126,6 +162,17 @@ export default function App() {
           </footer>
         </div>
       </div>
+      {settings && tutorialOpen && (
+        <Tutorial
+          settings={settings}
+          onSettings={applySettings}
+          onClose={() => setTutorialDismissed(true)}
+          onNavigate={next => {
+            navigate(next)
+            setTutorialDismissed(true)
+          }}
+        />
+      )}
       {settings && !household && (
         <OnboardingView onDone={chosen => applySettings({ ...settings, household_species: chosen })} />
       )}

@@ -3,9 +3,8 @@ import * as api from '../api'
 import type { Event, EventPage, Pet, Zone } from '../api'
 import DateRangePicker from '../components/DateRangePicker'
 import Empty from '../components/Empty'
+import FilterDropdown from '../components/FilterDropdown'
 import EventList from '../components/EventList'
-import Icon from '../components/Icon'
-import PetAvatar from '../components/PetAvatar'
 import { errorMessage } from '../lib/errors'
 import { useHousehold } from '../lib/useHousehold'
 import { pageWindow } from '../lib/pagination'
@@ -15,7 +14,7 @@ type Props = { pets: Pet[]; reloadToken: number }
 const PAGE_SIZE = 10
 
 export default function HistoryView({ pets, reloadToken }: Props) {
-  const { zoneLabels, zoneIcon } = useHousehold()
+  const { zoneLabels } = useHousehold()
   const [page, setPage] = useState(1)
   const [petId, setPetId] = useState('')
   const [zoneType, setZoneType] = useState<Zone['type'] | ''>('')
@@ -107,72 +106,34 @@ export default function HistoryView({ pets, reloadToken }: Props) {
         </div>
       </div>
       <section className="history-filter-panel" aria-label="Filtros do histórico">
-        <div className="history-primary-filters">
-          <div className="filter-chip-row">
-            <span className="filter-chip-label">Pet</span>
-            <div className="filter-chip-options pet-chip-options" role="group" aria-label="Filtrar por pet">
-              <button
-                className={petId === '' ? 'selected' : ''}
-                aria-pressed={petId === ''}
-                onClick={() => choosePet('')}
-              >
-                <span className="all-pets pet-avatar">
-                  <Icon name="pets" />
-                </span>
-                Todos os pets
-              </button>
-              {pets.map(pet => (
-                <button
-                  key={pet.id}
-                  className={petId === pet.id ? 'selected' : ''}
-                  aria-pressed={petId === pet.id}
-                  onClick={() => choosePet(pet.id)}
-                >
-                  <PetAvatar pet={pet} />
-                  {pet.name}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="history-period-filter">
-            <span className="filter-chip-label">Período</span>
+        <div className="history-select-filters">
+          <FilterDropdown
+            label="Pet"
+            value={petId}
+            options={[{ value: '', label: 'Todos os pets' }, ...pets.map(pet => ({ value: pet.id, label: pet.name }))]}
+            onChange={choosePet}
+          />
+          <FilterDropdown
+            label="Área"
+            value={zoneType}
+            options={[
+              { value: '', label: 'Todas as áreas' },
+              ...Object.entries(zoneLabels).map(([value, label]) => ({ value, label })),
+            ]}
+            onChange={value => chooseZone(value as Zone['type'] | '')}
+          />
+          <FilterDropdown
+            label="Mostrar"
+            value={highlightedOnly ? 'favorites' : 'all'}
+            options={[
+              { value: 'all', label: 'Todos os registros' },
+              { value: 'favorites', label: 'Favoritos' },
+            ]}
+            onChange={value => chooseHighlighted(value === 'favorites')}
+          />
+          <div className="history-select-filter history-period-dropdown">
+            <span>Período</span>
             <DateRangePicker startDate={startDate} endDate={endDate} onChange={choosePeriod} />
-          </div>
-        </div>
-        <div className="filter-chip-row">
-          <span className="filter-chip-label">Área</span>
-          <div className="filter-chip-options" role="group" aria-label="Filtrar por área">
-            {([['', 'Todas as áreas'], ...Object.entries(zoneLabels)] as [Zone['type'] | '', string][]).map(
-              ([value, label]) => (
-                <button
-                  key={value || 'all'}
-                  className={zoneType === value ? 'selected' : ''}
-                  aria-pressed={zoneType === value}
-                  onClick={() => chooseZone(value)}
-                >
-                  {value && <Icon name={zoneIcon(value)} />} {label}
-                </button>
-              ),
-            )}
-          </div>
-        </div>
-        <div className="filter-chip-row">
-          <span className="filter-chip-label">Mostrar</span>
-          <div className="filter-chip-options" role="group" aria-label="Filtrar por favoritos">
-            <button
-              className={highlightedOnly ? '' : 'selected'}
-              aria-pressed={!highlightedOnly}
-              onClick={() => chooseHighlighted(false)}
-            >
-              Todos os registros
-            </button>
-            <button
-              className={`star-chip ${highlightedOnly ? 'selected' : ''}`}
-              aria-pressed={highlightedOnly}
-              onClick={() => chooseHighlighted(true)}
-            >
-              <Icon name="star" filled={highlightedOnly} /> Favoritos
-            </button>
           </div>
         </div>
       </section>

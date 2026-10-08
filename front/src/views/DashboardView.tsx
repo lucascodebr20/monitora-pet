@@ -144,21 +144,6 @@ export default function DashboardView({ data, pets, cameras, reloadToken, onNavi
               Horários apresentados no seu fuso local
             </div>
           </section>
-          {data.pending_reviews > 0 && (
-            <section className="review-banner">
-              <div className="review-banner-icon">
-                <Icon name="reviews" />
-              </div>
-              <div>
-                <h3>Um olhar seu faz a diferença</h3>
-                <p>{data.pending_reviews} registros precisam de confirmação ou identificação do pet.</p>
-              </div>
-              <button className="secondary" onClick={() => onNavigate('reviews')}>
-                Revisar registros
-                <b>{data.pending_reviews}</b>
-              </button>
-            </section>
-          )}
         </div>
         <aside className="dashboard-aside">
           <section className="panel camera-summary">

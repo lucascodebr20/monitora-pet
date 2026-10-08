@@ -112,6 +112,28 @@ class RouteTests(unittest.TestCase):
         self.assertTrue(self.client.put("/api/settings", json={"retention_enabled": True}).json()["retention_enabled"])
         self.assertEqual(self.client.put("/api/settings", json={}).status_code, 422)
         self.assertEqual(self.client.put("/api/settings", json={"household_species": "BIRD"}).status_code, 422)
+
+    def test_tutorial_progress_persists_and_can_be_reopened(self):
+        initial = self.client.get("/api/settings").json()["tutorial"]
+        self.assertEqual(initial, {"step": 0, "status": "active", "finished_at": None})
+        saved = self.client.put("/api/settings/tutorial", json={"step": 3}).json()["tutorial"]
+        self.assertEqual(saved["step"], 3)
+        self.assertEqual(self.client.get("/api/settings").json()["tutorial"], saved)
+        self.assertEqual(self.client.put("/api/settings/tutorial", json={"step": 6}).status_code, 422)
+        self.assertEqual(self.client.put("/api/settings/tutorial", json={"step": 2, "status": "completed"}).status_code, 422)
+        completed = self.client.put("/api/settings/tutorial", json={"step": 5, "status": "completed"}).json()["tutorial"]
+        self.assertIsNotNone(completed["finished_at"])
+        unchanged = self.client.put("/api/settings", json={"retention_days": 30}).json()["tutorial"]
+        self.assertEqual(unchanged, completed)
+        from app.infra.database.database import Database
+        from app.infra.repositories.settings_repository import SettingsRepository
+        repository = SettingsRepository(Database(self.settings.database_path))
+        self.assertEqual(repository.get("tutorial"), completed)
+        reopened = self.client.put("/api/settings/tutorial", json={"step": 0}).json()["tutorial"]
+        self.assertEqual(reopened, initial)
+        skipped = self.client.put("/api/settings/tutorial", json={"step": 1, "status": "skipped"}).json()["tutorial"]
+        self.assertEqual(skipped["status"], "skipped")
+        self.assertIsNotNone(skipped["finished_at"])
         self.assertEqual(self.client.get("/").status_code, 503)
         self.assertEqual(self.client.get("/api/nao-existe").status_code, 404)
 

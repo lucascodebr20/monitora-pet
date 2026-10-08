@@ -1,10 +1,12 @@
 from typing import Any
+from typing import Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, model_validator
 
 from app.core.container import Container, get_container
 from app.domain.enums import HouseholdSpecies
+from app.domain.clock import utc_now
 from app.services.event.auto_review import MAX_TARGET_PRECISION, MIN_TARGET_PRECISION
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -40,11 +42,38 @@ def _view(container: Container) -> dict[str, Any]:
         **container.retention_service.view(),
         **container.household_service.view(),
         **container.auto_review_service.view(),
+        "tutorial": container.settings_repository.get("tutorial", {
+            "step": 0, "status": "active", "finished_at": None,
+        }),
     }
 
 
 @router.get("")
 def get_settings(container: Container = Depends(get_container)) -> dict[str, Any]:
+    return _view(container)
+
+
+class TutorialUpdateRequest(BaseModel):
+    step: int = Field(ge=0, le=5)
+    status: Literal["active", "completed", "skipped"] = "active"
+
+    @model_validator(mode="after")
+    def validate_completion(self) -> "TutorialUpdateRequest":
+        if self.status == "completed" and self.step != 5:
+            raise ValueError("Conclua todas as etapas do tutorial.")
+        return self
+
+
+@router.put("/tutorial")
+def update_tutorial(request: TutorialUpdateRequest, container: Container = Depends(get_container)) -> dict[str, Any]:
+    current = container.settings_repository.get("tutorial", {})
+    finished_at = None
+    if request.status != "active":
+        finished_at = current.get("finished_at") if current.get("status") == request.status else None
+        finished_at = finished_at or utc_now()
+    container.settings_repository.set("tutorial", {
+        "step": request.step, "status": request.status, "finished_at": finished_at,
+    })
     return _view(container)
 
 

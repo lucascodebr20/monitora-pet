@@ -62,6 +62,7 @@ export type AppSettings = {
   retention_enabled: boolean
   retention_days: number
   household_species: HouseholdSpecies | null
+  tutorial: { step: number; status: 'active' | 'completed' | 'skipped'; finished_at: string | null }
 }
 
 export type WatchedFolder = {
@@ -292,6 +293,8 @@ export const createWatchedFolder = (cameraId: string, path: string) =>
   request<WatchedFolder>('/api/recordings/folders', json('POST', { camera_id: cameraId, path }))
 export const deleteWatchedFolder = (id: string) => request<void>(`/api/recordings/folders/${id}`, { method: 'DELETE' })
 export const getSettings = () => request<AppSettings>('/api/settings')
+export const updateTutorial = (step: number, status: AppSettings['tutorial']['status'] = 'active') =>
+  request<AppSettings>('/api/settings/tutorial', json('PUT', { step, status }))
 export const updateSettings = (payload: Partial<AppSettings>) =>
   request<AppSettings>('/api/settings', json('PUT', payload))
 export const getJobState = () => request<JobState>('/api/jobs')
