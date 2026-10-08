@@ -77,6 +77,25 @@ export default function Tutorial({ settings, onSettings, onNavigate, onClose }: 
   const [copyMessage, setCopyMessage] = useState('')
   const index = settings.tutorial.step
   const step = steps[index] ?? steps[0]
+  const dogHousehold = settings.household_species === 'DOG'
+  const animal = dogHousehold ? 'cachorro' : 'gato'
+  const images = dogHousehold
+    ? {
+        profileIdeal: '/tutorial/dog-profile-ideal.png',
+        profilePoor: '/tutorial/dog-profile-poor.png',
+        cameraIdeal: '/tutorial/dog-camera-ideal.png',
+        cameraPoor: '/tutorial/dog-camera-poor.png',
+        zoneIdeal: '/tutorial/dog-zone-ideal.png',
+        zonePoor: '/tutorial/dog-zone-poor.png',
+      }
+    : {
+        profileIdeal: '/tutorial/pet-profile-ideal.png',
+        profilePoor: '/tutorial/pet-profile-poor.png',
+        cameraIdeal: '/tutorial/camera-ideal-v2.png',
+        cameraPoor: '/tutorial/camera-poor.png',
+        zoneIdeal: '/tutorial/zone-ideal.png',
+        zonePoor: '/tutorial/zone-poor.png',
+      }
   const titleId = useId()
   const dialog = useRef<HTMLElement>(null)
   const [target, setTarget] = useState<{
@@ -214,8 +233,8 @@ export default function Tutorial({ settings, onSettings, onNavigate, onClose }: 
               <div className="tutorial-examples tutorial-profile-examples">
                 <figure className="tutorial-example ideal">
                   <img
-                    src="/tutorial/pet-profile-ideal.png"
-                    alt="Gato sozinho, com rosto e pelagem nítidos, boa iluminação e fundo simples."
+                    src={images.profileIdeal}
+                    alt={`${dogHousehold ? 'Cachorro' : 'Gato'} sozinho, com rosto e pelagem nítidos, boa iluminação e fundo simples.`}
                     width="1254"
                     height="1254"
                   />
@@ -228,8 +247,8 @@ export default function Tutorial({ settings, onSettings, onNavigate, onClose }: 
                 </figure>
                 <figure className="tutorial-example poor">
                   <img
-                    src="/tutorial/pet-profile-poor.png"
-                    alt="Foto escura e desfocada, com o gato de costas e objetos cobrindo parte do corpo."
+                    src={images.profilePoor}
+                    alt={`Foto escura e desfocada, com o ${animal} de costas e objetos cobrindo parte do corpo.`}
                     width="1254"
                     height="1254"
                   />
@@ -252,11 +271,11 @@ export default function Tutorial({ settings, onSettings, onNavigate, onClose }: 
               <div className="tutorial-examples">
                 <figure className="tutorial-example ideal">
                   <img
-                    src={index === 2 ? '/tutorial/camera-ideal-v2.png' : '/tutorial/zone-ideal.png'}
+                    src={index === 2 ? images.cameraIdeal : images.zoneIdeal}
                     alt={
                       index === 2
-                        ? 'Visão lateral com leve inclinação para baixo, mostrando o rosto, o corpo inteiro do gato e os potes, sem obstáculos.'
-                        : 'Zona verde concentrada no bebedouro e no espaço ocupado pelo gato durante a atividade.'
+                        ? `Visão lateral com leve inclinação para baixo, mostrando o rosto, o corpo inteiro do ${animal} e os potes, sem obstáculos.`
+                        : `Zona verde concentrada no bebedouro e no espaço ocupado pelo ${animal} durante a atividade.`
                     }
                     width="1536"
                     height="1024"
@@ -274,10 +293,10 @@ export default function Tutorial({ settings, onSettings, onNavigate, onClose }: 
                 </figure>
                 <figure className="tutorial-example poor">
                   <img
-                    src={`/tutorial/${index === 2 ? 'camera' : 'zone'}-poor.png`}
+                    src={index === 2 ? images.cameraPoor : images.zonePoor}
                     alt={
                       index === 2
-                        ? 'Câmera muito baixa, com cadeira obstruindo o gato e luz forte atrás do animal.'
+                        ? `Câmera muito baixa, com cadeira obstruindo o ${animal} e luz forte atrás do animal.`
                         : 'Zona vermelha ampla demais, cobrindo o chão e espaços sem relação com a atividade.'
                     }
                     width="1536"
