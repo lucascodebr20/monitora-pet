@@ -8,6 +8,7 @@ import socket
 import sys
 import threading
 import time
+import traceback
 import urllib.request
 import webbrowser
 from pathlib import Path
@@ -45,10 +46,16 @@ def free_port() -> int:
         return int(probe.getsockname()[1])
 
 
-def wait_until_ready(url: str, token: str, timeout: float = 60.0) -> bool:
+def configure_console() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
+def wait_until_ready(url: str, token: str, server_thread: threading.Thread, timeout: float = 120.0) -> bool:
     deadline = time.monotonic() + timeout
     request = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
-    while time.monotonic() < deadline:
+    while time.monotonic() < deadline and server_thread.is_alive():
         try:
             with urllib.request.urlopen(request, timeout=2) as response:
                 if response.status == 200:
@@ -112,7 +119,6 @@ def main() -> int:
     args = parse_args()
     root = bundle_root()
 
-
     os.environ.setdefault("MONITORAPET_DATA_DIR", str(default_data_dir()))
     os.environ.setdefault("MONITORAPET_FRONTEND_DIST", str(root / "front" / "dist"))
     token = os.environ.get("MONITORAPET_API_TOKEN") or secrets.token_urlsafe(32)
@@ -125,6 +131,7 @@ def main() -> int:
         prepare_models(root)
     except Exception as error:
         print(f"Não foi possível preparar os modelos de IA ({error}).", flush=True)
+        traceback.print_exc()
         return 1
 
     import uvicorn
@@ -137,8 +144,11 @@ def main() -> int:
     thread = threading.Thread(target=server.run, name="monitorapet-server", daemon=True)
     thread.start()
 
-    if not wait_until_ready(f"{base_url}/api/session", token):
-        print("O serviço do Monitora Pet não respondeu a tempo.")
+    if not wait_until_ready(f"{base_url}/api/session", token, thread):
+        if thread.is_alive():
+            print("O serviço do Monitora Pet não respondeu a tempo.", flush=True)
+        else:
+            print("O serviço do Monitora Pet parou durante a inicialização.", flush=True)
         server.should_exit = True
         return 1
 
@@ -171,5 +181,15 @@ def main() -> int:
     return 0
 
 
+def run() -> int:
+    configure_console()
+    try:
+        return main()
+    except Exception:
+        traceback.print_exc()
+        sys.stderr.flush()
+        return 1
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run())

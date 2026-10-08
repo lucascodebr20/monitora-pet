@@ -1,7 +1,3 @@
-param(
-    [string]$TargetTriple = "x86_64-pc-windows-msvc"
-)
-
 $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $Python = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
@@ -40,10 +36,17 @@ finally {
     (Join-Path $ProjectRoot "desktop\monitorapet-backend.spec")
 if ($LASTEXITCODE -ne 0) { throw "Falha ao gerar o sidecar do backend." }
 
+$Source = Join-Path $ProjectRoot "desktop\dist-tauri\monitorapet-backend"
+$Destination = Join-Path $TauriBinDir "backend"
+if (-not (Test-Path -LiteralPath (Join-Path $Source "monitorapet-backend.exe"))) {
+    throw "Backend não encontrado em $Source."
+}
 New-Item -ItemType Directory -Force -Path $TauriBinDir | Out-Null
-$Source = Join-Path $ProjectRoot "desktop\dist-tauri\monitorapet-backend.exe"
-$Destination = Join-Path $TauriBinDir "monitorapet-backend-$TargetTriple.exe"
-Copy-Item -LiteralPath $Source -Destination $Destination -Force
+Get-ChildItem -LiteralPath $TauriBinDir -Filter "monitorapet-backend*.exe" | Remove-Item -Force
+if (Test-Path -LiteralPath $Destination) {
+    Remove-Item -LiteralPath $Destination -Recurse -Force
+}
+Copy-Item -LiteralPath $Source -Destination $Destination -Recurse
 
 if ($env:MONITORAPET_CERTIFICATE_THUMBPRINT) {
     $SignTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
@@ -51,7 +54,10 @@ if ($env:MONITORAPET_CERTIFICATE_THUMBPRINT) {
         Select-Object -First 1 -ExpandProperty FullName
     if (-not $SignTool) { throw "signtool.exe não encontrado no Windows SDK." }
     $TimestampUrl = if ($env:MONITORAPET_TIMESTAMP_URL) { $env:MONITORAPET_TIMESTAMP_URL } else { "http://timestamp.digicert.com" }
-    & $SignTool sign /sha1 $env:MONITORAPET_CERTIFICATE_THUMBPRINT /fd SHA256 /tr $TimestampUrl /td SHA256 $Destination
+    $Binaries = Get-ChildItem -LiteralPath $Destination -Recurse -Include "*.exe", "*.dll", "*.pyd" |
+        Where-Object { (Get-AuthenticodeSignature -LiteralPath $_.FullName).Status -ne "Valid" } |
+        Select-Object -ExpandProperty FullName
+    & $SignTool sign /sha1 $env:MONITORAPET_CERTIFICATE_THUMBPRINT /fd SHA256 /tr $TimestampUrl /td SHA256 @Binaries
     if ($LASTEXITCODE -ne 0) { throw "Falha ao assinar o sidecar do backend." }
 }
 else {

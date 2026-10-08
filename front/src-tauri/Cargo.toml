@@ -1,6 +1,6 @@
 [package]
 name = "monitorapet-desktop"
-version = "0.3.0"
+version = "0.3.1"
 description = "Aplicativo desktop local para monitoramento de pets"
 authors = ["Monitora Pet"]
 edition = "2021"
@@ -12,6 +12,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
+serde_json = "1"
 
 [features]
 default = ["custom-protocol"]

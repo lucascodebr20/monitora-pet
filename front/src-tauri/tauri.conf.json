@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Monitora Pet",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "identifier": "br.com.lucascode.monitorapet",
   "build": {
     "beforeBuildCommand": "powershell -NoProfile -ExecutionPolicy Bypass -File ../desktop/prepare_tauri_sidecar.ps1",
@@ -35,9 +35,9 @@
     "copyright": "Copyright © 2026 Monitora Pet",
     "shortDescription": "Monitoramento local de pets com câmeras IP",
     "longDescription": "O Monitora Pet monitora localmente visitas de gatos às áreas de alimentação, água e caixa de areia usando câmeras IP.",
-    "externalBin": [
-      "binaries/monitorapet-backend"
-    ],
+    "resources": {
+      "binaries/backend/": "backend/"
+    },
     "icon": [
       "../../desktop/monitorapet.ico"
     ],

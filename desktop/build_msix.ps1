@@ -104,7 +104,8 @@ if (-not $SkipAppBuild) {
 }
 
 $DesktopExecutable = Join-Path $ReleaseDir "monitorapet-desktop.exe"
-$BackendExecutable = Join-Path $ReleaseDir "monitorapet-backend.exe"
+$BackendDir = Join-Path $ReleaseDir "backend"
+$BackendExecutable = Join-Path $BackendDir "monitorapet-backend.exe"
 foreach ($RequiredFile in @($DesktopExecutable, $BackendExecutable)) {
     if (-not (Test-Path -LiteralPath $RequiredFile)) {
         throw "Arquivo necessário não encontrado: $RequiredFile"
@@ -149,7 +150,7 @@ if (Test-Path -LiteralPath $StageDir) {
 $AssetsDir = Join-Path $StageDir "Assets"
 New-Item -ItemType Directory -Force -Path $AssetsDir, $OutputDir | Out-Null
 Copy-Item -LiteralPath $DesktopExecutable -Destination (Join-Path $StageDir "MonitoraPet.exe")
-Copy-Item -LiteralPath $BackendExecutable -Destination (Join-Path $StageDir "monitorapet-backend.exe")
+Copy-Item -LiteralPath $BackendDir -Destination (Join-Path $StageDir "backend") -Recurse
 Copy-Item -LiteralPath $RuntimeBuildDir -Destination (Join-Path $StageDir "WebView2Runtime") -Recurse
 
 $IconDir = Join-Path $TauriDir "icons"

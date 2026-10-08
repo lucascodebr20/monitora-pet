@@ -42,6 +42,7 @@ desktop/dist/
 desktop/build-tauri/
 desktop/dist-tauri/
 front/src-tauri/binaries/*.exe
+front/src-tauri/binaries/backend/
 front/src-tauri/target/
 front/src-tauri/gen/schemas/
 front/src-tauri/WebView2Runtime/

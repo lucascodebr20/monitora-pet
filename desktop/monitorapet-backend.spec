@@ -38,13 +38,20 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name="monitorapet-backend",
     icon=str(ROOT / "desktop" / "monitorapet.ico"),
     console=True,
     upx=False,
     bootloader_ignore_signals=False,
+    strip=False,
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    name="monitorapet-backend",
+    upx=False,
     strip=False,
 )
