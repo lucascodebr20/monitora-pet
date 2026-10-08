@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Monitora Pet",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "identifier": "br.com.lucascode.monitorapet",
   "build": {
     "beforeBuildCommand": "powershell -NoProfile -ExecutionPolicy Bypass -File ../desktop/prepare_tauri_sidecar.ps1",
