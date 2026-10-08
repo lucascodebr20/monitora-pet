@@ -27,7 +27,9 @@ def update_pet(pet_id: str, request: PetCreateRequest, container: Container = De
 
 @router.delete("/{pet_id}", status_code=204)
 def delete_pet(pet_id: str, container: Container = Depends(get_container)) -> None:
+    health_files = container.pet_health_service.pet_files(pet_id)
     container.pet_service.delete(pet_id)
+    container.pet_health_service.remove_files(health_files)
 
 
 @router.get("/{pet_id}/photo")

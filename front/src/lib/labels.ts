@@ -58,3 +58,25 @@ export function toLocalInputValue(value: string): string {
   const pad = (part: number) => String(part).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
+
+export const foodTypeLabels: Record<string, string> = {
+  DRY: 'Seca',
+  WET: 'Úmida',
+  OTHER: 'Outro',
+}
+
+export const examTypeLabels: Record<string, string> = {
+  BLOOD: 'Sangue',
+  URINE: 'Urina',
+  FECES: 'Fezes',
+  IMAGING: 'Imagem (raio-X, ultrassom)',
+  PRESCRIPTION: 'Receita',
+  REPORT: 'Laudo ou relatório',
+  OTHER: 'Outro',
+}
+
+export const doseKindLabels: Record<string, string> = {
+  VACCINE: 'Vacina',
+  MEDICATION: 'Remédio',
+  ANTIPARASITIC: 'Antiparasitário',
+}

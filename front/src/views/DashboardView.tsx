@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import * as api from '../api'
-import type { Camera, Dashboard, Event, Pet } from '../api'
+import type { Camera, Dashboard, Event, HealthReminder, Pet } from '../api'
 import EventList from '../components/EventList'
 import Icon, { IconName } from '../components/Icon'
 import PetAvatar from '../components/PetAvatar'
 import type { View } from '../lib/views'
 import { useHousehold } from '../lib/useHousehold'
 import { activityEvents } from '../lib/eventActivity'
+import { doseKindLabels } from '../lib/labels'
+import { dueLabel, formatDay } from '../components/health/shared'
 
 type Props = {
   data: Dashboard | null
@@ -30,6 +32,7 @@ export default function DashboardView({ data, pets, cameras, reloadToken, onNavi
     { type: 'LITTER', title: zoneLabels.LITTER, icon: zoneIcon('LITTER'), className: 'litter', sub: hygieneSummary },
   ]
   const [events, setEvents] = useState<Event[]>([])
+  const [reminders, setReminders] = useState<HealthReminder[]>([])
   const date = data?.date
   const eventsToday = data?.events_today
 
@@ -46,6 +49,19 @@ export default function DashboardView({ data, pets, cameras, reloadToken, onNavi
       active = false
     }
   }, [date, eventsToday, reloadToken])
+
+  useEffect(() => {
+    let active = true
+    void api
+      .getHealthReminders()
+      .then(list => {
+        if (active) setReminders(list)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [reloadToken])
 
   if (!data) return <div className="loading">Carregando a rotina dos pets…</div>
 
@@ -147,6 +163,31 @@ export default function DashboardView({ data, pets, cameras, reloadToken, onNavi
           </section>
         </div>
         <aside className="dashboard-aside">
+          {reminders.length > 0 && (
+            <section className="panel health-summary-card reminders">
+              <div className="panel-head">
+                <h2>Doses chegando</h2>
+                <button className="text-button" onClick={() => onNavigate('pets')}>
+                  Abrir pets
+                </button>
+              </div>
+              <ul className="health-due-list compact">
+                {reminders.map(reminder => (
+                  <li key={reminder.id} className={reminder.overdue ? 'overdue' : 'soon'}>
+                    <div>
+                      <strong>
+                        {reminder.pet_name} · {reminder.name}
+                      </strong>
+                      <span>
+                        {doseKindLabels[reminder.kind]} · {formatDay(reminder.next_due_on)} ·{' '}
+                        {dueLabel(reminder.days_until_due)}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <section className="panel camera-summary">
             <div className="panel-head">
               <h2>Suas câmeras</h2>

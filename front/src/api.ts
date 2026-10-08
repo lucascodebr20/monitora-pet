@@ -366,3 +366,164 @@ export const reviewEvent = (
       ...(pet_ids?.length ? { pet_ids } : {}),
     }),
   )
+
+export type FoodType = 'DRY' | 'WET' | 'OTHER'
+export type ExamType = 'BLOOD' | 'URINE' | 'FECES' | 'IMAGING' | 'PRESCRIPTION' | 'REPORT' | 'OTHER'
+export type DoseKind = 'VACCINE' | 'MEDICATION' | 'ANTIPARASITIC'
+
+export type HealthAttachment = {
+  id: string
+  original_name: string
+  media_type: string
+  size_bytes: number
+  created_at: string
+  position: number
+  url: string
+  thumbnail_url: string | null
+}
+
+export type FoodPeriod = {
+  id: string
+  pet_id: string
+  name: string
+  brand: string
+  food_type: FoodType
+  offered_amount: string
+  started_on: string
+  ended_on: string | null
+  notes: string
+}
+export type FoodPayload = Omit<FoodPeriod, 'id' | 'pet_id'> & { replace_current?: boolean }
+
+export type WeightRecord = { id: string; pet_id: string; measured_on: string; weight_kg: number; notes: string }
+export type WeightPayload = Omit<WeightRecord, 'id' | 'pet_id'>
+
+export type Exam = {
+  id: string
+  pet_id: string
+  title: string
+  exam_type: ExamType
+  performed_on: string | null
+  laboratory: string
+  professional: string
+  notes: string
+  transcription: string
+  created_at: string
+  attachments: HealthAttachment[]
+}
+export type ExamPayload = Omit<Exam, 'id' | 'pet_id' | 'created_at' | 'attachments'>
+
+export type Dose = {
+  id: string
+  pet_id: string
+  treatment_id: string | null
+  kind: DoseKind
+  name: string
+  dose: string
+  given_on: string
+  next_due_on: string | null
+  notes: string
+}
+export type DosePayload = Omit<Dose, 'id' | 'pet_id'>
+
+export type TreatmentEntry = {
+  id: string
+  treatment_id: string
+  observed_at: string
+  notes: string
+  attachments: HealthAttachment[]
+}
+
+export type Treatment = {
+  id: string
+  pet_id: string
+  title: string
+  body_region: string
+  description: string
+  instructions: string
+  started_on: string
+  ended_on: string | null
+  entries: TreatmentEntry[]
+  doses: Dose[]
+}
+export type TreatmentPayload = Omit<Treatment, 'id' | 'pet_id' | 'entries' | 'doses'>
+
+export type HealthReminder = Dose & { pet_name: string; days_until_due: number; overdue: boolean }
+
+export type HealthSummary = {
+  current_food: FoodPeriod[]
+  latest_weight: WeightRecord | null
+  previous_weight: WeightRecord | null
+  active_treatments: Treatment[]
+  recent_exams: Exam[]
+  reminders: HealthReminder[]
+}
+
+export type TimelineItem = {
+  date: string
+  at: string | null
+  kind: string
+  title: string
+  detail: string
+  record_id: string | null
+  counts?: Record<string, { detected: number; confirmed: number }>
+}
+
+export type HealthRecordKind = 'food' | 'weights' | 'exams' | 'treatments' | 'doses'
+
+const health = (petId: string) => `/api/pets/${petId}/health`
+const items = async <T,>(url: string) => (await request<{ items: T[] }>(url)).items
+const upload = (url: string, file: File) =>
+  request<HealthAttachment>(`${url}?filename=${encodeURIComponent(file.name)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: file,
+  })
+
+export const getHealthReminders = async () =>
+  (await request<{ reminders: HealthReminder[] }>('/api/health-reminders')).reminders
+export const getHealthSummary = (petId: string) => request<HealthSummary>(`${health(petId)}/summary`)
+export const getHealthTimeline = (petId: string, start: string, end: string) =>
+  request<{ start: string; end: string; items: TimelineItem[] }>(
+    `${health(petId)}/timeline?start=${start}&end=${end}`,
+  )
+export const deleteHealthRecord = (petId: string, kind: HealthRecordKind, id: string) =>
+  request<void>(`${health(petId)}/${kind}/${id}`, { method: 'DELETE' })
+
+export const getFoodPeriods = (petId: string) => items<FoodPeriod>(`${health(petId)}/food`)
+export const createFoodPeriod = (petId: string, payload: FoodPayload) =>
+  request<FoodPeriod>(`${health(petId)}/food`, json('POST', payload))
+export const updateFoodPeriod = (petId: string, id: string, payload: FoodPayload) =>
+  request<FoodPeriod>(`${health(petId)}/food/${id}`, json('PUT', payload))
+
+export const getWeights = (petId: string) => items<WeightRecord>(`${health(petId)}/weights`)
+export const createWeight = (petId: string, payload: WeightPayload) =>
+  request<WeightRecord>(`${health(petId)}/weights`, json('POST', payload))
+
+export const getExams = (petId: string) => items<Exam>(`${health(petId)}/exams`)
+export const createExam = (petId: string, payload: ExamPayload) =>
+  request<Exam>(`${health(petId)}/exams`, json('POST', payload))
+export const updateExam = (petId: string, id: string, payload: ExamPayload) =>
+  request<Exam>(`${health(petId)}/exams/${id}`, json('PUT', payload))
+export const uploadExamFile = (petId: string, examId: string, file: File) =>
+  upload(`${health(petId)}/exams/${examId}/attachments`, file)
+export const deleteHealthAttachment = (petId: string, id: string) =>
+  request<void>(`${health(petId)}/attachments/${id}`, { method: 'DELETE' })
+
+export const getDoses = (petId: string) => items<Dose>(`${health(petId)}/doses`)
+export const createDose = (petId: string, payload: DosePayload) =>
+  request<Dose>(`${health(petId)}/doses`, json('POST', payload))
+export const updateDose = (petId: string, id: string, payload: DosePayload) =>
+  request<Dose>(`${health(petId)}/doses/${id}`, json('PUT', payload))
+
+export const getTreatments = (petId: string) => items<Treatment>(`${health(petId)}/treatments`)
+export const createTreatment = (petId: string, payload: TreatmentPayload) =>
+  request<Treatment>(`${health(petId)}/treatments`, json('POST', payload))
+export const updateTreatment = (petId: string, id: string, payload: TreatmentPayload) =>
+  request<Treatment>(`${health(petId)}/treatments/${id}`, json('PUT', payload))
+export const createTreatmentEntry = (petId: string, treatmentId: string, payload: { observed_at: string; notes: string }) =>
+  request<TreatmentEntry>(`${health(petId)}/treatments/${treatmentId}/entries`, json('POST', payload))
+export const deleteTreatmentEntry = (petId: string, treatmentId: string, entryId: string) =>
+  request<void>(`${health(petId)}/treatments/${treatmentId}/entries/${entryId}`, { method: 'DELETE' })
+export const uploadTreatmentPhoto = (petId: string, treatmentId: string, entryId: string, file: File) =>
+  upload(`${health(petId)}/treatments/${treatmentId}/entries/${entryId}/attachments`, file)

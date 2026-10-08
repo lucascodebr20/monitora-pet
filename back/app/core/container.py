@@ -14,6 +14,7 @@ from app.infra.camera.manager import CameraManager
 from app.infra.database.database import Database
 from app.infra.media.clip_store import ClipStore
 from app.infra.media.media_cleanup import MediaCleanup
+from app.infra.media.health_file_store import HealthFileStore
 from app.infra.media.pet_image_store import PetImageStore
 from app.infra.media.snapshot_store import SnapshotStore
 from app.infra.repositories.camera_repository import CameraRepository
@@ -21,6 +22,7 @@ from app.infra.repositories.event_highlight_repository import EventHighlightRepo
 from app.infra.repositories.event_repository import EventRepository
 from app.infra.repositories.monitoring_session_repository import MonitoringSessionRepository
 from app.infra.repositories.pet_identification_repository import PetIdentificationRepository
+from app.infra.repositories.pet_health_repository import PetHealthRepository
 from app.infra.repositories.pet_repository import PetRepository
 from app.infra.repositories.recording_repository import RecordingRepository
 from app.infra.repositories.settings_repository import SettingsRepository
@@ -45,6 +47,7 @@ from app.services import (
     ImportWorker,
     MediaRetentionService,
     MonitoringService,
+    PetHealthService,
     PetService,
     RecordingAnalyzer,
     RecordingImportService,
@@ -63,6 +66,7 @@ class Container:
     camera_discovery_service: CameraDiscoveryService
     zone_service: ZoneService
     pet_service: PetService
+    pet_health_service: PetHealthService
     event_query_service: EventQueryService
     event_review_service: EventReviewService
     event_media_service: EventMediaService
@@ -166,6 +170,9 @@ def build_container(settings: Settings, on_job_state: Callable[[str], None] | No
         camera_discovery_service=CameraDiscoveryService(camera_repository),
         zone_service=ZoneService(zone_repository, camera_service, purge_service),
         pet_service=PetService(pet_repository, pet_image_store),
+        pet_health_service=PetHealthService(
+            PetHealthRepository(database), pet_repository, HealthFileStore(settings.data_dir, settings.health_dir)
+        ),
         event_query_service=event_query_service,
         event_review_service=EventReviewService(event_repository, pet_repository, identification_calibrator),
         event_media_service=EventMediaService(event_repository, snapshot_store, clip_store),

@@ -5,10 +5,11 @@ import { errorMessage } from '../lib/errors'
 import { speciesLabels } from '../lib/labels'
 import { useHousehold } from '../lib/useHousehold'
 import Lightbox from './Lightbox'
+import PetHealth from './health/PetHealth'
 import { useToast } from './useToast'
 
 type Props = { pets: Pet[]; refresh: () => Promise<void> }
-type PetTab = 'edit' | 'references'
+type PetTab = 'health' | 'edit' | 'references'
 type PetForm = { name: string; species: PetSpecies; description: string; photo_data: string | null }
 type CropPosition = { x: number; y: number }
 
@@ -180,7 +181,12 @@ export default function PetManager({ pets, refresh }: Props) {
   }
 
   async function removePet(pet: Pet) {
-    if (!window.confirm(`Remover o perfil de ${pet.name}?`)) return
+    if (
+      !window.confirm(
+        `Remover o perfil de ${pet.name}? Exames, fotos de tratamento e todo o histórico de saúde dele também serão apagados.`,
+      )
+    )
+      return
     try {
       await api.deletePet(pet.id)
       await refresh()
@@ -353,7 +359,7 @@ export default function PetManager({ pets, refresh }: Props) {
             </button>
             <p className="eyebrow">PERFIL DO PET</p>
             <h1>{detailedPet.name}</h1>
-            <p>Consulte os dados, edite o perfil e organize as referências.</p>
+            <p>Saúde, dados do perfil e referências usadas na identificação.</p>
           </div>
         </div>
         <section className="pet-profile-page">
@@ -377,6 +383,16 @@ export default function PetManager({ pets, refresh }: Props) {
               <button
                 type="button"
                 role="tab"
+                aria-selected={activeTab === 'health'}
+                aria-controls="pet-health-panel"
+                className={activeTab === 'health' ? 'active' : ''}
+                onClick={() => setActiveTab('health')}
+              >
+                Saúde
+              </button>
+              <button
+                type="button"
+                role="tab"
                 aria-selected={activeTab === 'edit'}
                 aria-controls="pet-edit-panel"
                 className={activeTab === 'edit' ? 'active' : ''}
@@ -395,6 +411,11 @@ export default function PetManager({ pets, refresh }: Props) {
                 Referências <span>{references.length}</span>
               </button>
             </nav>
+            {activeTab === 'health' && (
+              <div id="pet-health-panel" role="tabpanel">
+                <PetHealth petId={detailedPet.id} petName={detailedPet.name} />
+              </div>
+            )}
             {activeTab === 'edit' && (
               <section id="pet-edit-panel" role="tabpanel" className="panel pet-profile-editor">
                 <div className="panel-head">
@@ -490,6 +511,9 @@ export default function PetManager({ pets, refresh }: Props) {
                 </small>
               </div>
               <div className="pet-card-actions">
+                <button className="secondary" onClick={() => openPet(pet, 'health')}>
+                  Saúde
+                </button>
                 <button className="tertiary" onClick={() => openPet(pet, 'edit')}>
                   Editar
                 </button>

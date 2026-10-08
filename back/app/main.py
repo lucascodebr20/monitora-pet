@@ -14,6 +14,8 @@ from app.controllers.identification_controller import router as identification_r
 from app.controllers.job_controller import router as job_router
 from app.controllers.monitoring_controller import router as monitoring_router
 from app.controllers.pet_controller import router as pet_router
+from app.controllers.pet_health_controller import reminders_router as health_reminders_router
+from app.controllers.pet_health_controller import router as pet_health_router
 from app.controllers.settings_controller import router as settings_router
 from app.controllers.recording_controller import router as recording_router
 from app.controllers.web_controller import router as web_router
@@ -85,6 +87,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         zone_router,
         event_router,
         pet_router,
+        pet_health_router,
+        health_reminders_router,
         recording_router,
         job_router,
         settings_router,

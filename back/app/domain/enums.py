@@ -36,3 +36,25 @@ class HouseholdSpecies(StrEnum):
 class PetSpecies(StrEnum):
     CAT = "CAT"
     DOG = "DOG"
+
+
+class FoodType(StrEnum):
+    DRY = "DRY"
+    WET = "WET"
+    OTHER = "OTHER"
+
+
+class ExamType(StrEnum):
+    BLOOD = "BLOOD"
+    URINE = "URINE"
+    FECES = "FECES"
+    IMAGING = "IMAGING"
+    PRESCRIPTION = "PRESCRIPTION"
+    REPORT = "REPORT"
+    OTHER = "OTHER"
+
+
+class DoseKind(StrEnum):
+    VACCINE = "VACCINE"
+    MEDICATION = "MEDICATION"
+    ANTIPARASITIC = "ANTIPARASITIC"

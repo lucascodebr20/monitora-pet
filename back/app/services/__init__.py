@@ -13,6 +13,7 @@ from app.services.household import HouseholdService
 from app.services.identification import IdentificationService
 from app.services.monitoring import MonitoringService
 from app.services.pet import PetService
+from app.services.pet_health import PetHealthService
 from app.services.recordings import CameraRecordingSync, ImportWorker, RecordingAnalyzer, RecordingImportService
 from app.services.zone import ZoneService
 
@@ -34,6 +35,7 @@ __all__ = [
     "MonitoringService",
     "MediaRetentionService",
     "PetService",
+    "PetHealthService",
     "RecordingAnalyzer",
     "RecordingImportService",
     "ZoneService",
