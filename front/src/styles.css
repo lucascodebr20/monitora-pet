@@ -2951,7 +2951,9 @@ body:has(.tutorial-backdrop) .app-shell {
   border-radius: 12px;
   background: #e7f5ed;
   color: #146b55;
-  box-shadow: 0 0 0 3px #74b29d, 0 8px 24px #0003;
+  box-shadow:
+    0 0 0 3px #74b29d,
+    0 8px 24px #0003;
   font-size: 13px;
   pointer-events: none;
 }
@@ -3168,7 +3170,9 @@ body:has(.tutorial-backdrop) .app-shell {
   color: #63796f;
   font-size: 13px;
   text-align: left;
-  transition: border-color 150ms, box-shadow 150ms;
+  transition:
+    border-color 150ms,
+    box-shadow 150ms;
 }
 .filter-dropdown-trigger > span {
   overflow: hidden;
@@ -3206,7 +3210,9 @@ body:has(.tutorial-backdrop) .app-shell {
   border: 1px solid #e3ece7;
   border-radius: 14px;
   background: white;
-  box-shadow: 0 12px 32px #183e2524, 0 2px 6px #183e250a;
+  box-shadow:
+    0 12px 32px #183e2524,
+    0 2px 6px #183e250a;
 }
 .filter-dropdown-menu button {
   display: flex;
@@ -5406,14 +5412,153 @@ dialog.modal {
 
 .pet-health {
   display: grid;
-  gap: 16px;
+  gap: 22px;
   min-width: 0;
+}
+.pet-activity-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 12px;
+}
+.pet-activity-metrics article {
+  padding: 18px;
+  border: 1px solid #dce5d5;
+  border-radius: 12px;
+  background: #f6f8f3;
+}
+.pet-activity-metrics article > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--green-dark);
+  font-size: 13px;
+  font-weight: 600;
+}
+.pet-activity-metrics strong {
+  display: block;
+  margin-top: 14px;
+  color: var(--green-dark);
+  font-size: 30px;
+}
+.pet-activity-metrics strong small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.pet-activity-metrics p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.pet-activity-recent {
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+.pet-activity-recent h3 {
+  font-size: 15px;
+}
+.sidebar-pets {
+  min-width: 0;
+}
+.sidebar-pets > button {
+  width: 100%;
+}
+.pets-chevron {
+  margin-left: auto;
+  transition: transform 0.16s ease;
+}
+.pets-chevron.expanded {
+  transform: rotate(180deg);
+}
+.sidebar-pet-list {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 10px 22px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+  max-height: 340px;
+  overflow-y: auto;
+}
+.sidebar .sidebar-pet-list button {
+  width: 100%;
+  min-height: 42px;
+  padding: 7px 10px;
+  gap: 10px;
+  font-size: 13px;
+}
+.sidebar-pet-list button.active::before {
+  display: none;
+}
+.sidebar .sidebar-pet-list .pet-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--green-soft);
+  color: var(--green-dark);
+  font-size: 12px;
+}
+.sidebar .sidebar-pet-list .sidebar-pet-name {
+  width: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-size: 13px;
+}
+.sidebar .sidebar-pet-list .sidebar-pets-action {
+  color: var(--primary);
+  font-size: 12px;
+}
+.health-heading {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid #dce5d5;
+  border-radius: 16px;
+  background: linear-gradient(115deg, #edf2e9, #fafcf8);
+}
+.health-heading-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--paper);
+  color: var(--primary);
+}
+.health-heading .eyebrow {
+  margin: 0 0 6px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+.health-heading h2 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+}
+.health-heading p:last-child {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
 }
 .health-tabs {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #eef2ef;
 }
 .health-tabs button,
 .health-filters button {
@@ -5438,22 +5583,49 @@ dialog.modal {
   color: var(--green-dark);
   font-weight: 650;
 }
+.health-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: 1 0 auto;
+  min-height: 40px;
+  border-color: transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #52635a;
+}
+.health-tabs button svg {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+.health-tabs button.selected {
+  border-color: #dce5d5;
+  background: var(--paper);
+  box-shadow: 0 2px 5px #263c3b08;
+}
 .health-section {
   display: grid;
-  gap: 14px;
+  gap: 20px;
   min-width: 0;
+  border-radius: 16px;
 }
 .health-section > .panel-head {
   align-items: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
 }
 .health-section .pet-back {
   justify-self: start;
 }
 .health-form {
   margin-top: 0;
-  padding: 16px;
+  padding: 22px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 14px;
   background: #fafcfb;
 }
 .health-form fieldset {
@@ -5485,7 +5657,7 @@ dialog.modal {
 }
 .health-form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
   gap: 14px;
 }
 .health-form .health-check {
@@ -5537,16 +5709,16 @@ dialog.modal {
 }
 .health-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 16px;
 }
 .health-card {
   display: grid;
   align-content: start;
-  gap: 8px;
-  padding: 16px;
+  gap: 12px;
+  padding: 20px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 14px;
   background: var(--paper);
   min-width: 0;
 }
@@ -5688,6 +5860,30 @@ dialog.modal {
   margin: 0;
   padding: 0;
   border: 0;
+}
+.health-inline-form {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fafcfb;
+}
+.health-inline-form label {
+  min-width: 0;
+}
+.pet-health .empty {
+  padding: 36px 22px;
+  border: 1px dashed #d5dfd1;
+  border-radius: 14px;
+  background: #fafcf8;
+}
+.pet-health .empty h3 {
+  margin-top: 0;
+  color: var(--green-dark);
+}
+.pet-health .empty p {
+  max-width: 420px;
+  margin-inline: auto;
+  line-height: 1.7;
 }
 .health-inline-form label {
   font-size: 14px;
@@ -5933,32 +6129,57 @@ dialog.modal {
 }
 .health-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
 }
 .health-summary-card {
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 18px;
+  min-width: 0;
+  padding: 22px;
+  border-radius: 16px;
 }
 .health-summary-card.reminders {
   grid-column: 1 / -1;
+  background: #fffdf7;
+  border-color: #eadfc4;
 }
 .dashboard-aside .health-summary-card.reminders {
   margin-bottom: 18px;
 }
 .health-summary-card > header {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
 }
 .health-summary-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.health-summary-card h2 svg {
+  flex-shrink: 0;
+  width: 19px;
+  height: 19px;
+  color: var(--primary);
+}
+.health-summary-card > header .text-button {
+  font-size: 12px;
+  white-space: nowrap;
 }
 .health-summary-card .muted {
   margin: 0;
+  padding: 18px 14px;
+  border-radius: 10px;
+  background: #f6f8f5;
+  font-size: 13px;
+  line-height: 1.7;
 }
 .health-big-number {
   display: grid;
@@ -5966,8 +6187,10 @@ dialog.modal {
   margin: 0;
 }
 .health-big-number strong {
-  font-size: 28px;
+  font-size: 36px;
   font-weight: 650;
+  color: var(--green-dark);
+  letter-spacing: -0.04em;
 }
 .health-big-number span {
   color: var(--muted);
@@ -5983,7 +6206,17 @@ dialog.modal {
 }
 .health-plain-list li {
   display: grid;
-  gap: 2px;
+  gap: 5px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.health-plain-list li:first-child {
+  padding-top: 0;
+}
+.health-plain-list li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 .health-plain-list span {
   color: var(--muted);
@@ -6085,6 +6318,35 @@ dialog.modal {
   font-size: 12px;
 }
 @media (max-width: 620px) {
+  .health-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .health-heading {
+    padding: 18px;
+    align-items: flex-start;
+  }
+  .health-heading h2 {
+    font-size: 21px;
+  }
+  .health-tabs {
+    flex-wrap: nowrap;
+  }
+  .health-tabs button {
+    flex: 0 0 auto;
+  }
+  .health-form {
+    padding: 16px;
+  }
+  .health-inline-form fieldset > label,
+  .health-inline-form fieldset > button {
+    flex: 1 1 100%;
+  }
+  .health-inline-form input[inputmode='decimal'] {
+    width: 100%;
+  }
+  .health-summary-card {
+    padding: 18px;
+  }
   .health-compare {
     grid-template-columns: 1fr;
   }

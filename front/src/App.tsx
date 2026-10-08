@@ -4,6 +4,7 @@ import Icon from './components/Icon'
 import JobBanner from './components/JobBanner'
 import PawTrail from './components/PawTrail'
 import PetManager from './components/PetManager'
+import PetAvatar from './components/PetAvatar'
 import ZoneEditor from './components/ZoneEditor'
 import Tutorial from './components/Tutorial'
 import { updateTutorial } from './api'
@@ -22,6 +23,10 @@ import SettingsView from './views/SettingsView'
 export default function App() {
   const [view, setView] = useState<View>('dashboard')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [petsExpanded, setPetsExpanded] = useState(false)
+  const [showAllPets, setShowAllPets] = useState(false)
+  const [selectedPetId, setSelectedPetId] = useState<string | null>(null)
+  const [petNavigationVersion, setPetNavigationVersion] = useState(0)
   const [openingTutorial, setOpeningTutorial] = useState(false)
   const [tutorialError, setTutorialError] = useState('')
   const [tutorialDismissed, setTutorialDismissed] = useState(false)
@@ -56,18 +61,82 @@ export default function App() {
   }
 
   function navItems(items: View[]) {
-    return items.map(item => (
-      <button
-        key={item}
-        data-tutorial-view={item}
-        className={view === item ? 'active' : ''}
-        onClick={() => navigate(item)}
-      >
-        <Icon name={item === 'pets' ? petsIcon : item} />
-        {viewLabels[item]}
-        {item === 'reviews' && pendingReviews > 0 && <b>{pendingReviews}</b>}
-      </button>
-    ))
+    return items.map(item =>
+      item === 'pets' ? (
+        <div className="sidebar-pets" key={item}>
+          <button
+            type="button"
+            data-tutorial-view="pets"
+            className={view === 'pets' ? 'active' : ''}
+            aria-expanded={petsExpanded}
+            aria-controls="sidebar-pet-list"
+            onClick={() => setPetsExpanded(expanded => !expanded)}
+          >
+            <Icon name={petsIcon} />
+            Pets
+            <svg
+              className={`pets-chevron ${petsExpanded ? 'expanded' : ''}`}
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              aria-hidden="true"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          {petsExpanded && (
+            <div id="sidebar-pet-list" className="sidebar-pet-list">
+              {(showAllPets ? pets : pets.slice(0, 5)).map(pet => (
+                <button
+                  type="button"
+                  key={pet.id}
+                  className={view === 'pets' && selectedPetId === pet.id ? 'active' : ''}
+                  aria-current={view === 'pets' && selectedPetId === pet.id ? 'page' : undefined}
+                  onClick={() => {
+                    setSelectedPetId(pet.id)
+                    setPetNavigationVersion(version => version + 1)
+                    navigate('pets')
+                  }}
+                >
+                  <PetAvatar pet={pet} />
+                  <span className="sidebar-pet-name">{pet.name}</span>
+                </button>
+              ))}
+              {pets.length > 5 && (
+                <button type="button" className="sidebar-pets-action" onClick={() => setShowAllPets(all => !all)}>
+                  {showAllPets ? 'Ver menos' : `Ver mais (${pets.length - 5})`}
+                </button>
+              )}
+              <button
+                type="button"
+                className="sidebar-pets-action"
+                onClick={() => {
+                  setSelectedPetId(null)
+                  setPetNavigationVersion(version => version + 1)
+                  navigate('pets')
+                }}
+              >
+                {pets.length ? 'Gerenciar pets' : '+ Cadastrar pet'}
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <button
+          key={item}
+          data-tutorial-view={item}
+          className={view === item ? 'active' : ''}
+          onClick={() => navigate(item)}
+        >
+          <Icon name={item} />
+          {viewLabels[item]}
+          {item === 'reviews' && pendingReviews > 0 && <b>{pendingReviews}</b>}
+        </button>
+      ),
+    )
   }
 
   return (
@@ -150,7 +219,15 @@ export default function App() {
               <CamerasView cameras={cameras} zones={zones} refresh={refresh} reloadToken={reloadToken} />
             )}
             {view === 'zones' && <ZoneEditor cameras={cameras} zones={zones} refresh={refresh} />}
-            {view === 'pets' && <PetManager pets={pets} refresh={refresh} />}
+            {view === 'pets' && (
+              <PetManager
+                key={petNavigationVersion}
+                pets={pets}
+                refresh={refresh}
+                selectedPetId={selectedPetId}
+                onSelectPet={setSelectedPetId}
+              />
+            )}
             {view === 'history' && <HistoryView pets={pets} reloadToken={reloadToken} />}
             {view === 'reviews' && <ReviewsView pets={pets} reloadToken={reloadToken} refresh={refresh} />}
             {view === 'settings' && (

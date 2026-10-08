@@ -8,7 +8,12 @@ import Lightbox from './Lightbox'
 import PetHealth from './health/PetHealth'
 import { useToast } from './useToast'
 
-type Props = { pets: Pet[]; refresh: () => Promise<void> }
+type Props = {
+  pets: Pet[]
+  refresh: () => Promise<void>
+  selectedPetId: string | null
+  onSelectPet: (id: string | null) => void
+}
 type PetTab = 'health' | 'edit' | 'references'
 type PetForm = { name: string; species: PetSpecies; description: string; photo_data: string | null }
 type CropPosition = { x: number; y: number }
@@ -44,7 +49,7 @@ async function cropPhoto(sourceUrl: string, position: CropPosition): Promise<str
   return canvas.toDataURL('image/jpeg', CROP_QUALITY)
 }
 
-export default function PetManager({ pets, refresh }: Props) {
+export default function PetManager({ pets, refresh, selectedPetId, onSelectPet }: Props) {
   const { defaultSpecies, hasCats, hasDogs } = useHousehold()
   const showToast = useToast()
   const [form, setForm] = useState<PetForm>(() => emptyForm(defaultSpecies))
@@ -57,8 +62,9 @@ export default function PetManager({ pets, refresh }: Props) {
   const [photoInputKey, setPhotoInputKey] = useState(0)
   const [photoVersion, setPhotoVersion] = useState(0)
   const photoReadId = useRef(0)
-  const [detailsId, setDetailsId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<PetTab>('edit')
+  const detailsId = selectedPetId
+  const setDetailsId = onSelectPet
+  const [activeTab, setActiveTab] = useState<PetTab>(selectedPetId ? 'health' : 'edit')
   const [references, setReferences] = useState<PetReferenceImage[]>([])
   const [loadingReferences, setLoadingReferences] = useState(false)
   const [referenceError, setReferenceError] = useState('')
@@ -488,6 +494,7 @@ export default function PetManager({ pets, refresh }: Props) {
         <div>
           <p className="eyebrow">PERFIS LOCAIS</p>
           <h1>Pets</h1>
+          <p>Perfis, memórias e cuidados dos seus companheiros.</p>
         </div>
         <button className="primary" onClick={startCreate}>
           + Cadastrar pet

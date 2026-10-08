@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import Icon from '../Icon'
 import * as api from '../../api'
 import type { HealthSummary as Summary } from '../../api'
 import { doseKindLabels, examTypeLabels, foodTypeLabels } from '../../lib/labels'
@@ -30,7 +31,9 @@ export default function HealthSummary({ petId, petName, onOpen }: Props) {
       {data.reminders.length > 0 && (
         <section className="panel health-summary-card reminders">
           <header>
-            <h2>Doses chegando</h2>
+            <h2>
+              <Icon name="calendar" /> Próximas doses e pendências
+            </h2>
             <button className="text-button" onClick={() => onOpen('doses')}>
               Ver vacinas e remédios
             </button>
@@ -41,7 +44,8 @@ export default function HealthSummary({ petId, petName, onOpen }: Props) {
                 <div>
                   <strong>{reminder.name}</strong>
                   <span>
-                    {doseKindLabels[reminder.kind]} · {formatDay(reminder.next_due_on)} · {dueLabel(reminder.days_until_due)}
+                    {doseKindLabels[reminder.kind]} · {formatDay(reminder.next_due_on)} ·{' '}
+                    {dueLabel(reminder.days_until_due)}
                   </span>
                 </div>
               </li>
@@ -51,7 +55,9 @@ export default function HealthSummary({ petId, petName, onOpen }: Props) {
       )}
       <section className="panel health-summary-card">
         <header>
-          <h2>Alimentação atual</h2>
+          <h2>
+            <Icon name="food" /> Alimentação atual
+          </h2>
           <button className="text-button" onClick={() => onOpen('food')}>
             {data.current_food.length ? 'Ver histórico' : 'Registrar'}
           </button>
@@ -62,8 +68,8 @@ export default function HealthSummary({ petId, petName, onOpen }: Props) {
               <li key={food.id}>
                 <strong>{food.name}</strong>
                 <span>
-                  {[food.brand, foodTypeLabels[food.food_type], food.offered_amount].filter(Boolean).join(' · ')} · desde{' '}
-                  {formatDay(food.started_on)}
+                  {[food.brand, foodTypeLabels[food.food_type], food.offered_amount].filter(Boolean).join(' · ')} ·
+                  desde {formatDay(food.started_on)}
                 </span>
               </li>
             ))}
@@ -74,7 +80,9 @@ export default function HealthSummary({ petId, petName, onOpen }: Props) {
       </section>
       <section className="panel health-summary-card">
         <header>
-          <h2>Peso</h2>
+          <h2>
+            <Icon name="activity" /> Peso
+          </h2>
           <button className="text-button" onClick={() => onOpen('weight')}>
             {latest ? 'Ver evolução' : 'Registrar'}
           </button>
@@ -94,7 +102,9 @@ export default function HealthSummary({ petId, petName, onOpen }: Props) {
       </section>
       <section className="panel health-summary-card">
         <header>
-          <h2>Tratamentos em andamento</h2>
+          <h2>
+            <Icon name="shield" /> Tratamentos em andamento
+          </h2>
           <button className="text-button" onClick={() => onOpen('treatments')}>
             Ver tratamentos
           </button>
@@ -116,7 +126,9 @@ export default function HealthSummary({ petId, petName, onOpen }: Props) {
       </section>
       <section className="panel health-summary-card">
         <header>
-          <h2>Exames recentes</h2>
+          <h2>
+            <Icon name="reviews" /> Exames recentes
+          </h2>
           <button className="text-button" onClick={() => onOpen('exams')}>
             {data.recent_exams.length ? 'Ver todos' : 'Adicionar'}
           </button>
