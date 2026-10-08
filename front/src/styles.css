@@ -103,21 +103,6 @@ nav {
 .menu-backdrop {
   display: none;
 }
-.retention-toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 4px 0 14px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #43585b;
-  cursor: pointer;
-}
-.retention-toggle input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--primary);
-}
 nav button {
   position: relative;
   width: 100%;
@@ -400,9 +385,6 @@ h3 {
   padding: 0;
   margin: 0;
 }
-.household-options.compact {
-  margin: 12px 0 8px;
-}
 .household-option {
   display: grid;
   grid-template-columns: 46px minmax(0, 1fr);
@@ -472,6 +454,7 @@ h3 {
 }
 .household-option small {
   display: block;
+  font-weight: 400;
   font-size: 13px;
   color: var(--muted);
   line-height: 1.5;
@@ -1544,15 +1527,6 @@ h1 {
   background: #ecedf3;
   color: #717488;
 }
-.pet-selector .manage-pets {
-  margin-left: auto;
-  border: 0;
-  background: transparent;
-  padding: 8px;
-  color: #197668;
-  font-size: 13px;
-  font-weight: 650;
-}
 .metrics {
   gap: 16px;
   margin-bottom: 13px;
@@ -2265,9 +2239,6 @@ h1 {
   .pet-selector {
     flex-wrap: wrap;
   }
-  .pet-selector .manage-pets {
-    margin-left: 0;
-  }
 }
 @media (max-width: 620px) {
   .app-shell {
@@ -2403,9 +2374,6 @@ h1 {
     font-size: 13px;
     padding-right: 12px;
     gap: 7px;
-  }
-  .pet-selector .manage-pets {
-    padding-left: 4px;
   }
   .metrics {
     gap: 10px;
@@ -3311,8 +3279,7 @@ h1 {
   background: var(--primary);
 }
 .brand strong span,
-.text-button,
-.pet-selector .manage-pets {
+.text-button {
   color: var(--primary);
 }
 nav button.active {
@@ -3365,9 +3332,6 @@ nav button:hover {
 @media (max-width: 620px) {
   .pet-selector {
     flex-wrap: wrap;
-  }
-  .pet-selector .manage-pets {
-    margin-left: 0;
   }
   .dashboard-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -3748,23 +3712,17 @@ dialog.modal {
   background: #31443f;
   color: white;
 }
-.identification-species h2 {
-  font-size: 15px;
-  margin: 0 0 10px;
-}
-.identification-species + .identification-species {
-  margin-top: 6px;
-}
 .identification-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 12px;
 }
 .identification-summary article {
   display: grid;
   gap: 7px;
-  padding: 18px;
+  padding: 16px;
+  border-radius: 10px;
+  background: #f5f8f6;
 }
 .identification-summary span {
   font-size: 12px;
@@ -4781,88 +4739,111 @@ dialog.modal {
   width: auto;
   flex: 0 0 auto;
 }
-.settings-highlight {
+.settings-household {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.settings-household .household-option {
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: start;
+}
+/* Cada configuração é uma linha: texto à esquerda, controle à direita. */
+.settings-rows {
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+.settings-row {
   display: flex;
-  align-items: flex-start;
-  gap: 13px;
-  padding: 16px 18px;
-  border: 1px solid #dceae4;
-  border-radius: 12px;
-  background: #f3f8f5;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  width: 100%;
+  padding: 16px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: inherit;
+  text-align: left;
 }
-.settings-highlight svg {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  margin-top: 1px;
-  color: var(--primary);
+.settings-rows .settings-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
 }
-.settings-highlight strong {
+.settings-row strong,
+.settings-row small {
   display: block;
-  margin-bottom: 4px;
+}
+.settings-row strong {
   font-size: 14px;
   font-weight: 650;
   color: #2a4442;
 }
-.settings-highlight p {
-  margin: 0;
+.settings-row small {
+  margin-top: 4px;
   font-size: 13px;
-  line-height: 1.6;
+  font-weight: 400;
+  line-height: 1.5;
   color: var(--muted);
 }
-.retention-form {
-  display: grid;
-  gap: 11px;
-  justify-items: start;
+.settings-row > label {
+  font-size: inherit;
+  font-weight: inherit;
 }
-.retention-form > label {
-  font-size: 13px;
-  font-weight: 650;
-  color: #2a4442;
-}
-.retention-input {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.retention-input input {
-  width: 72px;
-  height: 36px;
+.settings-row select {
+  width: 150px;
   margin-top: 0;
   font-size: 13px;
+  flex: 0 0 auto;
 }
-.retention-input button {
-  min-height: 36px;
-  padding-inline: 15px;
-  font-size: 13px;
+.settings-switch {
+  cursor: pointer;
 }
-.retention-input span {
-  font-size: 13px;
-  color: var(--muted);
+.settings-switch:disabled {
+  cursor: progress;
 }
-.settings-about {
-  display: flex;
-  align-items: center;
+.settings-switch:hover strong {
+  color: var(--primary);
+}
+.settings-switch[aria-checked='true'] .switch-control {
+  background: var(--primary);
+}
+.settings-switch[aria-checked='true'] .switch-control i {
+  transform: translateX(18px);
+}
+.settings-info {
+  justify-content: flex-start;
   gap: 14px;
 }
-.settings-about strong {
-  display: block;
-  font-size: 15px;
-  font-weight: 650;
-  color: #2a4442;
+.settings-info-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  color: var(--primary);
+  background: var(--green-soft);
 }
-.settings-about span {
-  font-size: 13px;
-  color: var(--muted);
+.settings-info-icon svg {
+  width: 19px;
+  height: 19px;
 }
 
-@media (max-width: 720px) {
-  .retention-input {
-    width: 100%;
+@media (max-width: 900px) {
+  .settings-household {
+    grid-template-columns: minmax(0, 1fr);
   }
-  .retention-input button {
-    flex: 1 0 100%;
+  .settings-household .household-option {
+    align-items: center;
+  }
+}
+@media (max-width: 620px) {
+  .settings-row:not(.settings-switch):not(.settings-info) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .settings-row select {
+    width: 100%;
   }
 }
 

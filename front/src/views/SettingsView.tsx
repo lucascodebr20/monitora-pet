@@ -1,9 +1,10 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import * as api from '../api'
 import type { AppSettings, HouseholdSpecies, IdentificationLogs, PetSpecies } from '../api'
 import BrandMark from '../components/BrandMark'
 import HouseholdArt from '../components/HouseholdArt'
 import Icon from '../components/Icon'
+import { useToast } from '../components/useToast'
 import { errorMessage } from '../lib/errors'
 import { formatDateTime, identificationDecisionLabels } from '../lib/labels'
 import { householdOptions } from '../lib/household'
@@ -15,6 +16,7 @@ type Section = 'general' | 'identification'
 const CALIBRATION_INTERVAL = 10
 const DEFAULT_SIMILARITY = 0.72
 const DEFAULT_MARGIN = 0.08
+const RETENTION_PRESETS = [7, 15, 30, 60, 90, 180, 365]
 
 type Props = { version: string; settings: AppSettings | null; onSettings: (settings: AppSettings) => void }
 
@@ -25,66 +27,48 @@ export default function SettingsView({ version, settings: appSettings, onSetting
   const [logPage, setLogPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
-  const [retention, setRetention] = useState('7')
+  const showToast = useToast()
   const [savingRetention, setSavingRetention] = useState(false)
-  const [retentionMessage, setRetentionMessage] = useState('')
-  const [savingRetentionToggle, setSavingRetentionToggle] = useState(false)
   const [savingHousehold, setSavingHousehold] = useState(false)
-  const [householdMessage, setHouseholdMessage] = useState('')
 
-  const retentionDays = appSettings?.retention_days
+  const retentionEnabled = appSettings?.retention_enabled ?? false
+  const retentionDays = appSettings?.retention_days ?? 7
+  // Um prazo salvo fora das opções (versões antigas aceitavam qualquer número) continua na lista.
+  const retentionChoices = [...new Set([...RETENTION_PRESETS, retentionDays])].sort((a, b) => a - b)
 
-  useEffect(() => {
-    if (retentionDays !== undefined) setRetention(String(retentionDays))
-  }, [retentionDays])
-
-  async function saveRetention(event: FormEvent) {
-    event.preventDefault()
-    const days = Number(retention)
-    if (!Number.isInteger(days) || days < 1 || days > 365) {
-      setRetentionMessage('Informe um número de dias entre 1 e 365.')
-      return
-    }
-    setSavingRetention(true)
-    setRetentionMessage('')
+  async function saveSettings(payload: Partial<AppSettings>, success: string) {
     try {
-      const saved = await api.updateSettings({ retention_days: days })
-      onSettings(saved)
-      setRetentionMessage('Retenção salva.')
+      onSettings(await api.updateSettings(payload))
+      showToast(success, 'success')
     } catch (reason) {
-      setRetentionMessage(errorMessage(reason, 'Não foi possível salvar.'))
-    } finally {
-      setSavingRetention(false)
+      showToast(errorMessage(reason, 'Não foi possível salvar.'), 'error')
     }
   }
 
   async function toggleRetention(enabled: boolean) {
-    if (savingRetentionToggle || !appSettings) return
-    setSavingRetentionToggle(true)
-    setRetentionMessage('')
-    try {
-      onSettings(await api.updateSettings({ retention_enabled: enabled }))
-      setRetentionMessage(enabled ? 'Limpeza automática ativada.' : 'Limpeza automática desativada. Nada será apagado.')
-    } catch (reason) {
-      setRetentionMessage(errorMessage(reason, 'Não foi possível salvar.'))
-    } finally {
-      setSavingRetentionToggle(false)
-    }
+    if (savingRetention || !appSettings) return
+    setSavingRetention(true)
+    await saveSettings(
+      { retention_enabled: enabled },
+      enabled
+        ? `Mídia com mais de ${retentionDays} dias será apagada.`
+        : 'Limpeza automática desligada. Nada será apagado.',
+    )
+    setSavingRetention(false)
+  }
+
+  async function saveRetention(days: number) {
+    if (savingRetention) return
+    setSavingRetention(true)
+    await saveSettings({ retention_days: days }, `A mídia agora fica guardada por ${days} dias.`)
+    setSavingRetention(false)
   }
 
   async function saveHousehold(value: HouseholdSpecies) {
     if (savingHousehold || value === appSettings?.household_species) return
     setSavingHousehold(true)
-    setHouseholdMessage('')
-    try {
-      const saved = await api.updateSettings({ household_species: value })
-      onSettings(saved)
-      setHouseholdMessage('Preferência salva. A interface já foi adaptada.')
-    } catch (reason) {
-      setHouseholdMessage(errorMessage(reason, 'Não foi possível salvar.'))
-    } finally {
-      setSavingHousehold(false)
-    }
+    await saveSettings({ household_species: value }, 'Preferência salva. A interface já foi adaptada.')
+    setSavingHousehold(false)
   }
 
   const loadLogs = useCallback(async (page: number) => {
@@ -128,7 +112,7 @@ export default function SettingsView({ version, settings: appSettings, onSetting
         </button>
         <button className={section === 'identification' ? 'selected' : ''} onClick={() => setSection('identification')}>
           <Icon name="activity" />
-          Logs de identificação
+          Identificação
         </button>
       </nav>
       {section === 'general' ? (
@@ -140,7 +124,10 @@ export default function SettingsView({ version, settings: appSettings, onSetting
                 <p>Define as áreas, os nomes e o cadastro de pets que a interface mostra.</p>
               </div>
             </div>
-            <fieldset className="household-options compact" disabled={savingHousehold || appSettings === null}>
+            <fieldset
+              className="household-options settings-household"
+              disabled={savingHousehold || appSettings === null}
+            >
               <legend className="sr-only">Espécies da casa</legend>
               {householdOptions.map(option => (
                 <label
@@ -164,118 +151,117 @@ export default function SettingsView({ version, settings: appSettings, onSetting
                 </label>
               ))}
             </fieldset>
-            {householdMessage && (
-              <small className="muted" aria-live="polite">
-                {householdMessage}
-              </small>
-            )}
           </section>
           <section className="panel">
             <div className="panel-head">
               <div>
-                <h2>Privacidade</h2>
-                <p>Onde ficam as imagens, os vídeos e o histórico das visitas.</p>
+                <h2>Armazenamento</h2>
+                <p>Gravações, fotos e vídeos dos eventos ficam guardados neste computador.</p>
               </div>
             </div>
-            <div className="settings-highlight">
-              <Icon name="shield" />
-              <div>
-                <strong>Todos os dados são armazenados localmente</strong>
-                <p>Nada é enviado para servidores externos: tudo permanece neste computador.</p>
-              </div>
-            </div>
-          </section>
-          <section className="panel">
-            <div className="panel-head">
-              <div>
-                <h2>Limpeza automática de vídeos e imagens</h2>
-                <p>
-                  Por padrão nada é apagado. Se ativar, gravações baixadas, fotos e vídeos dos eventos mais antigos que
-                  o prazo são removidos automaticamente. O histórico das visitas é mantido, e registros favoritados com
-                  a estrela preservam a mídia.
-                </p>
-              </div>
-            </div>
-            <label className="retention-toggle">
-              <input
-                type="checkbox"
-                checked={appSettings?.retention_enabled ?? false}
-                disabled={savingRetentionToggle || appSettings === null}
-                onChange={event => void toggleRetention(event.target.checked)}
-              />
-              <span>Apagar mídia antiga automaticamente</span>
-            </label>
-            <form className="retention-form" onSubmit={saveRetention}>
-              <label htmlFor="retention-days">Guardar por</label>
-              <div className="retention-input">
-                <input
-                  id="retention-days"
-                  type="number"
-                  min="1"
-                  max="365"
-                  value={retention}
-                  onChange={event => setRetention(event.target.value)}
-                  disabled={!appSettings?.retention_enabled}
-                />
-                <span>dias</span>
-                <button
-                  className="secondary"
-                  type="submit"
-                  disabled={savingRetention || !appSettings?.retention_enabled}
-                >
-                  {savingRetention ? 'Salvando…' : 'Salvar'}
-                </button>
-              </div>
-              {retentionMessage && (
-                <small className="muted" aria-live="polite">
-                  {retentionMessage}
-                </small>
+            <div className="settings-rows">
+              <button
+                type="button"
+                className="settings-row settings-switch"
+                role="switch"
+                aria-checked={retentionEnabled}
+                disabled={savingRetention || appSettings === null}
+                onClick={() => void toggleRetention(!retentionEnabled)}
+              >
+                <span>
+                  <strong>Apagar mídia antiga automaticamente</strong>
+                  <small>
+                    {retentionEnabled
+                      ? 'Mídia mais antiga que o prazo abaixo é removida. O histórico das visitas é mantido.'
+                      : 'Desligado, nada é apagado. O histórico das visitas é sempre mantido.'}
+                  </small>
+                </span>
+                <span className="switch-control" aria-hidden="true">
+                  <i />
+                </span>
+              </button>
+              {retentionEnabled && (
+                <div className="settings-row">
+                  <label htmlFor="retention-days">
+                    <strong>Guardar mídia por</strong>
+                    <small>Registros favoritados com a estrela nunca perdem a mídia.</small>
+                  </label>
+                  <select
+                    id="retention-days"
+                    value={retentionDays}
+                    disabled={savingRetention}
+                    onChange={event => void saveRetention(Number(event.target.value))}
+                  >
+                    {retentionChoices.map(days => (
+                      <option key={days} value={days}>
+                        {days === 1 ? '1 dia' : `${days} dias`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
-            </form>
+            </div>
           </section>
           <section className="panel">
             <div className="panel-head">
               <div>
                 <h2>Sobre</h2>
-                <p>Versão instalada do aplicativo.</p>
               </div>
             </div>
-            <div className="settings-about">
-              <BrandMark size={44} />
-              <div>
-                <strong>Monitora Pet</strong>
-                <span>{version ? `Versão ${version}` : 'Versão indisponível'}</span>
+            <div className="settings-rows">
+              <div className="settings-row settings-info">
+                <span className="settings-info-icon">
+                  <Icon name="shield" />
+                </span>
+                <span>
+                  <strong>Seus dados ficam só neste computador</strong>
+                  <small>Imagens, vídeos e histórico não são enviados para servidores externos.</small>
+                </span>
+              </div>
+              <div className="settings-row settings-info">
+                <BrandMark size={36} />
+                <span>
+                  <strong>Monitora Pet</strong>
+                  <small>{version ? `Versão ${version}` : 'Versão indisponível'}</small>
+                </span>
               </div>
             </div>
           </section>
         </div>
       ) : (
-        <>
+        <div className="settings-panels">
           {speciesInHousehold.map(species => {
             const calibration = logs?.calibrations[species]
             const remaining = calibration?.interactions_until_calibration ?? CALIBRATION_INTERVAL
             return (
-              <div className="identification-species" key={species}>
-                <h2>{species === 'CAT' ? 'Gatos' : 'Cães'}</h2>
-                <section className="identification-summary">
-                  <article className="panel">
+              <section className="panel identification-species" key={species}>
+                <div className="panel-head">
+                  <div>
+                    <h2>{species === 'CAT' ? 'Gatos' : 'Cães'}</h2>
+                    <p>
+                      Critérios que a identificação usa hoje. Eles se ajustam a cada {CALIBRATION_INTERVAL} revisões.
+                    </p>
+                  </div>
+                </div>
+                <div className="identification-summary">
+                  <article>
                     <span>Similaridade mínima</span>
                     <strong>{Math.round((calibration?.minimum_similarity ?? DEFAULT_SIMILARITY) * 100)}%</strong>
                     <small>Confiança mínima para sugerir um pet.</small>
                   </article>
-                  <article className="panel">
+                  <article>
                     <span>Separação mínima</span>
                     <strong>{Math.round((calibration?.minimum_margin ?? DEFAULT_MARGIN) * 100)}%</strong>
                     <small>Diferença exigida para o segundo candidato.</small>
                   </article>
-                  <article className="panel">
+                  <article>
                     <span>Próxima calibração</span>
                     <strong>
                       {CALIBRATION_INTERVAL - remaining}/{CALIBRATION_INTERVAL}
                     </strong>
                     <small>{remaining} revisões confirmadas restantes.</small>
                   </article>
-                  <article className="panel">
+                  <article>
                     <span>Acerto após revisão</span>
                     <strong>
                       {calibration?.accuracy !== null && calibration?.accuracy !== undefined
@@ -288,8 +274,8 @@ export default function SettingsView({ version, settings: appSettings, onSetting
                         : 'Aguardando a primeira calibração.'}
                     </small>
                   </article>
-                </section>
-              </div>
+                </div>
+              </section>
             )
           })}
           <section className="panel identification-log-panel">
@@ -411,7 +397,7 @@ export default function SettingsView({ version, settings: appSettings, onSetting
               </div>
             )}
           </section>
-        </>
+        </div>
       )}
     </>
   )

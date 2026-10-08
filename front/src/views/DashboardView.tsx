@@ -83,9 +83,6 @@ export default function DashboardView({ data, pets, cameras, reloadToken, onNavi
             {p.name}
           </button>
         ))}
-        <button className="manage-pets" onClick={() => onNavigate('pets')}>
-          Gerenciar pets
-        </button>
       </div>
       {petId && (
         <p className="filter-note">
