@@ -14,8 +14,8 @@ import { useHousehold } from '../lib/useHousehold'
 type Section = 'general' | 'identification'
 
 const CALIBRATION_INTERVAL = 10
-const DEFAULT_SIMILARITY = 0.72
-const DEFAULT_MARGIN = 0.08
+const DEFAULT_SIMILARITY = 0.115
+const DEFAULT_MARGIN = 0.016
 const RETENTION_PRESETS = [7, 15, 30, 60, 90, 180, 365]
 
 type Props = { version: string; settings: AppSettings | null; onSettings: (settings: AppSettings) => void }

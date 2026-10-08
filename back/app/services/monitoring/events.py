@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from dataclasses import asdict
 
 import numpy as np
 
@@ -47,10 +48,13 @@ class EventRecorder:
         frame: np.ndarray,
         primary: Detection,
         now_utc: datetime,
+        ambiguity: str | None = None,
     ) -> str:
         snapshot_path = self.snapshot_store.save(self.snapshot_source.snapshot(camera_id, frame), now_utc)
         capture_path = self._capture(observations, frame, primary, now_utc)
         analysis = self._analyze(observations, capture_path, species)
+        if analysis and ambiguity:
+            analysis = self._ambiguous(analysis, ambiguity)
         match = analysis.match if analysis else None
         started_at = now_utc - timedelta(seconds=transition.elapsed_seconds)
         event_id = self.event_repository.create_detected_event(
@@ -69,8 +73,7 @@ class EventRecorder:
             recording_id=self.recording_id,
         )
         if self.pet_identifier and analysis:
-            self.pet_identifier.record_analysis(event_id, capture_path, species.value, analysis)
-        self._maybe_auto_review(event_id, species, analysis)
+            self.pet_identifier.record_analysis(event_id, capture_path, species.value, analysis, len(observations), "OPEN")
         return event_id
 
     def _maybe_auto_review(self, event_id: str, species: PetSpecies, analysis: PetAnalysis | None) -> None:
@@ -82,11 +85,44 @@ class EventRecorder:
         if self.auto_review.should_confirm(species.value, analysis.match.pet_id, analysis.match.confidence, margin):
             self.auto_review.confirm(event_id, analysis.match.pet_id)
 
-    def close(self, event_id: str, transition: PresenceTransition, now_utc: datetime) -> None:
+    def close(self, event_id: str, transition: PresenceTransition, now_utc: datetime,
+              observations: list[np.ndarray] | None = None, species: PetSpecies = PetSpecies.CAT,
+              ambiguity: str | None = None) -> None:
         ended_at = now_utc - timedelta(seconds=transition.seconds_since_seen)
+        analysis = self.refine(event_id, observations or [], species, now_utc, ambiguity)
         self.event_repository.finish_detected_event(
             event_id, ended_at.isoformat(), transition.elapsed_seconds, END_REASON_LEFT_ZONE
         )
+        if len(observations or []) >= 3 and not ambiguity and not self.event_repository.has_review(event_id):
+            self._maybe_auto_review(event_id, species, analysis)
+
+    def refine(self, event_id: str, observations: list[np.ndarray], species: PetSpecies,
+               now_utc: datetime, ambiguity: str | None = None) -> PetAnalysis | None:
+        if not self.pet_identifier or self.event_repository.has_review(event_id):
+            return
+        event = self.event_repository.get(event_id)
+        if not event:
+            return
+        capture_path = event.get("pet_capture_path")
+        previous_path = capture_path
+        analysis = self._analyze(observations, capture_path, species)
+        if not analysis:
+            return
+        if ambiguity:
+            analysis = self._ambiguous(analysis, ambiguity)
+        elif observations and self.pet_image_store:
+            best = max(observations, key=PetIdentifier.image_quality)
+            capture_path = self.pet_image_store.save_capture_image(best, now_utc)
+        updated = self.event_repository.finalize_identification(event_id, capture_path, asdict(analysis), len(observations))
+        unused_path = previous_path if updated else capture_path
+        if self.pet_image_store and unused_path and unused_path != (capture_path if updated else previous_path):
+            if not self.event_repository.capture_is_used(unused_path):
+                self.pet_image_store.resolve(unused_path).unlink(missing_ok=True)
+        return analysis if updated else None
+
+    @staticmethod
+    def _ambiguous(analysis: PetAnalysis, reason: str) -> PetAnalysis:
+        return PetAnalysis(None, reason, (), analysis.minimum_similarity, analysis.minimum_margin, analysis.method)
 
     def close_all_open(self, ended_at: datetime) -> None:
         self.event_repository.finish_open_events(ended_at.isoformat(), self.source)

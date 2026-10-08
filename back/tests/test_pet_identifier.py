@@ -178,3 +178,37 @@ class PetIdentifierTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EmbeddingScoringTests(unittest.TestCase):
+    @staticmethod
+    def unit(vector):
+        vector = np.asarray(vector, dtype=np.float32)
+        return vector / np.linalg.norm(vector)
+
+    def test_gallery_score_averages_the_nearest_references(self):
+        capture = self.unit([1, 0, 0])
+        references = [self.unit([1, 0, 0]), self.unit([1, 1, 0]), self.unit([1, 0, 1]), self.unit([0, 1, 0])]
+        expected = (1.0 + 2 * float(self.unit([1, 1, 0])[0])) / 3
+        self.assertAlmostEqual(PetIdentifier._gallery_score(capture, references), expected, places=5)
+
+    def test_whitening_separates_pets_by_what_differs_between_them(self):
+        rng = np.random.default_rng(7)
+        shared = rng.normal(size=16)
+        tom = [self.unit(shared * 5 + np.eye(16)[0] + rng.normal(scale=0.05, size=16)) for _ in range(6)]
+        ciri = [self.unit(shared * 5 + np.eye(16)[1] + rng.normal(scale=0.05, size=16)) for _ in range(6)]
+        identifier = PetIdentifier.__new__(PetIdentifier)
+        identifier._projection_cache = None
+        project = identifier._projection([tom, ciri])
+        query = project(self.unit(shared * 5 + np.eye(16)[0]))
+        tom_score = PetIdentifier._gallery_score(query, [project(item) for item in tom])
+        ciri_score = PetIdentifier._gallery_score(query, [project(item) for item in ciri])
+        raw_margin = (PetIdentifier._gallery_score(self.unit(shared * 5 + np.eye(16)[0]), tom)
+                      - PetIdentifier._gallery_score(self.unit(shared * 5 + np.eye(16)[0]), ciri))
+        self.assertGreater(tom_score - ciri_score, raw_margin)
+
+    def test_histogram_descriptors_are_not_projected(self):
+        identifier = PetIdentifier.__new__(PetIdentifier)
+        identifier._projection_cache = None
+        descriptor = (np.ones(3, np.float32), np.ones(3, np.float32), np.ones(6, np.float32))
+        self.assertIs(identifier._projection([[descriptor, descriptor]])(descriptor), descriptor)

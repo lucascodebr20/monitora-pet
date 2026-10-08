@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -40,6 +41,8 @@ class PetIdentifier:
     MINIMUM_MARGIN = MINIMUM_MARGIN
     MAX_REFERENCES_PER_PET = 32
     MINIMUM_REFERENCE_QUALITY = 0.22
+    NEAREST_REFERENCES = 3
+    WHITENING_SHRINKAGE = 0.9
 
     def __init__(self, repository: PetRepository, image_store: PetImageStore,
                  analysis_repository: PetIdentificationRepository | None = None,
@@ -49,6 +52,7 @@ class PetIdentifier:
         self.analysis_repository = analysis_repository
         self.calibrator = IdentificationCalibrator(analysis_repository)
         self._descriptor_cache: dict[str, tuple[int, int, Descriptor, float]] = {}
+        self._projection_cache: tuple[bytes, np.ndarray, np.ndarray] | None = None
         self._embedding_network = (
             cv2.dnn.readNetFromONNX(str(embedding_model_path))
             if embedding_model_path.is_file() else None
@@ -80,23 +84,36 @@ class PetIdentifier:
         if not descriptors:
             return PetAnalysis(None, "CAPTURE_UNAVAILABLE", (), minimum_similarity, minimum_margin, self.METHOD)
 
+        galleries = [(pet, references) for pet in self.repository.list_by_species(species)
+                     if (references := self._reference_descriptors(pet))]
+        project = self._projection([references for _, references in galleries])
+        descriptors = [project(descriptor) for descriptor in descriptors]
         candidates: list[dict] = []
-        for pet in self.repository.list_by_species(species):
-            references = self._reference_descriptors(pet)
-            if not references:
-                continue
+        frame_scores: list[list[float]] = [[] for _ in descriptors]
+        for pet, references in galleries:
+            references = [project(reference) for reference in references]
             observation_scores = [self._gallery_score(descriptor, references) for descriptor in descriptors]
+            for values, score in zip(frame_scores, observation_scores):
+                values.append(score)
             candidates.append({
                 "pet_id": str(pet["id"]),
-                "confidence": round(float(np.median(observation_scores)), 4),
+                "confidence": round(float(np.mean(observation_scores)), 4),
                 "reference_count": len(references),
             })
         if not candidates:
             return PetAnalysis(None, "NO_REFERENCES", (), minimum_similarity, minimum_margin, self.METHOD)
+        candidate_ids = [candidate["pet_id"] for candidate in candidates]
         candidates.sort(key=lambda item: item["confidence"], reverse=True)
         best = candidates[0]
         runner_up = candidates[1]["confidence"] if len(candidates) > 1 else 0.0
-        if best["confidence"] < minimum_similarity:
+        best_index = candidate_ids.index(best["pet_id"])
+        agreeing = sum(
+            values[best_index] > max((score for index, score in enumerate(values) if index != best_index), default=-1.0)
+            for values in frame_scores
+        )
+        if len(frame_scores) > 1 and agreeing / len(frame_scores) < 0.7:
+            decision, match = "INCONSISTENT_OBSERVATIONS", None
+        elif best["confidence"] < minimum_similarity:
             decision, match = "LOW_SIMILARITY", None
         elif best["confidence"] - runner_up < minimum_margin:
             decision, match = "AMBIGUOUS", None
@@ -106,7 +123,7 @@ class PetIdentifier:
         return PetAnalysis(match, decision, tuple(candidates), minimum_similarity, minimum_margin, self.METHOD)
 
     def record_analysis(self, event_id: str, capture_path: str | None, species: str,
-                        analysis: PetAnalysis) -> None:
+                        analysis: PetAnalysis, observation_count: int = 1, identification_stage: str = "FINAL") -> None:
         if not self.analysis_repository:
             return
         self.analysis_repository.create_analysis(
@@ -114,6 +131,7 @@ class PetIdentifier:
             analysis.match.pet_id if analysis.match else None,
             analysis.match.confidence if analysis.match else None,
             analysis.minimum_similarity, analysis.minimum_margin, list(analysis.scores), analysis.method,
+            observation_count, identification_stage,
         )
 
     def _empty_analysis(self, decision: str, species: str) -> PetAnalysis:
@@ -232,6 +250,34 @@ class PetIdentifier:
         distance = float(np.linalg.norm(first[2] - second[2]) / np.sqrt(len(first[2])))
         return float(np.clip(color * 0.50 + texture * 0.35 + max(0.0, 1.0 - distance) * 0.15, 0.0, 1.0))
 
+    def _projection(self, galleries: list[list[Descriptor]]):
+        embeddings = [item for references in galleries for item in references if isinstance(item, np.ndarray)]
+        if len(embeddings) < 2 or len(embeddings) != sum(len(references) for references in galleries):
+            return lambda descriptor: descriptor
+        stacked = np.stack(embeddings).astype(np.float64)
+        key = hashlib.sha1(stacked.tobytes() + bytes(len(references) for references in galleries)).digest()
+        if not self._projection_cache or self._projection_cache[0] != key:
+            mean = stacked.mean(axis=0)
+            within = np.concatenate([np.stack(references) - np.mean(references, axis=0) for references in galleries])
+            covariance = within.T @ within / len(within)
+            shrinkage = self.WHITENING_SHRINKAGE
+            covariance = ((1 - shrinkage) * covariance
+                          + shrinkage * np.trace(covariance) / len(covariance) * np.eye(len(covariance)))
+            values, vectors = np.linalg.eigh(covariance)
+            self._projection_cache = (key, mean, vectors / np.sqrt(np.maximum(values, 1e-12)))
+        _, mean, whitening = self._projection_cache
+
+        def project(descriptor: Descriptor) -> Descriptor:
+            if not isinstance(descriptor, np.ndarray):
+                return descriptor
+            projected = (descriptor - mean) @ whitening
+            return (projected / max(float(np.linalg.norm(projected)), 1e-8)).astype(np.float32)
+        return project
+
     @classmethod
     def _gallery_score(cls, capture: Descriptor, references: list[Descriptor]) -> float:
+        if isinstance(capture, np.ndarray) and all(isinstance(item, np.ndarray) for item in references):
+            similarities = np.clip(np.stack(references) @ capture, 0.0, 1.0)
+            nearest = np.sort(similarities)[-cls.NEAREST_REFERENCES:]
+            return float(nearest.mean())
         return max(cls._similarity(capture, item) for item in references)

@@ -8,8 +8,8 @@ from app.infra.database.database import Database
 
 
 class PetIdentificationRepository:
-    DEFAULT_MINIMUM_SIMILARITY = 0.731
-    DEFAULT_MINIMUM_MARGIN = 0.064
+    DEFAULT_MINIMUM_SIMILARITY = 0.115
+    DEFAULT_MINIMUM_MARGIN = 0.016
 
     def __init__(self, database: Database) -> None:
         self.database = database
@@ -44,6 +44,8 @@ class PetIdentificationRepository:
         minimum_margin: float,
         scores: list[dict[str, Any]],
         method: str = "appearance-histogram-v1",
+        observation_count: int = 1,
+        identification_stage: str = "FINAL",
     ) -> None:
         analysis_id = str(uuid4())
         with self.database.connect() as connection:
@@ -65,6 +67,11 @@ class PetIdentificationRepository:
                     (analysis_id, score["pet_id"], score["confidence"], score["reference_count"], rank)
                     for rank, score in enumerate(scores, start=1)
                 ],
+            )
+            connection.execute(
+                """UPDATE pet_identification_analyses SET observation_count = ?, identification_stage = ?,
+                   initial_selected_pet_id = ?, initial_decision = ?, initial_confidence = ? WHERE id = ?""",
+                (observation_count, identification_stage, selected_pet_id, decision, selected_confidence, analysis_id),
             )
 
     def mark_review(self, event_id: str, pet_id: str) -> str | None:

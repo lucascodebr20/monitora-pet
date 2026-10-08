@@ -140,7 +140,7 @@ class FakePetIdentifier:
     def analyze_images(self, images, species):
         return self.analyze(None, species)
 
-    def record_analysis(self, event_id, capture_path, species, analysis):
+    def record_analysis(self, event_id, capture_path, species, analysis, observation_count=1, identification_stage="FINAL"):
         return None
 
 

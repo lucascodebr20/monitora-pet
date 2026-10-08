@@ -21,3 +21,4 @@ deploy.local.py
 *.log
 .env
 .env.*
+back/tools

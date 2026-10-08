@@ -150,6 +150,7 @@ class RecordingAnalyzer:
         if last_time is not None:
             self._settle(analyzer, camera_id, last_time + timedelta(seconds=settle_seconds))
             tracker.finalize_clips(last_time)
+            tracker.finalize_identifications(last_time)
         return result
 
     def _analyze_recording(

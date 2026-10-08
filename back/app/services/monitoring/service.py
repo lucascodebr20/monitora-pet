@@ -76,6 +76,7 @@ class MonitoringService:
         self._thread = None
         stopped_at = self.clock.now().utc
         self.tracker.finalize_clips(stopped_at)
+        self.tracker.finalize_identifications(stopped_at)
         self.events.close_all_open(stopped_at)
         if self.coverage:
             self.coverage.close_all()
