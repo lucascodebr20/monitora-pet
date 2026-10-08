@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import * as api from '../api'
-import Icon from '../components/Icon'
+import HouseholdArt from '../components/HouseholdArt'
+import PawTrail from '../components/PawTrail'
 import { errorMessage } from '../lib/errors'
 import { Household, householdOptions } from '../lib/household'
 
@@ -10,6 +11,9 @@ export default function OnboardingView({ onDone }: Props) {
   const [choice, setChoice] = useState<Household | ''>('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const chosen = householdOptions.find(option => option.value === choice)
+  // Antes da escolha as trilhas alternam gato e cachorro.
+  const trail = choice || 'BOTH'
 
   async function save() {
     if (!choice || saving) return
@@ -25,20 +29,23 @@ export default function OnboardingView({ onDone }: Props) {
   }
 
   return (
-    <main className="onboarding">
-      <section className="onboarding-card">
-        <span className="brand-mark">
-          <Icon name="pets" />
-        </span>
-        <p className="eyebrow">PRIMEIRO ACESSO</p>
-        <h1>Quem mora com você?</h1>
+    <div className="modal-backdrop onboarding" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+      <section className="modal onboarding-card">
+        {/* A key remonta as trilhas a cada escolha, e as pegadas andam de novo. */}
+        <PawTrail key={`top-${trail}`} household={trail} className="onboarding-trail top" steps={5} />
+        <PawTrail key={`bottom-${trail}`} household={trail} className="onboarding-trail bottom" steps={4} />
+        <h1 id="onboarding-title">Quem mora com você?</h1>
         <p className="onboarding-intro">
           O VigiaPet adapta as áreas monitoradas, os nomes e o cadastro dos pets ao que faz sentido para a sua casa. Dá
           para mudar depois em Configurações.
         </p>
         <div className="household-options" role="radiogroup" aria-label="Espécies da casa">
           {householdOptions.map(option => (
-            <label className={`household-option ${choice === option.value ? 'chosen' : ''}`} key={option.value}>
+            <label
+              className={`household-option ${choice === option.value ? 'chosen' : ''}`}
+              data-household={option.value}
+              key={option.value}
+            >
               <input
                 type="radio"
                 name="household"
@@ -47,8 +54,8 @@ export default function OnboardingView({ onDone }: Props) {
                 disabled={saving}
                 onChange={() => setChoice(option.value)}
               />
-              <span className="household-emoji" aria-hidden="true">
-                {option.emoji}
+              <span className="household-art">
+                <HouseholdArt household={option.value} size={40} />
               </span>
               <span>
                 <strong>{option.title}</strong>
@@ -57,6 +64,9 @@ export default function OnboardingView({ onDone }: Props) {
             </label>
           ))}
         </div>
+        <p className="onboarding-greeting" aria-live="polite">
+          {chosen && <span key={chosen.value}>{chosen.greeting}</span>}
+        </p>
         {error && (
           <p className="form-error" role="alert">
             {error}
@@ -66,6 +76,6 @@ export default function OnboardingView({ onDone }: Props) {
           {saving ? 'Salvando…' : 'Começar'}
         </button>
       </section>
-    </main>
+    </div>
   )
 }

@@ -4,10 +4,25 @@ import type { IconName } from '../components/Icon'
 
 export type Household = HouseholdSpecies
 
-export const householdOptions: { value: Household; title: string; description: string; emoji: string }[] = [
-  { value: 'CAT', title: 'Gatos', description: 'Áreas de água, comida e caixa de areia.', emoji: '🐈' },
-  { value: 'DOG', title: 'Cachorros', description: 'Áreas de água, comida e banheiro.', emoji: '🐕' },
-  { value: 'BOTH', title: 'Gatos e cachorros', description: 'Todas as áreas e espécies disponíveis.', emoji: '🐾' },
+export const householdOptions: { value: Household; title: string; description: string; greeting: string }[] = [
+  {
+    value: 'CAT',
+    title: 'Gatos',
+    description: 'Áreas de água, comida e caixa de areia.',
+    greeting: 'Miau! Vamos ficar de olho nos bichanos.',
+  },
+  {
+    value: 'DOG',
+    title: 'Cachorros',
+    description: 'Áreas de água, comida e banheiro.',
+    greeting: 'Au au! Vamos ficar de olho nos cachorros.',
+  },
+  {
+    value: 'BOTH',
+    title: 'Gatos e cachorros',
+    description: 'Todas as áreas e espécies disponíveis.',
+    greeting: 'Miau e au au! Casa cheia, cuidado em dobro.',
+  },
 ]
 
 export const householdLabels: Record<Household, string> = {

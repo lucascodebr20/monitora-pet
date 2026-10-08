@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react'
 import * as api from '../api'
 import type { AppSettings, HouseholdSpecies, IdentificationLogs, PetSpecies } from '../api'
 import BrandMark from '../components/BrandMark'
+import HouseholdArt from '../components/HouseholdArt'
 import Icon from '../components/Icon'
 import { errorMessage } from '../lib/errors'
 import { formatDateTime, identificationDecisionLabels } from '../lib/labels'
@@ -153,8 +154,8 @@ export default function SettingsView({ version, settings: appSettings, onSetting
                     checked={appSettings?.household_species === option.value}
                     onChange={() => void saveHousehold(option.value)}
                   />
-                  <span className="household-emoji" aria-hidden="true">
-                    {option.emoji}
+                  <span className="household-art">
+                    <HouseholdArt household={option.value} size={30} />
                   </span>
                   <span>
                     <strong>{option.title}</strong>

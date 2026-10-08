@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import BrandMark from './components/BrandMark'
 import Icon from './components/Icon'
 import JobBanner from './components/JobBanner'
+import PawTrail from './components/PawTrail'
 import PetManager from './components/PetManager'
 import ZoneEditor from './components/ZoneEditor'
 import { useAppData } from './data/useAppData'
@@ -25,6 +26,9 @@ export default function App() {
   const household = settings?.household_species ?? null
   const householdView = useMemo(() => describeHousehold(household ?? 'BOTH'), [household])
 
+  // O item "Pets" do menu mostra o pet da casa: gato, cachorro ou a pata para os dois.
+  const petsIcon = household === 'CAT' ? 'cat' : household === 'DOG' ? 'dog' : 'pets'
+
   function navigate(next: View) {
     setView(next)
     setMenuOpen(false)
@@ -33,15 +37,12 @@ export default function App() {
   function navItems(items: View[]) {
     return items.map(item => (
       <button key={item} className={view === item ? 'active' : ''} onClick={() => navigate(item)}>
-        <Icon name={item} />
+        <Icon name={item === 'pets' ? petsIcon : item} />
         {viewLabels[item]}
         {item === 'reviews' && pendingReviews > 0 && <b>{pendingReviews}</b>}
       </button>
     ))
   }
-
-  if (settings && !household)
-    return <OnboardingView onDone={chosen => applySettings({ ...settings, household_species: chosen })} />
 
   return (
     <HouseholdContext.Provider value={householdView}>
@@ -78,8 +79,15 @@ export default function App() {
             <nav>{navItems(primaryViews)}</nav>
             <p className="nav-caption second">MONITORAMENTO</p>
             <nav>{navItems(monitoringViews)}</nav>
+            <PawTrail
+              key={`side-${householdView.household}`}
+              household={householdView.household}
+              className="sidebar-trail"
+              steps={4}
+            />
           </div>
         </aside>
+        <PawTrail key={`page-${householdView.household}`} household={householdView.household} className="page-trail" />
         {menuOpen && <div className="menu-backdrop" onClick={closeMenu} aria-hidden="true" />}
         <div className="main-shell">
           <header className="topbar">
@@ -118,6 +126,9 @@ export default function App() {
           </footer>
         </div>
       </div>
+      {settings && !household && (
+        <OnboardingView onDone={chosen => applySettings({ ...settings, household_species: chosen })} />
+      )}
     </HouseholdContext.Provider>
   )
 }

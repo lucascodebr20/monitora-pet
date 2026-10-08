@@ -23,6 +23,10 @@ body {
   min-width: 320px;
   min-height: 100vh;
 }
+/* Com um modal aberto, só ele rola: evita uma segunda barra de rolagem da página por trás. */
+body:has(.modal-backdrop) {
+  overflow: hidden;
+}
 button,
 input,
 select {
@@ -336,25 +340,17 @@ h3 {
   font-size: 12px;
   line-height: 1.5;
 }
-.onboarding {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 32px 16px;
-  background: var(--green-soft);
+/* Fica acima da barra lateral, que no celular é sticky com z-index 40. */
+.modal-backdrop.onboarding {
+  z-index: 50;
 }
-.onboarding-card {
-  width: min(560px, 100%);
-  background: var(--paper);
+.modal.onboarding-card {
+  width: min(760px, 100%);
   border-radius: 20px;
-  padding: 36px 32px;
-  box-shadow: 0 18px 50px rgba(64, 84, 56, 0.12);
-}
-.onboarding-card .brand-mark {
-  margin-bottom: 18px;
+  padding: 24px;
 }
 .onboarding-card h1 {
-  margin: 6px 0 10px;
+  margin: 0 0 10px;
   font-size: 28px;
 }
 .onboarding-intro {
@@ -364,6 +360,38 @@ h3 {
 }
 .onboarding-card .primary {
   margin-top: 20px;
+}
+/* No primeiro acesso as três opções ficam lado a lado, como cards verticais. */
+.onboarding-card .household-options {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.onboarding-card .household-option {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  align-content: start;
+  text-align: center;
+  padding: 20px 14px;
+}
+@media (max-width: 620px) {
+  .onboarding-card .household-options {
+    grid-template-columns: 1fr;
+  }
+  .onboarding-card .household-option {
+    grid-template-columns: 46px minmax(0, 1fr);
+    justify-items: stretch;
+    text-align: left;
+    padding: 14px 16px;
+  }
+  .onboarding-card .household-art {
+    width: 46px;
+    height: 46px;
+    margin-bottom: 0;
+    border-radius: 12px 12px 12px 4px;
+  }
+  .onboarding-card .household-art svg {
+    width: 30px;
+    height: 30px;
+  }
 }
 .household-options {
   display: grid;
@@ -403,14 +431,39 @@ h3 {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
-.household-emoji {
+.household-art {
   display: grid;
   place-items: center;
   width: 46px;
   height: 46px;
-  border-radius: 12px;
-  background: #f3f6f2;
-  font-size: 24px;
+  border-radius: 12px 12px 12px 4px;
+  color: var(--primary);
+  background: var(--green-soft);
+  transition:
+    color 0.16s ease,
+    background-color 0.16s ease;
+}
+.household-art .art-detail {
+  fill: #fff;
+}
+.household-art .art-detail-stroke {
+  stroke: #fff;
+}
+.household-option.chosen .household-art {
+  color: #fff;
+  background: var(--primary);
+}
+.household-option.chosen .art-detail {
+  fill: var(--primary);
+}
+.household-option.chosen .art-detail-stroke {
+  stroke: var(--primary);
+}
+.onboarding-card .household-art {
+  width: 68px;
+  height: 68px;
+  margin-bottom: 4px;
+  border-radius: 18px 18px 18px 6px;
 }
 .household-option strong {
   display: block;
@@ -2282,8 +2335,12 @@ h1 {
     border-bottom: 1px solid var(--line);
     box-shadow: 0 18px 30px rgba(20, 40, 35, 0.12);
   }
+  /* Aberto, o menu ocupa toda a altura abaixo do cabeçalho (44px do botão + 20px de padding + 1px de borda). */
   .sidebar-menu.open {
     display: block;
+    height: calc(100dvh - 65px);
+    overflow-y: auto;
+    box-shadow: none;
   }
   .sidebar .nav-caption {
     margin: 14px 12px 8px;
@@ -4851,5 +4908,164 @@ dialog.modal {
   }
   .zone-canvas.disabled {
     min-height: 0;
+  }
+}
+
+/* Patinhas: trilhas decorativas e animações que seguem a casa escolhida. */
+.paw-trail {
+  position: absolute;
+  pointer-events: none;
+  fill: var(--primary);
+  overflow: visible;
+}
+.paw-step {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: paw-step 0.45s ease-out both;
+  animation-delay: calc(var(--step) * 0.14s + 0.1s);
+}
+@keyframes paw-step {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.sidebar-trail {
+  right: 10px;
+  bottom: 22px;
+  width: 104px;
+  opacity: 0.13;
+}
+.page-trail {
+  position: fixed;
+  z-index: -1;
+  right: 18px;
+  bottom: 14px;
+  width: 150px;
+  opacity: 0.09;
+}
+.modal.onboarding-card {
+  position: relative;
+  overflow: hidden;
+}
+.onboarding-card > :not(.paw-trail) {
+  position: relative;
+}
+.onboarding-trail {
+  width: 120px;
+  opacity: 0.12;
+}
+.onboarding-trail.top {
+  top: -22px;
+  right: -6px;
+}
+.onboarding-trail.bottom {
+  left: -24px;
+  bottom: -40px;
+  width: 104px;
+  transform: rotate(180deg);
+}
+.onboarding-greeting {
+  min-height: 21px;
+  margin: 16px 0 0;
+  text-align: center;
+  color: var(--green-dark);
+  font-size: 14px;
+  font-weight: 600;
+}
+.onboarding-greeting span {
+  display: inline-block;
+  animation: greeting-in 0.35s ease-out both;
+}
+@keyframes greeting-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.onboarding-card .primary {
+  margin-top: 12px;
+}
+
+/* Cards da escolha: sobem um pouco no hover e o pet "reage" ao ser escolhido. */
+.onboarding-card .household-option {
+  transition:
+    transform 0.18s ease,
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    box-shadow 0.18s ease;
+}
+.onboarding-card .household-option:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(64, 84, 56, 0.1);
+}
+.household-art svg {
+  transform-origin: 50% 80%;
+}
+.household-option.chosen[data-household='CAT'] .household-art svg {
+  animation: cat-tilt 0.9s ease-in-out;
+}
+.household-option.chosen[data-household='DOG'] .household-art svg {
+  animation: dog-wag 0.8s ease-in-out;
+}
+.household-option.chosen[data-household='BOTH'] .household-art svg {
+  animation: paws-hop 0.7s ease-out;
+}
+@keyframes cat-tilt {
+  30% {
+    transform: rotate(-12deg);
+  }
+  60% {
+    transform: rotate(8deg);
+  }
+}
+@keyframes dog-wag {
+  15%,
+  45%,
+  75% {
+    transform: rotate(-8deg) translateY(-2px);
+  }
+  30%,
+  60%,
+  90% {
+    transform: rotate(8deg) translateY(-2px);
+  }
+}
+@keyframes paws-hop {
+  25% {
+    transform: translateY(-7px) scale(1.06);
+  }
+  50% {
+    transform: translateY(0) scale(0.97);
+  }
+  70% {
+    transform: translateY(-3px);
+  }
+}
+
+@media (max-width: 620px) {
+  .onboarding-trail.bottom {
+    display: none;
+  }
+  .page-trail {
+    width: 110px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .paw-step,
+  .onboarding-greeting span,
+  .household-option.chosen .household-art svg {
+    animation: none;
+  }
+  .onboarding-card .household-option:hover {
+    transform: none;
   }
 }
