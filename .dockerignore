@@ -11,8 +11,12 @@ back/__pycache__
 back/tests
 front/node_modules
 front/dist
+front/src-tauri
+desktop
+landing
+.tools
 deploy.local.py
-vigiapet-deploy.tar.gz
+*.tar.gz
 *.pyc
 *.log
 .env
