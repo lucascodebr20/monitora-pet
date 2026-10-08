@@ -16,6 +16,10 @@ from app.services.monitoring.clips import ClipBuffer, ClipRecorder
 from app.services.monitoring.events import EventRecorder
 from app.services.monitoring.observations import PetObservations
 
+MULTIPLE_PET_FRAMES = 3
+TRACK_JUMP_DISTANCE = 0.35
+
+
 @dataclass
 class ZoneRuntime:
     machine: ZonePresenceMachine = field(default_factory=ZonePresenceMachine)
@@ -23,6 +27,7 @@ class ZoneRuntime:
     species: PetSpecies = PetSpecies.CAT
     observations: PetObservations = field(default_factory=PetObservations)
     last_detection: Detection | None = None
+    multiple_pet_frames: int = 0
     ambiguity: str | None = None
 
     @property
@@ -33,6 +38,7 @@ class ZoneRuntime:
         self.clip.reset()
         self.observations.clear()
         self.last_detection = None
+        self.multiple_pet_frames = 0
         self.ambiguity = None
 
     def idle(self) -> bool:
@@ -153,13 +159,12 @@ class ZoneTracker:
             return
         primary = max(inside, key=lambda detection: detection.confidence)
         if len(inside) > 1:
-            runtime.ambiguity = "MULTIPLE_PETS"
-        elif runtime.machine.state == PresenceState.COOLDOWN:
-            runtime.ambiguity = "UNSTABLE_TRACK"
+            runtime.multiple_pet_frames += 1
+            if runtime.multiple_pet_frames >= MULTIPLE_PET_FRAMES:
+                runtime.ambiguity = "MULTIPLE_PETS"
         elif runtime.last_detection is not None:
             previous = runtime.last_detection
-            distance = float(np.hypot(primary.centroid[0] - previous.centroid[0], primary.centroid[1] - previous.centroid[1]))
-            if primary.species != previous.species or distance > 0.35:
+            if np.hypot(primary.centroid[0] - previous.centroid[0], primary.centroid[1] - previous.centroid[1]) > TRACK_JUMP_DISTANCE:
                 runtime.ambiguity = "UNSTABLE_TRACK"
         runtime.last_detection = primary
         if runtime.ambiguity:

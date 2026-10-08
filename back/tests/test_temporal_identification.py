@@ -138,21 +138,31 @@ class TemporalIdentificationTests(unittest.TestCase):
         self.observe(0)
         self.observe(1)
         event = self.events.list()[0]
-        self.observe(2, detections=[self.detection, Detection(0.4, 0.4, 0.6, 0.6, 0.9)])
+        for seconds in (2, 2.5, 3):
+            self.observe(seconds, detections=[self.detection, Detection(0.4, 0.4, 0.6, 0.6, 0.9)])
         self.finish()
         self.assertIsNone(self.events.find(event['id'])['pet_id'])
         row = self.database.one('SELECT * FROM pet_identification_analyses WHERE event_id = ?', (event['id'],))
         self.assertEqual(row['decision'], 'MULTIPLE_PETS')
         self.auto_review.confirm.assert_not_called()
 
-    def test_return_after_gap_does_not_mix_two_visits_into_one_identity(self):
+    def test_single_frame_glitches_do_not_block_identification(self):
+        self.observe(0, 50)
+        self.observe(1, 70)
+        event = self.events.list()[0]
+        self.observe(2, 90, detections=[self.detection, Detection(0.35, 0.35, 0.65, 0.65, 0.5, PetSpecies.DOG)])
+        self.observe(3, 110, detections=[Detection(0.3, 0.3, 0.7, 0.7, 0.9, PetSpecies.DOG)])
+        self.finish()
+        row = self.database.one('SELECT decision, selected_pet_id FROM pet_identification_analyses WHERE event_id = ?', (event['id'],))
+        self.assertEqual(row['decision'], 'MATCHED')
+        self.assertEqual(row['selected_pet_id'], self.ciri['id'])
+
+    def test_jump_to_another_spot_marks_track_unstable(self):
         self.observe(0)
         self.observe(1)
         event = self.events.list()[0]
-        self.observe(2, detections=[])
-        self.observe(3, 110)
-        self.observe(4, detections=[])
-        self.observe(6, detections=[])
+        self.observe(2, detections=[Detection(0.15, 0.15, 0.29, 0.29, 0.9)])
+        self.finish()
         self.assertIsNone(self.events.find(event['id'])['pet_id'])
         row = self.database.one('SELECT decision FROM pet_identification_analyses WHERE event_id = ?', (event['id'],))
         self.assertEqual(row['decision'], 'UNSTABLE_TRACK')
