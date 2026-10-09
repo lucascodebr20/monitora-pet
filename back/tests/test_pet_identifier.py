@@ -123,6 +123,46 @@ class PetIdentifierTests(unittest.TestCase):
             self.assertEqual(analysis.match.pet_id, "rex")
             self.assertEqual([score["pet_id"] for score in analysis.scores], ["rex"])
 
+    def pair_identifier(self, references_per_pet):
+        generator = np.random.default_rng(7)
+        vectors = {}
+        references = {}
+        for pet_id, side in (("tom", 1.0), ("ciri", -1.0)):
+            references[pet_id] = []
+            for index in range(references_per_pet):
+                vector = generator.normal(0.0, 0.3, 8)
+                vector[0] = side + generator.normal(0.0, 0.1)
+                path = f"{pet_id}-{index}.jpg"
+                vectors[path] = vector / np.linalg.norm(vector)
+                references[pet_id].append({"image_path": path})
+        capture = generator.normal(0.0, 0.3, 8)
+        capture[0] = 0.8
+        identifier = PetIdentifier(FakePetRepository([
+            {"id": "tom", "species": "CAT"}, {"id": "ciri", "species": "CAT"},
+        ], references), FakeImageStore(Path(".")))
+        identifier._descriptor = lambda image: capture / np.linalg.norm(capture)
+        identifier._descriptor_for_path = lambda path: (vectors[path], 1.0) if path in vectors else None
+        identifier._gallery_score = lambda descriptor, items: 0.9
+        return identifier
+
+    def test_pair_classifier_decides_between_two_similar_pets(self):
+        analysis = self.pair_identifier(PetIdentifier.PAIR_MINIMUM_REFERENCES).analyze_images(
+            [np.zeros((4, 4, 3), dtype=np.uint8)], "CAT")
+        self.assertEqual(analysis.decision, "MATCHED")
+        self.assertEqual(analysis.match.pet_id, "tom")
+
+    def test_pair_classifier_waits_for_enough_reviewed_references(self):
+        analysis = self.pair_identifier(PetIdentifier.PAIR_MINIMUM_REFERENCES - 1).analyze_images(
+            [np.zeros((4, 4, 3), dtype=np.uint8)], "CAT")
+        self.assertEqual(analysis.decision, "AMBIGUOUS")
+        self.assertIsNone(analysis.match)
+
+    def test_pair_classifier_still_requires_minimum_similarity(self):
+        identifier = self.pair_identifier(PetIdentifier.PAIR_MINIMUM_REFERENCES)
+        identifier._gallery_score = lambda descriptor, items: 0.2
+        analysis = identifier.analyze_images([np.zeros((4, 4, 3), dtype=np.uint8)], "CAT")
+        self.assertEqual(analysis.decision, "LOW_SIMILARITY")
+
     def test_unknown_species_is_not_analyzed(self):
         repository = FakePetRepository([])
         analysis = PetIdentifier(repository, FakeImageStore(Path("."))).analyze("capture.jpg", "BIRD")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.infra.repositories.pet_identification_repository import PetIdentificationRepository
 
-METHOD = "mobilenet-embedding-v2"
+METHOD = "mobilenet-pair-v2.1"
 MINIMUM_SIMILARITY = 0.731
 MINIMUM_MARGIN = 0.064
 CALIBRATION_INTERVAL = 10
@@ -52,7 +52,7 @@ class IdentificationCalibrator:
             )
             if not scores:
                 continue
-            is_correct = scores[0][0] == sample["reviewed_pet_id"]
+            is_correct = (sample.get("selected_pet_id") or scores[0][0]) == sample["reviewed_pet_id"]
             top1_correct += int(is_correct)
             runner_up = scores[1][1] if len(scores) > 1 else 0.0
             samples.append((scores[0][1], scores[0][1] - runner_up, is_correct))

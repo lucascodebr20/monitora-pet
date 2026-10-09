@@ -34,12 +34,36 @@ class PetAnalysis:
     method: str = METHOD
 
 
+@dataclass(frozen=True)
+class PairClassifier:
+    mean: np.ndarray
+    scale: np.ndarray
+    weights: np.ndarray
+    offset: float
+
+    @classmethod
+    def fit(cls, first: list[np.ndarray], second: list[np.ndarray], regularization: float) -> PairClassifier:
+        features = np.array(first + second, dtype=np.float64)
+        target = np.array([1.0] * len(first) + [-1.0] * len(second))
+        mean = features.mean(axis=0)
+        scale = (features.std(axis=0) + 1e-6) * np.sqrt(features.shape[1])
+        features = (features - mean) / scale
+        offset = float(target.mean())
+        dual = np.linalg.solve(features @ features.T + regularization * np.eye(len(features)), target - offset)
+        return cls(mean, scale, features.T @ dual, offset)
+
+    def score(self, descriptor: np.ndarray) -> float:
+        return float(((descriptor - self.mean) / self.scale) @ self.weights + self.offset)
+
+
 class PetIdentifier:
     METHOD = METHOD
     MINIMUM_SIMILARITY = MINIMUM_SIMILARITY
     MINIMUM_MARGIN = MINIMUM_MARGIN
     MAX_REFERENCES_PER_PET = 32
     MINIMUM_REFERENCE_QUALITY = 0.22
+    PAIR_MINIMUM_REFERENCES = 10
+    PAIR_REGULARIZATION = 0.1
 
     def __init__(self, repository: PetRepository, image_store: PetImageStore,
                  analysis_repository: PetIdentificationRepository | None = None,
@@ -49,6 +73,7 @@ class PetIdentifier:
         self.analysis_repository = analysis_repository
         self.calibrator = IdentificationCalibrator(analysis_repository)
         self._descriptor_cache: dict[str, tuple[int, int, Descriptor, float]] = {}
+        self._pair_cache: dict[tuple[str, str], tuple[tuple, PairClassifier | None]] = {}
         self._embedding_network = (
             cv2.dnn.readNetFromONNX(str(embedding_model_path))
             if embedding_model_path.is_file() else None
@@ -96,8 +121,13 @@ class PetIdentifier:
         candidates.sort(key=lambda item: item["confidence"], reverse=True)
         best = candidates[0]
         runner_up = candidates[1]["confidence"] if len(candidates) > 1 else 0.0
+        winner = self._pair_winner(descriptors, best["pet_id"], candidates[1]["pet_id"]) if len(candidates) > 1 else None
         if best["confidence"] < minimum_similarity:
             decision, match = "LOW_SIMILARITY", None
+        elif winner:
+            chosen = next(candidate for candidate in candidates if candidate["pet_id"] == winner)
+            decision = "MATCHED"
+            match = PetMatch(winner, chosen["confidence"], self.METHOD)
         elif best["confidence"] - runner_up < minimum_margin:
             decision, match = "AMBIGUOUS", None
         else:
@@ -125,6 +155,29 @@ class PetIdentifier:
         if species not in SUPPORTED_SPECIES:
             return self.calibrator.MINIMUM_SIMILARITY, self.calibrator.MINIMUM_MARGIN
         return self.calibrator.thresholds(species)
+
+    def _pair_winner(self, descriptors: list[Descriptor], first_id: str, second_id: str) -> str | None:
+        if not all(isinstance(descriptor, np.ndarray) for descriptor in descriptors):
+            return None
+        pair = (first_id, second_id) if first_id < second_id else (second_id, first_id)
+        classifier = self._pair_classifier(pair)
+        if classifier is None:
+            return None
+        score = float(np.mean([classifier.score(descriptor) for descriptor in descriptors]))
+        return pair[0] if score >= 0.0 else pair[1]
+
+    def _pair_classifier(self, pair: tuple[str, str]) -> PairClassifier | None:
+        paths = tuple(tuple(sorted(str(item["image_path"]) for item in self.repository.list_reference_images(pet_id)))
+                      for pet_id in pair)
+        cached = self._pair_cache.get(pair)
+        if cached and cached[0] == paths:
+            return cached[1]
+        groups = [[item[0] for path in group if (item := self._descriptor_for_path(path)) is not None
+                   and isinstance(item[0], np.ndarray)] for group in paths]
+        classifier = (PairClassifier.fit(groups[0], groups[1], self.PAIR_REGULARIZATION)
+                      if min(len(group) for group in groups) >= self.PAIR_MINIMUM_REFERENCES else None)
+        self._pair_cache[pair] = (paths, classifier)
+        return classifier
 
     def _reference_descriptors(self, pet: dict) -> list[Descriptor]:
         candidates = [item for path in self._reference_paths(pet)
