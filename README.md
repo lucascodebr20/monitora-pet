@@ -1,7 +1,18 @@
 # Monitora Pet
 
+[![CI](https://github.com/lucascodebr20/monitora-pet/actions/workflows/ci.yml/badge.svg)](https://github.com/lucascodebr20/monitora-pet/actions/workflows/ci.yml)
+[![Licença: Apache-2.0](https://img.shields.io/badge/licen%C3%A7a-Apache--2.0-blue.svg)](LICENSE)
+[![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-baixar-0078D4.svg)](https://apps.microsoft.com/detail/9P1W617SPRFF)
+
 Aplicação local e open source para acompanhar visitas de gatos e cães às áreas
 de comida, água e banheiro (caixa de areia ou tapete) usando câmeras IP existentes.
+
+> **English:** Monitora Pet is a local, open-source Windows app that watches your
+> existing IP cameras and logs when your cats and dogs visit their food, water and
+> litter areas. Video and history never leave your computer. The UI is in Brazilian
+> Portuguese; issues and pull requests in English are welcome.
+>
+> **Instalação mais simples:** baixe na [Microsoft Store](https://apps.microsoft.com/detail/9P1W617SPRFF).
 
 O vídeo, o histórico e os dados de configuração permanecem no computador do
 usuário. O projeto não envia imagens ou credenciais para serviços externos.
@@ -158,3 +169,19 @@ aparecem ali.
 Senhas de câmera são usadas somente para abrir a conexão e não são persistidas
 no SQLite nem retornadas pela API. Arquivos locais de dados, ambientes e
 documentação de trabalho são ignorados pelo Git.
+
+## Contribuir
+
+Veja [CONTRIBUTING.md](CONTRIBUTING.md). Problemas de segurança seguem
+[SECURITY.md](SECURITY.md), nunca issues públicas.
+
+## Licença
+
+Código sob [Apache License 2.0](LICENSE). Créditos de modelos e bibliotecas em
+[NOTICE](NOTICE) e [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Marca
+
+O nome "Monitora Pet", o logo e a identidade na Microsoft Store não fazem parte
+da licença. Forks são bem-vindos, mas devem usar outro nome e outro ícone ao
+serem distribuídos.

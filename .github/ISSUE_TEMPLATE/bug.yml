@@ -1,0 +1,35 @@
+name: Bug
+description: Algo não funciona como esperado
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: O que aconteceu?
+      description: O que você fez, o que esperava e o que aconteceu.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versão do Monitora Pet
+      description: Configurações → Sobre
+      placeholder: "0.3.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Como você instalou?
+      options:
+        - Microsoft Store
+        - start.bat (código-fonte)
+        - Docker
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log
+      description: Trecho de `%LOCALAPPDATA%\MonitoraPet\logs\monitorapet.log`. Remova senhas e endereços que não queira expor.
+      render: text

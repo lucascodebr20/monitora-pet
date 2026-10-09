@@ -54,3 +54,7 @@ front/src-tauri/WebView2Runtime.extracting/
 /monitorapet-deploy.tar.gz
 
 node_modules/
+
+# Ficam no repositorio privado monitora-pet-landing
+/landing/
+/mensagem-grupos.md

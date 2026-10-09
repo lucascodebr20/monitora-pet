@@ -1,0 +1,18 @@
+Monitora Pet
+Copyright 2026 Lucas Campos
+
+This product includes software developed by Lucas Campos and contributors,
+licensed under the Apache License, Version 2.0.
+
+At runtime, Monitora Pet downloads (or, in the desktop package, bundles) the
+following pre-trained models. They are not part of this repository:
+
+- YOLOX-Tiny (yolox_tiny.onnx), Copyright (c) Megvii Inc.,
+  Apache License 2.0 - https://github.com/Megvii-BaseDetection/YOLOX
+- MobileNetV2 (image_classification_mobilenetv2_2022apr.onnx), from the
+  OpenCV Zoo, Apache License 2.0 - https://github.com/opencv/opencv_zoo
+
+See THIRD_PARTY_NOTICES.md for the libraries used by the application.
+
+The names "Monitora Pet" and the Monitora Pet logo are not licensed under the
+Apache License. See the "Marca" section of README.md.

@@ -1,0 +1,37 @@
+name: Câmera não conecta ou não grava
+description: Problemas de descoberta, conexão, vídeo ao vivo ou download de gravações
+labels: [camera]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Marca e modelo da câmera
+      placeholder: "Ex.: Tapo C200, Intelbras iM3"
+    validations:
+      required: true
+  - type: checkboxes
+    id: protocols
+    attributes:
+      label: O que a câmera suporta (se souber)
+      options:
+        - label: ONVIF
+        - label: RTSP
+        - label: Gravação em cartão de memória
+  - type: dropdown
+    id: step
+    attributes:
+      label: Onde falha?
+      options:
+        - A câmera não aparece na busca
+        - Aparece, mas não conecta
+        - Conecta, mas o vídeo trava ou some
+        - Download de gravações do cartão
+        - Outro
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Detalhes e log
+      description: Mensagem de erro e trecho do log (`%LOCALAPPDATA%\MonitoraPet\logs\monitorapet.log`). **Remova senhas.**
+      render: text

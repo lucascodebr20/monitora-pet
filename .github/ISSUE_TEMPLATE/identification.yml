@@ -1,0 +1,26 @@
+name: Erro de detecção ou identificação
+description: Pet não detectado, visita falsa ou pet confundido com outro
+labels: [identification]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Tipo de erro
+      options:
+        - Visita real não foi registrada
+        - Registrou visita que não aconteceu
+        - Confundiu um pet com outro
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Cenário
+      description: Quantos pets, espécie e se são parecidos; posição da câmera; iluminação (dia, noite/IR).
+    validations:
+      required: true
+  - type: textarea
+    id: images
+    attributes:
+      label: Imagens (opcional)
+      description: Snapshots do evento ajudam muito. Só envie imagens que você aceita tornar públicas.
