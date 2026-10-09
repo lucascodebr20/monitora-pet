@@ -56,18 +56,24 @@ class YoloXDetector:
         top_left = centers - sizes / 2
         boxes = np.concatenate((top_left, sizes), axis=1) / ratio
         detections: list[Detection] = []
-        indices = cv2.dnn.NMSBoxes(boxes.tolist(), scores.tolist(), self.confidence, self.nms)
-        for raw_index in indices:
-            index = int(np.asarray(raw_index).reshape(-1)[0])
-            x, y, box_width, box_height = boxes[index]
-            detections.append(Detection(
-                x1=max(0.0, min(1.0, float(x / width))),
-                y1=max(0.0, min(1.0, float(y / height))),
-                x2=max(0.0, min(1.0, float((x + box_width) / width))),
-                y2=max(0.0, min(1.0, float((y + box_height) / height))),
-                confidence=float(scores[index]),
-                species=species[index],
-            ))
+        for pet_species in PET_CLASS_INDICES:
+            class_indices = np.flatnonzero(species == pet_species)
+            if not len(class_indices):
+                continue
+            selected_boxes = boxes[class_indices]
+            selected_scores = scores[class_indices]
+            indices = cv2.dnn.NMSBoxes(selected_boxes.tolist(), selected_scores.tolist(), self.confidence, self.nms)
+            for raw_index in indices:
+                index = int(np.asarray(raw_index).reshape(-1)[0])
+                x, y, box_width, box_height = selected_boxes[index]
+                detections.append(Detection(
+                    x1=max(0.0, min(1.0, float(x / width))),
+                    y1=max(0.0, min(1.0, float(y / height))),
+                    x2=max(0.0, min(1.0, float((x + box_width) / width))),
+                    y2=max(0.0, min(1.0, float((y + box_height) / height))),
+                    confidence=float(selected_scores[index]),
+                    species=pet_species,
+                ))
         return detections
 
     def _decode(self, output: np.ndarray) -> np.ndarray:

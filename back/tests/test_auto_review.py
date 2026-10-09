@@ -3,7 +3,6 @@ import unittest
 from pathlib import Path
 
 from app.domain.errors import InvalidDomainValueError
-from app.infra.ai.identification_calibration import METHOD
 from app.infra.repositories.pet_identification_repository import PetIdentificationRepository
 from app.infra.repositories.pet_repository import PetRepository
 from app.infra.repositories.settings_repository import SettingsRepository
@@ -34,7 +33,7 @@ class AutoReviewTests(unittest.TestCase):
     def _event(self, pet_id, confidence, species="CAT"):
         return self.event_repository.create_detected_event(
             self.camera["id"], self.zone["id"], "2026-10-10T12:00:00+00:00", "2026-10-10T12:01:00+00:00",
-            0.9, None, species, None, pet_id, confidence, METHOD,
+            0.9, None, species, None, pet_id, confidence, "mobilenet-embedding-v2",
         )
 
     def _analysis(
@@ -46,7 +45,7 @@ class AutoReviewTests(unittest.TestCase):
                 {"pet_id": winner, "confidence": winner_confidence, "reference_count": 10},
                 {"pet_id": runner_up, "confidence": runner_up_confidence, "reference_count": 10},
             ],
-            METHOD,
+            "mobilenet-embedding-v2",
         )
         self.identification.mark_review(event_id, reviewed_pet_id)
 
@@ -105,13 +104,13 @@ class AutoReviewTests(unittest.TestCase):
         event_id = self._event(pet["id"], 0.95)
         self.identification.create_analysis(
             event_id, "CAT", None, "MATCHED", pet["id"], 0.95, 0.7, 0.0,
-            [{"pet_id": pet["id"], "confidence": 0.95, "reference_count": 10}], METHOD,
+            [{"pet_id": pet["id"], "confidence": 0.95, "reference_count": 10}], "mobilenet-embedding-v2",
         )
-        before = self.identification.reviewed_count(METHOD)
+        before = self.identification.reviewed_count("mobilenet-embedding-v2")
 
         self.service.confirm(event_id, pet["id"])
 
-        self.assertEqual(self.identification.reviewed_count(METHOD), before)
+        self.assertEqual(self.identification.reviewed_count("mobilenet-embedding-v2"), before)
         self.assertTrue(self.event_repository.has_review(event_id))
         row = self.database.one("SELECT automatic FROM human_reviews WHERE event_id = ?", (event_id,))
         self.assertEqual(int(row["automatic"]), 1)

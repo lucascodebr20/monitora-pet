@@ -174,9 +174,6 @@ class EventRepository:
         referencia faria um erro contaminar as comparacoes seguintes.
         """
         with self.database.connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            if connection.execute("SELECT 1 FROM human_reviews WHERE event_id = ?", (review["event_id"],)).fetchone():
-                return
             connection.execute(
                 """INSERT INTO human_reviews
                    (id, event_id, decision, corrected_activity, cat_name, notes, created_at, pet_id, automatic)
@@ -187,43 +184,6 @@ class EventRepository:
                 ),
             )
             connection.execute("UPDATE events SET pet_id = ? WHERE id = ?", (pet_id, review["event_id"]))
-
-    def finalize_identification(self, event_id: str, capture_path: str | None, analysis: dict[str, Any], observation_count: int) -> bool:
-        """Replace the provisional identification only while no review exists."""
-        match = analysis.get("match") or {}
-        with self.database.connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            if connection.execute("SELECT 1 FROM human_reviews WHERE event_id = ?", (event_id,)).fetchone():
-                return False
-            connection.execute(
-                """UPDATE events SET pet_id = ?, automatically_identified_pet_id = ?,
-                   pet_identification_confidence = ?, pet_identification_method = ?,
-                   pet_capture_path = COALESCE(?, pet_capture_path) WHERE id = ?""",
-                (match.get("pet_id"), match.get("pet_id"), match.get("confidence"), analysis["method"], capture_path, event_id),
-            )
-            row = connection.execute("SELECT id FROM pet_identification_analyses WHERE event_id = ?", (event_id,)).fetchone()
-            if row:
-                connection.execute(
-                    """UPDATE pet_identification_analyses SET decision = ?, selected_pet_id = ?, selected_confidence = ?,
-                       capture_path = COALESCE(?, capture_path), minimum_similarity = ?, minimum_margin = ?, method = ?,
-                       observation_count = ?, identification_stage = 'FINAL' WHERE id = ?""",
-                    (analysis["decision"], match.get("pet_id"), match.get("confidence"), capture_path,
-                     analysis["minimum_similarity"], analysis["minimum_margin"], analysis["method"], observation_count, row[0]),
-                )
-                connection.execute("DELETE FROM pet_identification_scores WHERE analysis_id = ?", (row[0],))
-                connection.executemany(
-                    """INSERT INTO pet_identification_scores (analysis_id, pet_id, confidence, reference_count, rank)
-                       VALUES (?, ?, ?, ?, ?)""",
-                    [(row[0], score["pet_id"], score["confidence"], score["reference_count"], rank)
-                     for rank, score in enumerate(analysis["scores"], start=1)],
-                )
-            return True
-
-    def capture_is_used(self, path: str) -> bool:
-        return self.database.one(
-            """SELECT id FROM events WHERE pet_capture_path = ?
-               UNION SELECT id FROM pet_reference_images WHERE image_path = ? LIMIT 1""", (path, path)
-        ) is not None
 
     def complete_review(self, review: dict[str, Any], pet_id: str | None, corrected_zone_type: str | None) -> None:
         zone_type = corrected_zone_type

@@ -14,10 +14,8 @@ from app.domain.zone_presence import PresenceState, TransitionType, ZonePresence
 from app.infra.media.pet_image_store import PetImageStore
 from app.services.monitoring.clips import ClipBuffer, ClipRecorder
 from app.services.monitoring.events import EventRecorder
-from app.services.monitoring.observations import PetObservations
 
-MULTIPLE_PET_FRAMES = 3
-TRACK_JUMP_DISTANCE = 0.35
+MAX_PET_OBSERVATIONS = 5
 
 
 @dataclass
@@ -25,10 +23,7 @@ class ZoneRuntime:
     machine: ZonePresenceMachine = field(default_factory=ZonePresenceMachine)
     clip: ClipBuffer = field(default_factory=ClipBuffer)
     species: PetSpecies = PetSpecies.CAT
-    observations: PetObservations = field(default_factory=PetObservations)
-    last_detection: Detection | None = None
-    multiple_pet_frames: int = 0
-    ambiguity: str | None = None
+    observations: list[np.ndarray] = field(default_factory=list)
 
     @property
     def event_id(self) -> str | None:
@@ -37,9 +32,6 @@ class ZoneRuntime:
     def clear(self) -> None:
         self.clip.reset()
         self.observations.clear()
-        self.last_detection = None
-        self.multiple_pet_frames = 0
-        self.ambiguity = None
 
     def idle(self) -> bool:
         return self.machine.state == PresenceState.OUTSIDE and self.event_id is None
@@ -97,12 +89,6 @@ class ZoneTracker:
         for buffer in list(self.buffers()):
             self.clips.finalize(buffer, now_utc)
 
-    def finalize_identifications(self, now_utc: datetime) -> None:
-        for runtimes in self.runtimes.values():
-            for runtime in runtimes.values():
-                if runtime.event_id:
-                    self.events.refine(runtime.event_id, runtime.observations.images, runtime.species, now_utc, runtime.ambiguity)
-
     def _track_zone(
         self,
         camera_id: str,
@@ -118,7 +104,7 @@ class ZoneTracker:
             runtime.clip.reset(started_at=now)
         if inside and frame is not None:
             self.clips.capture(runtime.clip, frame, now, now_utc, self.buffers())
-            self._observe_pet(runtime, frame, inside, now)
+            self._observe_pet(runtime, frame, inside)
         transitions = runtime.machine.observe(
             bool(inside),
             confidence,
@@ -132,11 +118,11 @@ class ZoneTracker:
                 primary = max(inside, key=lambda detection: detection.confidence)
                 runtime.species = primary.species
                 runtime.clip.event_id = self.events.open(
-                    camera_id, zone["id"], runtime.species, transition, runtime.observations.images, frame, primary, now_utc, runtime.ambiguity
+                    camera_id, zone["id"], runtime.species, transition, runtime.observations, frame, primary, now_utc
                 )
             elif transition.type == TransitionType.FINISH and runtime.event_id:
                 self.clips.finalize(runtime.clip, now_utc)
-                self.events.close(runtime.event_id, transition, now_utc, runtime.observations.images, runtime.species, runtime.ambiguity)
+                self.events.close(runtime.event_id, transition, now_utc)
                 runtime.clear()
         if runtime.event_id and runtime.clip.exhausted(now):
             self.clips.finalize(runtime.clip, now_utc)
@@ -154,24 +140,11 @@ class ZoneTracker:
             "event_id": runtime.event_id,
         }
 
-    def _observe_pet(self, runtime: ZoneRuntime, frame: np.ndarray, inside: list[Detection], now: float) -> None:
+    def _observe_pet(self, runtime: ZoneRuntime, frame: np.ndarray, inside: list[Detection]) -> None:
         if not self.pet_image_store:
             return
         primary = max(inside, key=lambda detection: detection.confidence)
-        if len(inside) > 1:
-            runtime.multiple_pet_frames += 1
-            if runtime.multiple_pet_frames >= MULTIPLE_PET_FRAMES:
-                runtime.ambiguity = "MULTIPLE_PETS"
-        elif runtime.last_detection is not None:
-            previous = runtime.last_detection
-            if np.hypot(primary.centroid[0] - previous.centroid[0], primary.centroid[1] - previous.centroid[1]) > TRACK_JUMP_DISTANCE:
-                runtime.ambiguity = "UNSTABLE_TRACK"
-        runtime.last_detection = primary
-        if runtime.ambiguity:
-            runtime.observations.clear()
-            return
-        if not runtime.observations.due(now):
-            return
         crop = self.pet_image_store.extract_capture(frame, primary)
         if crop is not None:
-            runtime.observations.add(crop, now)
+            runtime.observations.append(crop)
+            del runtime.observations[:-MAX_PET_OBSERVATIONS]

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from app.infra.repositories.pet_identification_repository import PetIdentificationRepository
 
-METHOD = "mobilenet-whitened-v3"
-MINIMUM_SIMILARITY = 0.115
-MINIMUM_MARGIN = 0.016
+METHOD = "mobilenet-embedding-v2"
+MINIMUM_SIMILARITY = 0.731
+MINIMUM_MARGIN = 0.064
 CALIBRATION_INTERVAL = 10
-TARGET_PRECISION = 0.95
+TARGET_PRECISION = 0.80
 
 Sample = tuple[float, float, bool]
 

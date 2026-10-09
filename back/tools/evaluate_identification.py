@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -31,9 +31,16 @@ def production(db: sqlite3.Connection, since: str) -> None:
         matched = [item for item in items if item[0] == "MATCHED"]
         correct = sum(item[1] == item[2] for item in matched)
         top1 = sum(item[3] == item[2] for item in items)
-        print(f"  {method:26} revisados {len(items):4}  top-1 {top1 / len(items):6.1%}  "
-              f"MATCHED {correct}/{len(matched)} = {correct / max(1, len(matched)):6.1%}  "
+        print(f"  {method:26} revisados {len(items):4}  acerto efetivo {correct}/{len(items)} = "
+              f"{correct / len(items):6.1%}  erros {len(matched) - correct}  "
+              f"nao identificados {len(items) - len(matched)}")
+        print(f"  {'':26} top-1 {top1 / len(items):6.1%}  "
+              f"precisao MATCHED {correct}/{len(matched)} = {correct / max(1, len(matched)):6.1%}  "
               f"cobertura {len(matched) / len(items):5.0%}")
+        missed = Counter(item[0] for item in items if item[0] != "MATCHED")
+        if missed:
+            print(f"  {'':26} nao identificados por motivo: "
+                  + ", ".join(f"{decision} {count}" for decision, count in missed.most_common()))
 
 
 class TimeBoundPets:
